@@ -64,22 +64,27 @@ else()
   message(STATUS "No portability strategy set. Setting to None")
 endif()
 
+# Export for in-tree builds
+export(PACKAGE ports-of-call)
+export(TARGETS ports-of-call::ports-of-call
+  FILE "{PROJECT_BINARY_DIR}/ports-of-callTargets.cmake")
+
 # INSTALL
 # ----------------------------------------
 set(CMAKE_INSTALL_LIBDIR lib/ CACHE FILEPATH "")
+set(CMAKE_INSTALL_INCLUDEDIR include/ CACHE_FILEPATH "")
+set(PORTS_OF_CALL_SYSCONFIG_INSTALL_DIR etc/ports-of-call FILEPATH "")
 
-# Output targets
-export(TARGETS ports-of-call::ports-of-call
-  FILE "${PROJECT_BINARY_DIR}/ports-of-callTargets.cmake")
-install(EXPORT ports-of-call::ports-of-call DESTINATION
-  "${CMAKE_INSTALL_LIBDIR}/ports-of-call/cmake" COMPONENT DEV)
+install(TARGETS ports-of-call::ports-of-call
+  EXPORT ports-of-callTargets
+  DESTINATION "${CMAKE_INSTALL_LIBDIR}/ports-of-call")
 
 # package config file
 include(CMakePackageConfigHelpers)
 configure_package_config_file(ports-of-callConfig.cmake.in
   ${CMAKE_CURRENT_BINARY_DIR}/ports-of-callConfig.cmake
   INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/ports-of-call/cmake
-  PATH_VARS INCLUDE_INSTALL_DIR SYSCONFIG_INSTALL_DIR)
+  PATH_VARS CMAKE_INSTALL_INCLUDEDIR PORTS_OF_CALL_SYSCONFIG_INSTALL_DIR)
 write_basic_package_version_file(
   ${CMAKE_CURRENT_BINARY_DIR}/ports-of-callConfigVersion.cmake
   VERSION ${PORTS_OF_CALL_VERSION}
@@ -99,3 +104,9 @@ install(DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/ports-of-call"
   DESTINATION "include"
   FILES_MATCHING PATTERN "*.hpp"
   )
+
+# Output and installtargets
+install(EXPORT ports-of-callTargets
+  FILE "ports-of-callTargets.cmake"
+  DESTINATION "${CMAKE_INSTALL_LIBDIR}/ports-of-call/cmake"
+  COMPONENT dev)
