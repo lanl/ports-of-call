@@ -18,7 +18,8 @@ list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_EXPORT_COMPILE_COMMANDS On)
 
-project(ports-of-call VERSION 1.0.0)
+set(PORTS_OF_CALL_VERSION 1.0.0)
+project(ports-of-call VERSION ${PORTS_OF_CALL_VERSION})
 
 # Don't allow in-source builds
 file(TO_CMAKE_PATH "${PROJECT_BINARY_DIR}/CMakeLists.txt" LOC_PATH)
@@ -62,6 +63,30 @@ else()
     PORTABILITY_STRATEGY_NONE)
   message(STATUS "No portability strategy set. Setting to None")
 endif()
+
+# INSTALL
+# ----------------------------------------
+set(CMAKE_INSTALL_LIBDIR lib/ CACHE FILEPATH "")
+
+# Output targets
+export(TARGETS ports-of-call::ports-of-call
+  FILE "${PROJECT_BINARY_DIR}/ports-of-callTargets.cmake")
+install(EXPORT ports-of-call::ports-of-call DESTINATION
+  "${CMAKE_INSTALL_LIBDIR}/ports-of-call/cmake" COMPONENT DEV)
+
+# package config file
+include(CMakePackageConfigHelpers)
+configure_package_config_file(ports-of-callConfig.cmake.in
+  ${CMAKE_CURRENT_BINARY_DIR}/ports-of-callConfig.cmake
+  INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/ports-of-call/cmake
+  PATH_VARS INCLUDE_INSTALL_DIR SYSCONFIG_INSTALL_DIR)
+write_basic_package_version_file(
+  ${CMAKE_CURRENT_BINARY_DIR}/ports-of-callConfigVersion.cmake
+  VERSION ${PORTS_OF_CALL_VERSION}
+  COMPATIBILITY SameMajorVersion )
+install(FILES ${CMAKE_CURRENT_BINARY_DIR}/ports-of-callConfig.cmake
+              ${CMAKE_CURRENT_BINARY_DIR}/ports-of-callConfigVersion.cmake
+        DESTINATION ${CMAKE_INSTALL_LIBDIR}/ports-of-call/cmake )
 
 # Enables
 # #include <ports-of-call/portability.hpp>
