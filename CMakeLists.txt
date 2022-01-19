@@ -42,12 +42,14 @@ endif()
 
 # make cache variables for install destinations
 include(GNUInstallDirs)
-# Add a library
-# mostly includes
-# Note the stupid hoops we jump through to expose
-# ports-of-call::ports-of-call
+
+# Define library
+# use a string variable to ease derived variable naming
+# NOTE: this gets used for directory names
 set(POCLIB "ports-of-call")
+# Pure-header library, so just use interface
 add_library(${POCLIB} INTERFACE)
+# Make an alias (useful for in-tree builds)
 add_library(${POCLIB}::${POCLIB} ALIAS ${POCLIB})
 
 # Portability strategy
@@ -76,53 +78,58 @@ target_include_directories(${POCLIB}
   INTERFACE
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
   $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
-  )
+)
 
 
 # INSTALL
 # ----------------------------------------
-#set(CMAKE_INSTALL_LIBDIR lib/ CACHE FILEPATH "")
-#set(CMAKE_INSTALL_INCLUDEDIR include/ CACHE_FILEPATH "")
-#set(PORTS_OF_CALL_SYSCONFIG_INSTALL_DIR etc/ports-of-call FILEPATH "")
 
+# Coordinate external CMake interface (EXPORT) with targets
 install(TARGETS ${POCLIB}
-  EXPORT ports-of-callTargets
+  EXPORT ${POCLIB}Targets
   LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
   ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
   RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
   INCLUDES DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
 )
+
 # package config file
 include(CMakePackageConfigHelpers)
-configure_package_config_file(ports-of-callConfig.cmake.in
-  ${CMAKE_CURRENT_BINARY_DIR}/ports-of-callConfig.cmake
-  INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/ports-of-call
+configure_package_config_file(${POCLIB}Config.cmake.in
+  ${CMAKE_CURRENT_BINARY_DIR}/${POCLIB}Config.cmake
+  INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/${POCLIB}
 )
+# ...and the version file
 write_basic_package_version_file(
-  ${CMAKE_CURRENT_BINARY_DIR}/ports-of-callConfigVersion.cmake
+  ${CMAKE_CURRENT_BINARY_DIR}/${POCLIB}ConfigVersion.cmake
   VERSION ${PORTS_OF_CALL_VERSION}
   COMPATIBILITY SameMajorVersion )
 
-install(FILES ${CMAKE_CURRENT_BINARY_DIR}/ports-of-callConfig.cmake
-              ${CMAKE_CURRENT_BINARY_DIR}/ports-of-callConfigVersion.cmake
-        DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/ports-of-call )
+# Install the cmake configuration files
+install(FILES ${CMAKE_CURRENT_BINARY_DIR}/${POCLIB}Config.cmake
+              ${CMAKE_CURRENT_BINARY_DIR}/${POCLIB}ConfigVersion.cmake
+        DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/${POCLIB} )
 
-# Enables includes
+# Install the source header files
 install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/ports-of-call/portability.hpp"
               "${CMAKE_CURRENT_SOURCE_DIR}/ports-of-call/portable_arrays.hpp"
-  DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/ports-of-call
+  DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/${POCLIB}
   )
 
-# Output and installtargets
-install(EXPORT ports-of-callTargets
+# Install the export target. This will define the CMake target
+# for external projects when used with `find_package`
+install(EXPORT ${POCLIB}Targets
   NAMESPACE ${POCLIB}::
-  FILE "ports-of-callTargets.cmake"
-  DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/ports-of-call"
+  FILE "${POCLIB}Targets.cmake"
+  DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/${POCLIB}"
   COMPONENT dev)
 
-# Export for in-tree builds
+# Export configuration for external projects that reference
+# just our build-tree; e.g. for submodules. To use, ensure 
+# `CMAKE_PREFIX_PATH` points to this source directory.
+# NOTE: This config will not be relocatable!
 export(TARGETS ${POCLIB} NAMESPACE ${POCLIB}::
-  FILE "${PROJECT_BINARY_DIR}/ports-of-callTargets.cmake")
+  FILE "${CMAKE_CURRENT_BINARY_DIR}/${POCLIB}Targets.cmake")
 export(PACKAGE ${POCLIB})
 
 
