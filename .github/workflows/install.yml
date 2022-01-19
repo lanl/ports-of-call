@@ -28,3 +28,7 @@ jobs:
             mkdir -p ${HOME}/install
             cmake -DCMAKE_INSTALL_PREFIX=${HOME}/install ..
             make install
+            rm -rf ./*
+            mkdir -p ../installtest/build
+            cd ../installtest/build
+            cmake -DCMAKE_PREFIX_PATH=${HOME}/install ..
