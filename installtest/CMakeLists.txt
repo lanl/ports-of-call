@@ -42,6 +42,6 @@ endif()
 
 add_library(mytest libtest.cc)
 target_link_libraries(mytest
-  INTERFACE
+  PRIVATE
   ports-of-call::ports-of-call
   )
