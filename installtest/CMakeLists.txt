@@ -27,7 +27,7 @@ if(EXISTS "${LOC_PATH}")
     "Please make a build subdirectory. Feel free to remove CMakeCache.txt and CMakeFiles.")
 endif()
 
-find_package(ports-of-call REQUIRED)
+find_package(ports-of-call CONFIG REQUIRED)
 if (NOT ports-of-call_FOUND)
   message(FATAL_ERROR "Ports of Call not found.")
 endif()
