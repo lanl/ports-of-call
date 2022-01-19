@@ -26,9 +26,12 @@ jobs:
             mkdir -p build
             cd build
             mkdir -p ${HOME}/install
+            echo "Build"
             cmake -DCMAKE_INSTALL_PREFIX=${HOME}/install ..
             make install
+            echo "Now try find package from a separate directory"
             rm -rf ./*
             mkdir -p ../installtest/build
             cd ../installtest/build
             cmake -DCMAKE_PREFIX_PATH=${HOME}/install ..
+            echo "Done"
