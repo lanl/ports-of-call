@@ -61,6 +61,7 @@ endif()
 # CONFIGURATION LOGIC
 # ----------------------------------------
 
+# TODO: I ended up not liking this
 # set the portability strategy. we only allow 3 options: None, Kokkos, Cuda
 set(PORTABILITY_STRATEGY_OPTIONS "None;Kokkos;Cuda")
 if(NOT PORTABILITY_STRATEGY)
@@ -76,11 +77,8 @@ if(_psidx EQUAL -1)
 endif()
 # string-manip for the define
 string(TOUPPER ${PORTABILITY_STRATEGY} PORTABILITY_STRATEGY)
-set(PORTABILITY_STRATEGY "PORTABILITY_STRATEGY_${PORTABILITY_STRATEGY}")
+set(PORTABILITY_STRATEGY "PORTABILITY_STRATEGY_${PORTABILITY_STRATEGY}" CACHE STRING "" FORCE) 
 message(STATUS "Will define ${PORTABILITY_STRATEGY}")
-
-mark_as_advanced(PORTABILITY_STRATEGY)
-
 
 # TARGET CONFIGURATION
 # ----------------------------------------
