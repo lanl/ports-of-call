@@ -71,7 +71,7 @@ endif()
 # Export for in-tree builds
 export(PACKAGE ${POCLIB})
 export(TARGETS ${POCLIB} NAMESPACE ${POCLIB}::
-  FILE "{PROJECT_BINARY_DIR}/ports-of-callTargets.cmake")
+  FILE "${PROJECT_BINARY_DIR}/ports-of-callTargets.cmake")
 
 # INSTALL
 # ----------------------------------------
