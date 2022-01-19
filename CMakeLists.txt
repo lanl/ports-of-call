@@ -13,13 +13,31 @@
 #------------------------------------------------------------------------------#
 
 cmake_minimum_required(VERSION 3.14)
+
+# PROJECT
+# ----------------------------------------
+
+# define project and version
+set(PORTS_OF_CALL_VERSION 1.0.0)
+project(ports-of-call VERSION ${PORTS_OF_CALL_VERSION})
+
+# CMAKE WARMUP
+# ----------------------------------------
+
+# update the module path
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 
+# some global properties
+# TODO: may be more appropriate down the road to attach the standard
+#       directly to the target usage requirements
 set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_EXPORT_COMPILE_COMMANDS On)
 
-set(PORTS_OF_CALL_VERSION 1.0.0)
-project(ports-of-call VERSION ${PORTS_OF_CALL_VERSION})
+# bring in some helpful CMake scripts 
+# make cache variables for install destinations
+include(GNUInstallDirs)
+# package config file
+include(CMakePackageConfigHelpers)
 
 # Don't allow in-source builds
 file(TO_CMAKE_PATH "${PROJECT_BINARY_DIR}/CMakeLists.txt" LOC_PATH)
@@ -40,8 +58,32 @@ if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
     "Debug" "Release" "MinSizeRel" "RelWithDebInfo")
 endif()
 
-# make cache variables for install destinations
-include(GNUInstallDirs)
+# CONFIGURATION LOGIC
+# ----------------------------------------
+
+# set the portability strategy. we only allow 3 options: None, Kokkos, Cuda
+set(PORTABILITY_STRATEGY_OPTIONS "None;Kokkos;Cuda")
+if(NOT PORTABILITY_STRATEGY)
+  list(GET PORTABILITY_STRATEGY_OPTIONS 0 PORTABILITY_STRATEGY)
+endif()
+# if the cache variable is not valid, display a warning and default to none
+list(FIND PORTABILITY_STRATEGY_OPTIONS ${PORTABILITY_STRATEGY} _psidx)
+if(_psidx EQUAL -1)
+  message(WARNING "The portability strategy [\"${PORTABILITY_STRATEGY}\"] is 
+    not valid, defaulting to \"None\", valid options are 
+    ${PORTABILITY_STRATEGY_OPTIONS}")
+  list(GET PORTABILITY_STRATEGY_OPTIONS 0 PORTABILITY_STRATEGY)
+endif()
+# string-manip for the define
+string(TOUPPER ${PORTABILITY_STRATEGY} PORTABILITY_STRATEGY)
+set(PORTABILITY_STRATEGY "PORTABILITY_STRATEGY_${PORTABILITY_STRATEGY}")
+message(STATUS "Will define ${PORTABILITY_STRATEGY}")
+
+mark_as_advanced(PORTABILITY_STRATEGY)
+
+
+# TARGET CONFIGURATION
+# ----------------------------------------
 
 # Define library
 # use a string variable to ease derived variable naming
@@ -52,25 +94,10 @@ add_library(${POCLIB} INTERFACE)
 # Make an alias (useful for in-tree builds)
 add_library(${POCLIB}::${POCLIB} ALIAS ${POCLIB})
 
-# Portability strategy
-if(PORTABILITY_STRATEGY)
-  if (${PORTABILITY_STRATEGY} STREQUAL "Kokkos")
-    target_compile_definitions(${POCLIB}
-      INTERFACE
-      PORTABILITY_STRATEGY_KOKKOS)
-    message(STATUS "Setting portability strategy to Kokkos")
-  else(${PORTABILITY_STRATEGY} STREQUAL "Cuda")
-    target_compile_definitions(${POCLIB}
-      INTERFACE
-      PORTABILITY_STRATEGY_CUDA)
-    message(STATUS "Setting portability strategy to Cuda")
-  endif()
-else()
-  target_compile_definitions(${POCLIB}
-    INTERFACE
-    PORTABILITY_STRATEGY_NONE)
-  message(STATUS "No portability strategy set. Setting to None")
-endif()
+target_compile_definitions(${POCLIB}
+INTERFACE
+  ${PORTABILITY_STRATEGY}
+)
 
 # Enables
 # #include <ports-of-call/portability.hpp>
@@ -81,7 +108,7 @@ target_include_directories(${POCLIB}
 )
 
 
-# INSTALL
+# INSTALL & EXPORT
 # ----------------------------------------
 
 # Coordinate external CMake interface (EXPORT) with targets
@@ -93,12 +120,15 @@ install(TARGETS ${POCLIB}
   INCLUDES DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
 )
 
-# package config file
-include(CMakePackageConfigHelpers)
 configure_package_config_file(${POCLIB}Config.cmake.in
   ${CMAKE_CURRENT_BINARY_DIR}/${POCLIB}Config.cmake
   INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/${POCLIB}
 )
+
+#generate the header file
+configure_file(${CMAKE_CURRENT_LIST_DIR}/portability.hpp.in
+  ${CMAKE_CURRENT_LIST_DIR}/portability.hpp @ONLY)
+
 # ...and the version file
 write_basic_package_version_file(
   ${CMAKE_CURRENT_BINARY_DIR}/${POCLIB}ConfigVersion.cmake
