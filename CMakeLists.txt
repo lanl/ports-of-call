@@ -102,6 +102,9 @@ install(FILES ${CMAKE_CURRENT_BINARY_DIR}/ports-of-callConfig.cmake
 target_include_directories(${POCLIB}
   INTERFACE
   $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}>)
+target_include_directories(${POCLIB}
+  INTERFACE
+  $<INSTALL_INTERFACE:include>)
 
 # Enables includes
 install(DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/ports-of-call"
