@@ -125,10 +125,6 @@ configure_package_config_file(${POCLIB}Config.cmake.in
   INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/${POCLIB}
 )
 
-#generate the header file
-configure_file(${CMAKE_CURRENT_LIST_DIR}/portability.hpp.in
-  ${CMAKE_CURRENT_LIST_DIR}/portability.hpp @ONLY)
-
 # ...and the version file
 write_basic_package_version_file(
   ${CMAKE_CURRENT_BINARY_DIR}/${POCLIB}ConfigVersion.cmake
