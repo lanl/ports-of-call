@@ -29,7 +29,7 @@ jobs:
             cmake --build build
             cmake --install build
             echo "Now try find package from a separate directory"
-            rm -rf ./*
+            rm -rf build
             cd installtest
             cmake -DCMAKE_PREFIX_PATH=${HOME}/install -B build .
             echo "Now try and build with includes..."
