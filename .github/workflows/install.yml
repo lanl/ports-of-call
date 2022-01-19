@@ -23,17 +23,15 @@ jobs:
             sudo apt-get install -y --force-yes -qq build-essential
         - name: build and install
           run: |
-            mkdir -p build
-            cd build
-            mkdir -p ${HOME}/install
             echo "Build"
-            cmake -DCMAKE_INSTALL_PREFIX=${HOME}/install ..
-            make install
+            mkdir -p ${HOME}/install
+            cmake -DCMAKE_INSTALL_PREFIX=${HOME}/install -B build .
+            cmake --build build
+            cmake --install build
             echo "Now try find package from a separate directory"
-            rm -rf ./*
-            mkdir -p ../installtest/build
-            cd ../installtest/build
-            cmake -DCMAKE_PREFIX_PATH=${HOME}/install ..
+            rm -rf build
+            cd installtest
+            cmake -DCMAKE_PREFIX_PATH=${HOME}/install -B build .
             echo "Now try and build with includes..."
-            cmake --build .
+            cmake --build build
             echo "Done"
