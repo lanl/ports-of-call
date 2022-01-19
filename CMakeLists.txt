@@ -42,31 +42,35 @@ endif()
 
 # Add a library
 # mostly includes
-add_library(ports-of-call::ports-of-call INTERFACE IMPORTED GLOBAL)
+# Note the stupid hoops we jump through to expose
+# ports-of-call::ports-of-call
+set(POCLIB "ports-of-call")
+add_library(${POCLIB} INTERFACE)
+add_library(${POCLIB}::${POCLIB} ALIAS ${POCLIB})
 
 # Portability strategy
 if(PORTABILITY_STRATEGY)
   if (${PORTABILITY_STRATEGY} STREQUAL "Kokkos")
-    target_compile_definitions(ports-of-call::ports-of-call
+    target_compile_definitions(${POCLIB}
       INTERFACE
       PORTABILITY_STRATEGY_KOKKOS)
     message(STATUS "Setting portability strategy to Kokkos")
   else(${PORTABILITY_STRATEGY} STREQUAL "Cuda")
-    target_compile_definitions(ports-of-call::ports-of-call
+    target_compile_definitions(${POCLIB}
       INTERFACE
       PORTABILITY_STRATEGY_CUDA)
     message(STATUS "Setting portability strategy to Cuda")
   endif()
 else()
-  target_compile_definitions(ports-of-call::ports-of-call
+  target_compile_definitions(${POCLIB}
     INTERFACE
     PORTABILITY_STRATEGY_NONE)
   message(STATUS "No portability strategy set. Setting to None")
 endif()
 
 # Export for in-tree builds
-export(PACKAGE ports-of-call)
-export(TARGETS ports-of-call::ports-of-call
+export(PACKAGE ${POCLIB})
+export(TARGETS ${POCLIB} NAMESPACE ${POCLIB}::
   FILE "{PROJECT_BINARY_DIR}/ports-of-callTargets.cmake")
 
 # INSTALL
@@ -75,7 +79,7 @@ set(CMAKE_INSTALL_LIBDIR lib/ CACHE FILEPATH "")
 set(CMAKE_INSTALL_INCLUDEDIR include/ CACHE_FILEPATH "")
 set(PORTS_OF_CALL_SYSCONFIG_INSTALL_DIR etc/ports-of-call FILEPATH "")
 
-install(TARGETS ports-of-call::ports-of-call
+install(TARGETS ${POCLIB}
   EXPORT ports-of-callTargets
   DESTINATION "${CMAKE_INSTALL_LIBDIR}/ports-of-call")
 
@@ -95,7 +99,7 @@ install(FILES ${CMAKE_CURRENT_BINARY_DIR}/ports-of-callConfig.cmake
 
 # Enables
 # #include <ports-of-call/portability.hpp>
-target_include_directories(ports-of-call::ports-of-call
+target_include_directories(${POCLIB}
   INTERFACE
   $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}>)
 
@@ -107,6 +111,7 @@ install(DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/ports-of-call"
 
 # Output and installtargets
 install(EXPORT ports-of-callTargets
+  NAMESPACE ${POCLIB}::
   FILE "ports-of-callTargets.cmake"
   DESTINATION "${CMAKE_INSTALL_LIBDIR}/ports-of-call/cmake"
   COMPONENT dev)
