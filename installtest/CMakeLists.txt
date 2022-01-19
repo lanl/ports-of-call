@@ -34,11 +34,13 @@ endif()
 
 if (TARGET ports-of-call::ports-of-call)
   message(STATUS "The ports of call library was succesfully provided")
+  get_target_property(_poc_incdir ports-of-call::ports-of-call INCLUDE_DIRECTORIES)
+  message(STATUS "ports of call include directory: ${_poc_incdir}")
 else()
   message(FATAL_ERROR "The ports-of-call::ports-of-call library is missing!")
 endif()
 
-add_library(mytest INTERFACE)
+add_library(mytest libtest.cc)
 target_link_libraries(mytest
   INTERFACE
   ports-of-call::ports-of-call
