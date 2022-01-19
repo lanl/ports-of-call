@@ -34,4 +34,6 @@ jobs:
             mkdir -p ../installtest/build
             cd ../installtest/build
             cmake -DCMAKE_PREFIX_PATH=${HOME}/install ..
+            echo "Now try and build with includes..."
+            cmake --build .
             echo "Done"
