@@ -63,7 +63,7 @@ endif()
 
 # TODO: I ended up not liking this
 # set the portability strategy. we only allow 3 options: None, Kokkos, Cuda
-set(PORTABILITY_STRATEGY_OPTIONS "None;Kokkos;Cuda")
+set(PORTABILITY_STRATEGY_OPTIONS "None;Kokkos;Cuda" CACHE STRING "" FORCE)
 set_property(CACHE PORTABILITY_STRATEGY_OPTIONS
   PROPERTY STRINGS ${PORTABILITY_STRATEGY_OPTIONS})
 if(NOT PORTABILITY_STRATEGY)
