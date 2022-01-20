@@ -11,9 +11,17 @@ class PortsOfCall(CMakePackage, CudaPackage):
 
     version("main", branch="main")
     variant("doc", default=False, description="Sphinx Documentation Support")
+    variant("portability_strategy", description="Portability strategy backend",
+            values=("Kokkos","Cuda","None"),multi=False,default="none")
 
     depends_on("cmake@3.12:")
 
     depends_on("py-sphinx", when="+doc")
     depends_on("py-sphinx-rtd-theme@0.4.3", when="+doc")
     depends_on("py-sphinx-multiversion", when="+doc")
+
+    def cmake_args(self):
+        args = [
+            self.define_from_variant("PORTABILITY_STRATEGY", "portability_strategy")
+        ]
+        return args
