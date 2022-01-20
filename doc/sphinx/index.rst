@@ -6,8 +6,10 @@
 Ports of Call: Utilities for Performance Portability
 =====================================================================================
 
-`ports-of-call` was primarily developed by Chad Meyer, in collaboration with Jonah Miller, 
-Daniel Holladay, and Josh Dolence. Documentation approved for unlimited release. LA-UR-22-20363.
+`ports-of-call` was primarily developed by Chad Meyer, in
+collaboration with Jonah Miller, Daniel Holladay, and Josh
+Dolence. DevOps support was provided by Karen Tsai and Chris
+Mauney. Documentation approved for unlimited release. LA-UR-22-20363.
 
 .. toctree::
    :maxdepth: 1

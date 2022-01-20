@@ -13,5 +13,7 @@ detail.  Why is this change required?  What problem does it solve?-->
 
 <!-- Note that some of these check boxes may not apply to all pull requests -->
 
+- [ ] Any changes to code are appropriately documented.
 - [ ] Code is formatted.
-
+- [ ] Install test passes.
+- [ ] Docs build.

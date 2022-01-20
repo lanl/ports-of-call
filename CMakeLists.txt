@@ -13,12 +13,31 @@
 #------------------------------------------------------------------------------#
 
 cmake_minimum_required(VERSION 3.14)
+
+# PROJECT
+# ----------------------------------------
+
+# define project and version
+set(PORTS_OF_CALL_VERSION 1.0.0)
+project(ports-of-call VERSION ${PORTS_OF_CALL_VERSION})
+
+# CMAKE WARMUP
+# ----------------------------------------
+
+# update the module path
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 
+# some global properties
+# TODO: may be more appropriate down the road to attach the standard
+#       directly to the target usage requirements
 set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_EXPORT_COMPILE_COMMANDS On)
 
-project(ports-of-call VERSION 1.0.0)
+# bring in some helpful CMake scripts 
+# make cache variables for install destinations
+include(GNUInstallDirs)
+# package config file
+include(CMakePackageConfigHelpers)
 
 # Don't allow in-source builds
 file(TO_CMAKE_PATH "${PROJECT_BINARY_DIR}/CMakeLists.txt" LOC_PATH)
@@ -39,38 +58,104 @@ if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
     "Debug" "Release" "MinSizeRel" "RelWithDebInfo")
 endif()
 
-# Add a library
-# mostly includes
-add_library(ports-of-call::ports-of-call INTERFACE IMPORTED GLOBAL)
+# CONFIGURATION LOGIC
+# ----------------------------------------
 
-# Portability strategy
-if(PORTABILITY_STRATEGY)
-  if (${PORTABILITY_STRATEGY} STREQUAL "Kokkos")
-    target_compile_definitions(ports-of-call::ports-of-call
-      INTERFACE
-      PORTABILITY_STRATEGY_KOKKOS)
-    message(STATUS "Setting portability strategy to Kokkos")
-  else(${PORTABILITY_STRATEGY} STREQUAL "Cuda")
-    target_compile_definitions(ports-of-call::ports-of-call
-      INTERFACE
-      PORTABILITY_STRATEGY_CUDA)
-    message(STATUS "Setting portability strategy to Cuda")
-  endif()
-else()
-  target_compile_definitions(ports-of-call::ports-of-call
-    INTERFACE
-    PORTABILITY_STRATEGY_NONE)
-  message(STATUS "No portability strategy set. Setting to None")
+# TODO: I ended up not liking this
+# set the portability strategy. we only allow 3 options: None, Kokkos, Cuda
+set(PORTABILITY_STRATEGY_OPTIONS "None;Kokkos;Cuda" CACHE STRING "" FORCE)
+set_property(CACHE PORTABILITY_STRATEGY_OPTIONS
+  PROPERTY STRINGS ${PORTABILITY_STRATEGY_OPTIONS})
+if(NOT PORTABILITY_STRATEGY)
+  list(GET PORTABILITY_STRATEGY_OPTIONS 0 PORTABILITY_STRATEGY)
 endif()
+# if the cache variable is not valid, display a warning and default to none
+if (PORTABILITY_STRATEGY IN_LIST PORTABILITY_STRATEGY_OPTIONS)
+  message(WARNING "The portability strategy [\"${PORTABILITY_STRATEGY}\"] is 
+    not valid, defaulting to \"None\", valid options are 
+    ${PORTABILITY_STRATEGY_OPTIONS}")
+  list(GET PORTABILITY_STRATEGY_OPTIONS 0 PORTABILITY_STRATEGY)
+endif()
+# string-manip for the define
+string(TOUPPER ${PORTABILITY_STRATEGY} PORTABILITY_STRATEGY)
+set(PORTABILITY_STRATEGY "PORTABILITY_STRATEGY_${PORTABILITY_STRATEGY}"
+  CACHE STRING "" FORCE) 
+message(STATUS "Will define ${PORTABILITY_STRATEGY}")
+
+# TARGET CONFIGURATION
+# ----------------------------------------
+
+# Define library
+# use a string variable to ease derived variable naming
+# NOTE: this gets used for directory names
+set(POCLIB "ports-of-call")
+# Pure-header library, so just use interface
+add_library(${POCLIB} INTERFACE)
+# Make an alias (useful for in-tree builds)
+add_library(${POCLIB}::${POCLIB} ALIAS ${POCLIB})
+
+target_compile_definitions(${POCLIB}
+INTERFACE
+  ${PORTABILITY_STRATEGY}
+)
 
 # Enables
 # #include <ports-of-call/portability.hpp>
-target_include_directories(ports-of-call::ports-of-call
+target_include_directories(${POCLIB}
   INTERFACE
-  $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}>)
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
+  $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
+)
 
-# Enables includes
-install(DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/ports-of-call"
-  DESTINATION "include"
-  FILES_MATCHING PATTERN "*.hpp"
+
+# INSTALL & EXPORT
+# ----------------------------------------
+
+# Coordinate external CMake interface (EXPORT) with targets
+install(TARGETS ${POCLIB}
+  EXPORT ${POCLIB}Targets
+  LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+  ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+  RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+  INCLUDES DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+)
+
+configure_package_config_file(${POCLIB}Config.cmake.in
+  ${CMAKE_CURRENT_BINARY_DIR}/${POCLIB}Config.cmake
+  INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/${POCLIB}
+)
+
+# ...and the version file
+write_basic_package_version_file(
+  ${CMAKE_CURRENT_BINARY_DIR}/${POCLIB}ConfigVersion.cmake
+  VERSION ${PORTS_OF_CALL_VERSION}
+  COMPATIBILITY SameMajorVersion )
+
+# Install the cmake configuration files
+install(FILES ${CMAKE_CURRENT_BINARY_DIR}/${POCLIB}Config.cmake
+              ${CMAKE_CURRENT_BINARY_DIR}/${POCLIB}ConfigVersion.cmake
+        DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/${POCLIB} )
+
+# Install the source header files
+install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/ports-of-call/portability.hpp"
+              "${CMAKE_CURRENT_SOURCE_DIR}/ports-of-call/portable_arrays.hpp"
+  DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/${POCLIB}
   )
+
+# Install the export target. This will define the CMake target
+# for external projects when used with `find_package`
+install(EXPORT ${POCLIB}Targets
+  NAMESPACE ${POCLIB}::
+  FILE "${POCLIB}Targets.cmake"
+  DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/${POCLIB}"
+  COMPONENT dev)
+
+# Export configuration for external projects that reference
+# just our build-tree; e.g. for submodules. To use, ensure 
+# `CMAKE_PREFIX_PATH` points to this source directory.
+# NOTE: This config will not be relocatable!
+export(TARGETS ${POCLIB} NAMESPACE ${POCLIB}::
+  FILE "${CMAKE_CURRENT_BINARY_DIR}/${POCLIB}Targets.cmake")
+export(PACKAGE ${POCLIB})
+
+

@@ -19,6 +19,21 @@
 #include <string>
 
 #ifdef PORTABILITY_STRATEGY_KOKKOS
+#ifdef PORTABILITY_STRATEGY_CUDA
+#error "Two or more portability strategies defined."
+#endif // PORTABILITY_STRATEGY_CUDA
+#ifdef PORTABILITY_STRATEGY_NONE
+#error "Two or more portability strategies defined."
+#endif // PORTABILITY_STRATEGY_NONE
+#endif // PORTABILITY_STRATEGY_KOKKOS
+
+#ifdef PORTABILITY_STRATEGY_CUDA
+#ifdef PORTABILITY_STRATEGY_NONE
+#error "Two or more portability strategies defined."
+#endif // PORTABILITY_STRATEGY_NONE
+#endif // PORTABILITY_STRATEGY_CUDA
+
+#ifdef PORTABILITY_STRATEGY_KOKKOS
 #include "Kokkos_Core.hpp"
 #define PORTABLE_FUNCTION KOKKOS_FUNCTION
 #define PORTABLE_INLINE_FUNCTION KOKKOS_INLINE_FUNCTION

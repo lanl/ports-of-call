@@ -42,6 +42,10 @@ portable
 - Daniel Holladay
 - Josh Dolence
 
+DevOps support was provided by
+- Karen Tsai
+- Chris Mauney
+
 ## Copyright
 
 © (or copyright) 2019-2021. Triad National Security, LLC. All rights
