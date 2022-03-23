@@ -17,8 +17,8 @@
 
 # -- Project information -----------------------------------------------------
 
-project = 'Spiner'
-copyright = '2021, Triad National Security'
+project = 'Ports-of-Call'
+copyright = '2021-2022, Triad National Security'
 author = 'The Spiner Team'
 
 
