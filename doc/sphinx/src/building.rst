@@ -36,14 +36,17 @@ the equivalent preprocessor macro. The default is ``None``.
 Spack
 ^^^^^^
 
-.. warning::
-  The spack build is currently experimental. 
-  Please report problems you have as github issues.
+Ports of call is available within `Spack`_.  If you have spack
+installed, simply call
 
-Although the spackage has not yet made it to the main `Spack`_
-repositories, we provide a spackage for Ports of Call within the
-the source repository. If you have spack installed,
-simply call
+.. _Spack: https://spack.io/
+
+.. code-block:: bash
+
+  spack install ports-of-call
+
+We also provide a spackage for Ports of Call within the
+the source repository. To use it, call:
 
 .. _Spack: https://spack.io/
 
