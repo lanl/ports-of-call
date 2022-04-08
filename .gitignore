@@ -18,3 +18,4 @@ core.*
 simple_test_cuda
 *.log
 __pycache__
+*.mod
