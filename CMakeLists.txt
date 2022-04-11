@@ -70,7 +70,7 @@ if(NOT PORTABILITY_STRATEGY)
   list(GET PORTABILITY_STRATEGY_OPTIONS 0 PORTABILITY_STRATEGY)
 endif()
 # if the cache variable is not valid, display a warning and default to none
-if (PORTABILITY_STRATEGY IN_LIST PORTABILITY_STRATEGY_OPTIONS)
+if (NOT PORTABILITY_STRATEGY IN_LIST PORTABILITY_STRATEGY_OPTIONS)
   message(WARNING "The portability strategy [\"${PORTABILITY_STRATEGY}\"] is 
     not valid, defaulting to \"None\", valid options are 
     ${PORTABILITY_STRATEGY_OPTIONS}")
