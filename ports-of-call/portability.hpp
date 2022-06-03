@@ -53,8 +53,8 @@
   __host__ __device__ inline __attribute__((always_inline))
 #define PORTABLE_LAMBDA [=] __host__ __device__
 void *PORTABLE_MALLOC(size_t size) {
-  void *devPtr;
-  cudaError_t e = cudaMalloc(devPtr, size);
+  void *devPtr = nullptr;
+  cudaError_t e = cudaMalloc(&devPtr, size);
   return devPtr;
 }
 void PORTABLE_FREE(void *ptr) { cudaError_t e = cudaFree(ptr); }
