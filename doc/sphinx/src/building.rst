@@ -57,8 +57,7 @@ attempt disabling the package registry at configure time via
 
   -DCMAKE_FIND_USE_PACKAGE_REGISTRY=OFF -DCMAKE_FIND_USE_SYSTEM_PACKAGE_REGISTRY=OFF
 
-For more details, see the documentation on the `cmake package
-registry`_.
+For more details, see the documentation on the `cmake package registry`_.
 
 .. _cmake package registry: https://cmake.org/cmake/help/latest/manual/cmake-packages.7.html#package-registry
 
