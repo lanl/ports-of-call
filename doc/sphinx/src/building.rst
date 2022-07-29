@@ -33,6 +33,26 @@ For in-tree builds, you can set the configure time option
 ``PORTABILITY_STRATEGY`` to ``Kokkos``, ``Cuda`` or ``None`` to set
 the equivalent preprocessor macro. The default is ``None``.
 
+By default ``cmake`` keeps a registry of packages with install logic
+that it has built in a user's home directory. Because
+``ports-of-call`` fixes portability strategy at ``cmake`` configure
+time, this can conflict with in-tree builds. A parent code that
+includes ``ports-of-call`` may find the wrong build by default, rather
+than the version that it includes explicitly in the source tree. To
+resolve this, we recommend disabling ``cmake``'s package registry
+machinery via:
+
+.. code-block:: cmake
+
+  set(CMAKE_FIND_USE_PACKAGE_REGISTRY OFF CACHE BOOL "" FORCE)
+  set(CMAKE_FIND_USE_SYSTEM_PACKAGE_REGISTRY OFF CACHE BOOL "" FORCE)
+
+If, on the other hand, you install the dependencies of your code one-by-one,
+you should not disable the package registry. For more details, see the
+documentation on the `cmake package registry`_.
+
+.. _cmake package registry: https://cmake.org/cmake/help/latest/manual/cmake-packages.7.html#package-registry
+
 Spack
 ^^^^^^
 
