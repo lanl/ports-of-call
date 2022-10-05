@@ -178,6 +178,35 @@ void portableFor(const char *name, int startb, int stopb, int starta, int stopa,
 }
 
 template <typename Function, typename T>
+void portableReduce(const char *name, int start, int stop, Function function,
+                    T &reduced) {
+#ifdef PORTABILITY_STRATEGY_KOKKOS
+  using Policy = Kokkos::RangePolicy<>;
+  Kokkos::parallel_reduce(name, Policy(start, stop), function, reduced);
+#else
+  for (int i = start; i < stop; i++) {
+    function(i, reduced);
+  }
+#endif
+}
+
+template <typename Function, typename T>
+void portableReduce(const char *name, int starty, int stopy, int startx,
+                    int stopx, Function function, T &reduced) {
+#ifdef PORTABILITY_STRATEGY_KOKKOS
+  using Policy2D = Kokkos::MDRangePolicy<Kokkos::Rank<2>>;
+  Kokkos::parallel_reduce(name, Policy2D({starty, startx}, {stopy, stopx}),
+                          function, reduced);
+#else
+  for (int iy = starty; iy < stopy; iy++) {
+    for (int ix = startx; ix < stopx; ix++) {
+      function(iy, ix, reduced);
+    }
+  }
+#endif
+}
+
+template <typename Function, typename T>
 void portableReduce(const char *name, int startz, int stopz, int starty,
                     int stopy, int startx, int stopx, Function function,
                     T &reduced) {
