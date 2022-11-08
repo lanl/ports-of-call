@@ -84,7 +84,6 @@ configure_package_config_file(
   ${CMAKE_CURRENT_BINARY_DIR}/${POCLIB}Config.cmake
   INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/${POCLIB}
   NO_SET_AND_CHECK_MACRO # poc does not provide legacy style define
-  NO_CHECK_REQUIRED_COMPONENTS_MACRO # poc does not have components
 )
 
 # ...and the version file
