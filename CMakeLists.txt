@@ -24,63 +24,16 @@ project(ports-of-call VERSION ${PORTS_OF_CALL_VERSION})
 # CMAKE WARMUP
 # ----------------------------------------
 
-# update the module path
-list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
-
-# some global properties
-# TODO: may be more appropriate down the road to attach the standard
-#       directly to the target usage requirements
-set(CMAKE_CXX_STANDARD 11)
-set(CMAKE_EXPORT_COMPILE_COMMANDS On)
-
-# bring in some helpful CMake scripts 
-# make cache variables for install destinations
-include(GNUInstallDirs)
-# package config file
-include(CMakePackageConfigHelpers)
-
 # Don't allow in-source builds
-file(TO_CMAKE_PATH "${PROJECT_BINARY_DIR}/CMakeLists.txt" LOC_PATH)
-if(EXISTS "${LOC_PATH}")
+if(${CMAKE_SOURCE_DIR} STREQUAL ${CMAKE_BINARY_DIR})
   message(FATAL_ERROR
     "You cannot build in a source directory (or any directory with a CMakeLists.txt file). "
     "Please make a build subdirectory. Feel free to remove CMakeCache.txt and CMakeFiles.")
 endif()
 
-# If the user doesn't specify a build type, prefer RelWithDebInfo
-set(default_build_type "RelWithDebInfo")
-if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
-  message(STATUS "Setting build type to '${default_build_type}' as none was specified.")
-  set(CMAKE_BUILD_TYPE "${default_build_type}" CACHE
-    STRING "Choose the type of build." FORCE)
-  # Set the possible values of build type for cmake-gui
-  set_property(CACHE CMAKE_BUILD_TYPE PROPERTY STRINGS
-    "Debug" "Release" "MinSizeRel" "RelWithDebInfo")
-endif()
 
 # CONFIGURATION LOGIC
 # ----------------------------------------
-
-# TODO: I ended up not liking this
-# set the portability strategy. we only allow 3 options: None, Kokkos, Cuda
-set(PORTABILITY_STRATEGY_OPTIONS "None;Kokkos;Cuda" CACHE STRING "" FORCE)
-set_property(CACHE PORTABILITY_STRATEGY_OPTIONS
-  PROPERTY STRINGS ${PORTABILITY_STRATEGY_OPTIONS})
-if(NOT PORTABILITY_STRATEGY)
-  list(GET PORTABILITY_STRATEGY_OPTIONS 0 PORTABILITY_STRATEGY)
-endif()
-# if the cache variable is not valid, display a warning and default to none
-if (NOT PORTABILITY_STRATEGY IN_LIST PORTABILITY_STRATEGY_OPTIONS)
-  message(WARNING "The portability strategy [\"${PORTABILITY_STRATEGY}\"] is 
-    not valid, defaulting to \"None\", valid options are 
-    ${PORTABILITY_STRATEGY_OPTIONS}")
-  list(GET PORTABILITY_STRATEGY_OPTIONS 0 PORTABILITY_STRATEGY)
-endif()
-# string-manip for the define
-string(TOUPPER ${PORTABILITY_STRATEGY} PORTABILITY_STRATEGY)
-set(PORTABILITY_STRATEGY "PORTABILITY_STRATEGY_${PORTABILITY_STRATEGY}"
-  CACHE STRING "" FORCE) 
-message(STATUS "Will define ${PORTABILITY_STRATEGY}")
 
 # TARGET CONFIGURATION
 # ----------------------------------------
@@ -94,22 +47,28 @@ add_library(${POCLIB} INTERFACE)
 # Make an alias (useful for in-tree builds)
 add_library(${POCLIB}::${POCLIB} ALIAS ${POCLIB})
 
-target_compile_definitions(${POCLIB}
-INTERFACE
-  ${PORTABILITY_STRATEGY}
-)
+# make cache variables for install destinations
+include(GNUInstallDirs)
 
 # Enables
 # #include <ports-of-call/portability.hpp>
 target_include_directories(${POCLIB}
   INTERFACE
-  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
-  $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
+    $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
 )
 
+target_compile_features(${POCLIB}
+  INTERFACE
+    cxx_std_14
+)
 
 # INSTALL & EXPORT
 # ----------------------------------------
+
+# package config file
+include(CMakePackageConfigHelpers)
+
 
 # Coordinate external CMake interface (EXPORT) with targets
 install(TARGETS ${POCLIB}
@@ -120,42 +79,47 @@ install(TARGETS ${POCLIB}
   INCLUDES DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
 )
 
-configure_package_config_file(${POCLIB}Config.cmake.in
+configure_package_config_file(
+  ${CMAKE_CURRENT_SOURCE_DIR}/cmake/${POCLIB}Config.cmake.in
   ${CMAKE_CURRENT_BINARY_DIR}/${POCLIB}Config.cmake
   INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/${POCLIB}
+  NO_SET_AND_CHECK_MACRO # poc does not provide legacy style define
+  NO_CHECK_REQUIRED_COMPONENTS_MACRO # poc does not have components
 )
 
 # ...and the version file
 write_basic_package_version_file(
   ${CMAKE_CURRENT_BINARY_DIR}/${POCLIB}ConfigVersion.cmake
   VERSION ${PORTS_OF_CALL_VERSION}
-  COMPATIBILITY SameMajorVersion )
+  COMPATIBILITY SameMajorVersion
+)
 
 # Install the cmake configuration files
 install(FILES ${CMAKE_CURRENT_BINARY_DIR}/${POCLIB}Config.cmake
               ${CMAKE_CURRENT_BINARY_DIR}/${POCLIB}ConfigVersion.cmake
-        DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/${POCLIB} )
+        DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/${POCLIB}
+)
 
 # Install the source header files
-install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/ports-of-call/portability.hpp"
-              "${CMAKE_CURRENT_SOURCE_DIR}/ports-of-call/portable_arrays.hpp"
+install(
+  FILES "${CMAKE_CURRENT_SOURCE_DIR}/ports-of-call/portability.hpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/ports-of-call/portable_arrays.hpp"
   DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/${POCLIB}
-  )
+)
 
 # Install the export target. This will define the CMake target
 # for external projects when used with `find_package`
-install(EXPORT ${POCLIB}Targets
+install(
+  EXPORT ${POCLIB}Targets
   NAMESPACE ${POCLIB}::
-  FILE "${POCLIB}Targets.cmake"
-  DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/${POCLIB}"
-  COMPONENT dev)
+  FILE ${POCLIB}Targets.cmake
+  DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/${POCLIB}
+)
 
-# Export configuration for external projects that reference
-# just our build-tree; e.g. for submodules. To use, ensure 
-# `CMAKE_PREFIX_PATH` points to this source directory.
 # NOTE: This config will not be relocatable!
-export(TARGETS ${POCLIB} NAMESPACE ${POCLIB}::
+export(
+  TARGETS ${POCLIB} 
+  NAMESPACE ${POCLIB}::
   FILE "${CMAKE_CURRENT_BINARY_DIR}/${POCLIB}Targets.cmake")
-export(PACKAGE ${POCLIB})
 
 
