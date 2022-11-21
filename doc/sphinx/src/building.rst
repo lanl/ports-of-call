@@ -26,40 +26,29 @@ Including in-tree
 If you want to include Ports of Call in a project in-tree, you can
 easily just include the two header files. Alternatively, our ``cmake``
 build system supports in-tree builds. Simply add the repository as a
-subdirectory in your project. We ``ports-of-call::ports-of-call`` target,
-which sets the appropriate include paths.
+subdirectory in your project. `ports-of-call` defines the CMake target
+``ports-of-call::ports-of-call``, which sets the appropriate include paths.
 
-For in-tree builds, you can set the configure time option
-``PORTABILITY_STRATEGY`` to ``Kokkos``, ``Cuda`` or ``None`` to set
-the equivalent preprocessor macro. The default is ``None``.
+For in-tree builds, you can define exactly one of the preprocessor macros
+``PORTABILITY_STRATEGY_KOKKOS``, ``PORTABILITY_STRATEGY_CUDA`` or ``PORTABILITY_STRATEGY_NONE``.
+If none are set, the default is ``PORTABILITY_STRATEGY_NONE``.
 
-By default ``cmake`` keeps a registry of packages with install logic
-that it has built in a user's home directory. Because
-``ports-of-call`` fixes portability strategy at ``cmake`` configure
-time, this can conflict with in-tree builds. A parent code that
-includes ``ports-of-call`` may find the wrong build by default, rather
-than the version that it includes explicitly in the source tree. To
-resolve this, we recommend disabling ``cmake``'s package registry
-machinery via:
+Note that it is the users repsonsibility to ensure that the appropriate 
+portability strategy is set. Furthermore, `ports-of-call` does not engage in
+any dependency resolution, so the user is further required to ensure that 
+the appropriate dependencies are available when building.
 
-.. code-block:: cmake
+CMake
+^^^^^^
 
-  set(CMAKE_FIND_USE_PACKAGE_REGISTRY OFF CACHE BOOL "" FORCE)
-  set(CMAKE_FIND_USE_SYSTEM_PACKAGE_REGISTRY OFF CACHE BOOL "" FORCE)
-
-If, on the other hand, you install the dependencies of your code
-one-by-one, you should not disable the package registry. If you
-encounter an issue where your configuration settings for
-``ports-of-call`` don't seem to stick when building a code, you might
-attempt disabling the package registry at configure time via
+The prefered apporach for integratting into your project is is to use 
+the CMake `find_package` pattern. If `ports-of-call` has been installed and
+is visible to the environment
 
 .. code-block:: cmake
-
-  -DCMAKE_FIND_USE_PACKAGE_REGISTRY=OFF -DCMAKE_FIND_USE_SYSTEM_PACKAGE_REGISTRY=OFF
-
-For more details, see the documentation on the `cmake package registry`_.
-
-.. _cmake package registry: https://cmake.org/cmake/help/latest/manual/cmake-packages.7.html#package-registry
+  find_package(ports-of-call)
+  target_link_libraries(myProj ports-of-call::ports-of-call)
+  target_compile_definitions(myProj PORTABILITY_STRATEGY_KOKKOS)
 
 Spack
 ^^^^^^
