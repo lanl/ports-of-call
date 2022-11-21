@@ -35,6 +35,46 @@ Provides an implementation of a multidimensional array with round
 parentheses access. Could be a Kokkos view or something that is not
 portable
 
+## Using `ports-of-call` in your project
+
+There are several options for integrating `ports-of-call` into your project.
+Being header-only, you may simply copy the `ports-of-call` directory into your project space.
+
+However, we encourage that you use `ports-of-call` as an installed package, and utilize CMake
+to import `ports-of-call`. 
+
+```cmake
+find_package(ports-of-call)
+```
+
+This will provide your CMake build with the target `ports-of-call::ports-of-call`, which
+can be used for your executable/library targets
+
+```cmake
+target_link_libraries(myApp ports-of-call::ports-of-call)
+```
+
+That is the minimum necessary to begin to use `ports-of-call`. However, the project
+should also specify the desired `PORTABILITY_STRATEGY_` compiler define:
+
+```cmake
+target_compile_definitions(myApp PORTABILITY_STRATEGY_KOKKOS)
+```
+
+This may also be done ad-hoc at the configure stage as
+
+```bash
+$> cmake /path/to/project/CMakeLists -DPORTABILITY_STRATEGY_KOKKOS
+```
+
+Note that, if not specified, `PORTABILITY_STRATEGY_NONE` will be used.
+
+### Important!
+
+For maintaining flexibility and ease-of-use, `ports-of-call` does not enforce 
+dependency requirements. It is therefore the job of the project using
+`ports-of-call` to ensure that the necessary packages are available.
+
 ## Contributors
 
 `ports-of-call` was primarily developed by Chad Meyer, in collaboration with
@@ -44,7 +84,7 @@ portable
 
 DevOps support was provided by
 - Karen Tsai
-- Chris Mauney
+- Christopher Mauney
 
 ## Copyright
 

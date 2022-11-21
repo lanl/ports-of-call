@@ -20,9 +20,6 @@ class PortsOfCall(CMakePackage):
     version('1.1.0', sha256='c47f7e24c82176b69229a2bcb23a6adcf274dc90ec77a452a36ccae0b12e6e39')
 
     variant("doc", default=False, description="Sphinx Documentation Support")
-    variant("portability_strategy", description="Portability strategy backend",
-            values=("Kokkos", "Cuda", "None"), multi=False, default="None")
-
     depends_on("cmake@3.12:")
 
     depends_on("py-sphinx", when="+doc")
@@ -31,6 +28,5 @@ class PortsOfCall(CMakePackage):
 
     def cmake_args(self):
         args = [
-            self.define_from_variant("PORTABILITY_STRATEGY", "portability_strategy")
         ]
         return args
