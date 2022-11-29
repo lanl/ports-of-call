@@ -19,14 +19,4 @@ class PortsOfCall(CMakePackage):
     version('1.2.0', sha256='b802ffa07c5f34ea9839f23841082133d8af191efe5a526cb7e53ec338ac146b')
     version('1.1.0', sha256='c47f7e24c82176b69229a2bcb23a6adcf274dc90ec77a452a36ccae0b12e6e39')
 
-    variant("doc", default=False, description="Sphinx Documentation Support")
     depends_on("cmake@3.12:")
-
-    depends_on("py-sphinx", when="+doc")
-    depends_on("py-sphinx-rtd-theme@0.4.3", when="+doc")
-    depends_on("py-sphinx-multiversion", when="+doc")
-
-    def cmake_args(self):
-        args = [
-        ]
-        return args
