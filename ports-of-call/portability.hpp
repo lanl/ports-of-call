@@ -82,6 +82,40 @@ typedef float Real;
 typedef double Real;
 #endif
 
+template <typename T>
+void portableCopyToDevice(T*const to, T const * const from, size_t const size_bytes) {
+  auto const length = size_bytes / sizeof(T);
+#ifdef PORTABILITY_STRATEGY_KOKKOS
+  using UM = Kokkos::MemoryUnmanaged;
+  using HS = Kokkos::HostSpace;
+  Kokkos::View<const T*, HS, UM> from_v(from, length);
+  Kokkos::View<T*, UM> to_v(to, length);
+  deep_copy(to_v, from_v);
+#elif defined(PORTABILITY_STRATEGY_CUDA)
+  cudaMemcpy(to, from, size_bytes, cudaMemcpyHostToDevice);
+#else
+  std::copy(to, to + length, from);
+#endif
+  return;
+}
+
+template <typename T>
+void portableCopyToHost(T *const to, T const * const from, size_t const size_bytes) {
+  auto const length = size_bytes / sizeof(T);
+#ifdef PORTABILITY_STRATEGY_KOKKOS
+  using UM = Kokkos::MemoryUnmanaged;
+  using HS = Kokkos::HostSpace;
+  Kokkos::View<const T*, UM> from_v(from, length);
+  Kokkos::View<T*, HS, UM> to_v(to, length);
+  deep_copy(to_v, from_v);
+#elif defined(PORTABILITY_STRATEGY_CUDA)
+  cudaMemcpy(to, from, size_bytes, cudaMemcpyDeviceToHost);
+#else
+  std::copy(to, to + length, from);
+#endif
+  return;
+}
+
 template <typename Function>
 void portableFor(const char *name, int start, int stop, Function function) {
 #ifdef PORTABILITY_STRATEGY_KOKKOS
