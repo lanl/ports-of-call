@@ -83,7 +83,7 @@ typedef double Real;
 #endif
 
 template <typename T>
-void portableCopyToDevice(T*const to, T const * const from, size_t const size_bytes) {
+void portableCopyToDevice(T * const to, T const * const from, size_t const size_bytes) {
   auto const length = size_bytes / sizeof(T);
 #ifdef PORTABILITY_STRATEGY_KOKKOS
   using UM = Kokkos::MemoryUnmanaged;
@@ -100,7 +100,7 @@ void portableCopyToDevice(T*const to, T const * const from, size_t const size_by
 }
 
 template <typename T>
-void portableCopyToHost(T *const to, T const * const from, size_t const size_bytes) {
+void portableCopyToHost(T * const to, T const * const from, size_t const size_bytes) {
   auto const length = size_bytes / sizeof(T);
 #ifdef PORTABILITY_STRATEGY_KOKKOS
   using UM = Kokkos::MemoryUnmanaged;
