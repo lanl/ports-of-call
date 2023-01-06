@@ -20,7 +20,7 @@ We define a few portability macros which are useful:
 At compile time, you define `PORTABILITY_STRATEGY_{KOKKOS,CUDA,NONE}` (if you don't
 define it, it defaults to NONE).
 
-There are to be two headers in this folder, for different use cases.
+There are several headers in this folder, for different use cases.
 
 ### portability.hpp
 
@@ -28,6 +28,10 @@ There are to be two headers in this folder, for different use cases.
 provides device malloc/device free operations. This is the principle
 path for turning on/off Kokkos. 
 - Provides loop abstractions that can be leveraged by the code.  
+
+### portable_errors.hpp
+
+- Provides portable macros for error handling on both host and device.
 
 ### portable_array.hpp:
 

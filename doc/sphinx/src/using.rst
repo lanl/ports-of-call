@@ -29,7 +29,7 @@ it defaults to NONE). The above macros then behave as expected. In
 particular, ``PORTABLE_FUNCTION`` and friends resolve to ``__host__
 __device__`` decorators as appropriate.
 
-There are to be two headers in this library, for different use cases.
+There are several headers in this library, for different use cases.
 
 portability.hpp
 ^^^^^^^^^^^^^^^^
@@ -73,7 +73,42 @@ limited. The syntax is:
 where ``Function`` now takes as many indices are required and
 ``reduced`` as arguments.
 
-portable_arrays.hpp
+portable_errors.hpp
+^^^^^^^^^^^^^^^^^^^^
+
+``portable_errors.hpp`` provides error handling that works with
+different portability backends, such as `Kokkos`. We provide several
+useful macros. All the macros in this file will print the file and
+line number where the macro was called, enabling easier debugging.
+
+The following macros are **disabled** automaticaly for production
+builds (e.g., when the ``NDEBUG`` preprocessor macro is defined):
+
+* ``PORTABLE_REQUIRE(condition, message)`` prints an error message and aborts the program (without throwing an exception) if compiled in debug mode and ``condition`` is not satisfied. This macro **works** in device kernels.
+* ``PORTABLE_REQUIRE_THROWS(condition, message)`` raises a runtime exception (annotated with the message) when compiled in debug mode and the condition is not satisfied. This macro **does not** work in device kernels.
+* ``PORTABLE_ABORT(message)`` prints an error message and aborts the program when compiled in debug mode. This macro **works** in device kernels.
+* ``PORTABLE_THROW(message)`` prints an error message and raises a runtime exception when compiled in debug mode. This macro **does not** work in device kernels.
+* ``PORTABLE_WARN(message)`` prints a warning message if compiled in debug mode. This macro **works** in device kernels.
+* ``PORTABLE_THROW_IFEXCEPT(message)`` prints an error message and then raises a runtime error if ``PORTABILITY_STRATEGY`` is ``NONE`` and otherwise aborts the program without an exception. As with the above portable, this macro is **disabled in production.** This macro **works** in device kernels.
+
+Each of the above macros is **disabled** and becomes a no-op for most builds and only enabled for ``Debug`` builds. However, for each of the above macros there is an equivalent ``PORTABLE_ALWAYS_*`` macro, which **always** functions and is **never** a no-op:
+
+* ``PORTABLE_ALWAYS_REQUIRE(condition, message)`` prints an error message and aborts the program (without throwing an exception) if ``condition`` is not satisfied. This macro **works** in device kernels.
+* ``PORTABLE_ALWAYS_REQUIRE_THROWS(condition, message)`` raises a runtime exception (annotated with the message) when the condition is not satisfied. This macro **does not** work in device kernels.
+* ``PORTABLE_ALWAYS_ABORT(message)`` prints an error message and aborts the program. This macro **works** in device kernels.
+* ``PORTABLE_ALWAYS_THROW(message)`` prints an error message and raises a runtime exception. This macro **does not** work in device kernels.
+* ``PORTABLE_ALWAYS_WARN(message)`` prints a warning message. This macro **works** in device kernels.
+* ``PORTABLE_ALWAYS_THROW_IFEXCEPT(message)`` prints an error message and then raises a runtime error if ``PORTABILITY_STRATEGY`` is ``NONE`` and otherwise aborts the program without an exception. This macro **works** in device kernels.
+
+Please note that none of these functions are thread or MPI aware. Iin a parallel program, the same message may be called **many times**. Therefore caution should be used with this machinery and you may wish to hide these macros in if statements, for example,
+
+.. code-block::
+
+  if (rank == 0) PORTABLE_REQUIRE(my_condition, my_message);
+
+as appropriate.
+
+macros_arrays.hpp
 ^^^^^^^^^^^^^^^^^^^
 
 ``portable_arrays.hpp`` provides a wrapper class, ``PortableMDArray``,
