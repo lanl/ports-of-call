@@ -75,7 +75,7 @@
 namespace PortsOfCall {
 namespace ErrorChecking {
 namespace impl {
-[[noreturn]] KOKKOS_INLINE_FUNCTION void abort(const char *const message) {
+[[noreturn]] PORTABLE_INLINE_FUNCTION void abort(const char *const message) {
 #ifdef PORTABILITY_STRATEGY_KOKKOS
   Kokkos::abort(message);
   // For some versions of Kokkos, Kokkos::abort ends control flow, but
@@ -89,10 +89,10 @@ namespace impl {
 }
 } // namespace impl
 
-[[noreturn]] KOKKOS_INLINE_FUNCTION void require(const char *const condition,
-                                                 const char *const message,
-                                                 const char *const filename,
-                                                 int const linenumber) {
+[[noreturn]] PORTABLE_INLINE_FUNCTION void require(const char *const condition,
+                                                   const char *const message,
+                                                   const char *const filename,
+                                                   int const linenumber) {
   printf("### ERROR\n  Condition:   %s\n  Message:     %s\n  File:        "
          "%s\n  Line number: %i\n",
          condition, message, filename, linenumber);
@@ -174,7 +174,7 @@ inline void require_throws(const char *const condition,
   abort_throws(message.str().c_str(), filename, linenumber);
 }
 
-KOKKOS_INLINE_FUNCTION
+PORTABLE_INLINE_FUNCTION
 void warn(const char *const message, const char *const filename,
           int const linenumber) {
   printf("### WARNING\n  Message:     %s\n  File:        %s\n  Line number: "
