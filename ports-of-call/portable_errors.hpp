@@ -54,7 +54,7 @@
 #define PORTABLE_ALWAYS_THROW_IFEXCEPT(message) PORTABLE_ALWYAS_ABORT(message)
 #endif // PORTABILITY_STRATEGY_NONE
 
-#fdef NDEBUG
+#ifdef NDEBUG
 #define PORTABLE_REQUIRE(condition, message) ((void)0)
 #define PORTABLE_REQUIRE_THROWS(condition, message) ((void)0)
 #define PORTABLE_ABORT(message) ((void)0)
