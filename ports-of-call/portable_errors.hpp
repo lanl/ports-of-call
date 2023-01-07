@@ -49,9 +49,9 @@
   PortsOfCall::ErrorChecking::warn(message, __FILE__, __LINE__);
 
 #ifdef PORTABILITY_STRATEGY_NONE
-#define PORTABLE_ALWAYS_THROW_IFEXCEPT(message) PORTABLE_ALWAYS_THROW(message)
+#define PORTABLE_ALWAYS_THROW_OR_ABORT(message) PORTABLE_ALWAYS_THROW(message)
 #else
-#define PORTABLE_ALWAYS_THROW_IFEXCEPT(message) PORTABLE_ALWYAS_ABORT(message)
+#define PORTABLE_ALWAYS_THROW_OR_ABORT(message) PORTABLE_ALWYAS_ABORT(message)
 #endif // PORTABILITY_STRATEGY_NONE
 
 #ifdef NDEBUG
@@ -60,7 +60,7 @@
 #define PORTABLE_ABORT(message) ((void)0)
 #define PORTABLE_THROW(message) ((void)0)
 #define PORTABLE_WARN(message) ((void)0)
-#define PORTABLE_THROW_IFEXCEPT(message) ((void)0)
+#define PORTABLE_THROW_OR_ABORT(message) ((void)0)
 #else
 #define PORTABLE_REQUIRE(condition, message)                                   \
   PORTABLE_ALWAYS_REQUIRE(condition, message)
@@ -69,7 +69,7 @@
 #define PORTABLE_ABORT(message) PORTABLE_ALWAYS_ABORT(message)
 #define PORTABLE_THROW(message) PORTABLE_ALWAYS_THROW(message)
 #define PORTABLE_WARN(message) PORTABLE_ALWAYS_WARN(message)
-#define PORTABLE_THROW_IFEXCEPT(message) PORTABLE_ALWAYS_THROW_IFEXCEPT(message)
+#define PORTABLE_THROW_OR_ABORT(message) PORTABLE_ALWAYS_THROW_OR_ABORT(message)
 #endif // NDEBUG
 
 namespace PortsOfCall {

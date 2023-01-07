@@ -89,7 +89,7 @@ builds (e.g., when the ``NDEBUG`` preprocessor macro is defined):
 * ``PORTABLE_ABORT(message)`` prints an error message and aborts the program when compiled in debug mode. This macro **works** in device kernels.
 * ``PORTABLE_THROW(message)`` prints an error message and raises a runtime exception when compiled in debug mode. This macro **does not** work in device kernels.
 * ``PORTABLE_WARN(message)`` prints a warning message if compiled in debug mode. This macro **works** in device kernels.
-* ``PORTABLE_THROW_IFEXCEPT(message)`` prints an error message and then raises a runtime error if ``PORTABILITY_STRATEGY`` is ``NONE`` and otherwise aborts the program without an exception. As with the above portable, this macro is **disabled in production.** This macro **works** in device kernels.
+* ``PORTABLE_THROW_OR_ABORT(message)`` prints an error message and then raises a runtime error if ``PORTABILITY_STRATEGY`` is ``NONE`` and otherwise aborts the program without an exception. As with the above portable, this macro is **disabled in production.** This macro **works** in device kernels.
 
 Each of the above macros is **disabled** and becomes a no-op for most builds and only enabled for ``Debug`` builds. However, for each of the above macros there is an equivalent ``PORTABLE_ALWAYS_*`` macro, which **always** functions and is **never** a no-op:
 
@@ -98,7 +98,7 @@ Each of the above macros is **disabled** and becomes a no-op for most builds and
 * ``PORTABLE_ALWAYS_ABORT(message)`` prints an error message and aborts the program. This macro **works** in device kernels.
 * ``PORTABLE_ALWAYS_THROW(message)`` prints an error message and raises a runtime exception. This macro **does not** work in device kernels.
 * ``PORTABLE_ALWAYS_WARN(message)`` prints a warning message. This macro **works** in device kernels.
-* ``PORTABLE_ALWAYS_THROW_IFEXCEPT(message)`` prints an error message and then raises a runtime error if ``PORTABILITY_STRATEGY`` is ``NONE`` and otherwise aborts the program without an exception. This macro **works** in device kernels.
+* ``PORTABLE_ALWAYS_THROW_OR_ABORT(message)`` prints an error message and then raises a runtime error if ``PORTABILITY_STRATEGY`` is ``NONE`` and otherwise aborts the program without an exception. This macro **works** in device kernels.
 
 Please note that none of these functions are thread or MPI aware. Iin a parallel program, the same message may be called **many times**. Therefore caution should be used with this machinery and you may wish to hide these macros in if statements, for example,
 
