@@ -39,6 +39,9 @@
 #define PORTABLE_ALWAYS_WARN(message)                                          \
   PortsOfCall::ErrorChecking::warn(message, __FILE__, __LINE__);
 
+#define PORTABLE_ERROR_MESSAGE(message, output)                                \
+  PortsOfCall::ErrorChecking::error_msg(message, __FILE__, __LINE__, output);
+
 #ifdef PORTABILITY_STRATEGY_NONE
 #define PORTABLE_ALWAYS_THROW_OR_ABORT(message)                                \
   PortsOfCall::ErrorChecking::abort_throws(message, __FILE__, __LINE__);
@@ -81,9 +84,9 @@ namespace impl {
                                                    const char *const message,
                                                    const char *const filename,
                                                    int const linenumber) {
-  printf("### ERROR\n  Condition:   %s\n  Message:     %s\n  File:        "
-         "%s\n  Line number: %i\n",
-         condition, message, filename, linenumber);
+  std::printf("### ERROR\n  Condition:   %s\n  Message:     %s\n  File:        "
+              "%s\n  Line number: %i\n",
+              condition, message, filename, linenumber);
   impl::abort(message);
 }
 
@@ -101,8 +104,8 @@ inline void require(const char *const condition,
 [[noreturn]] PORTABLE_INLINE_FUNCTION void abort(const char *const message,
                                                  const char *const filename,
                                                  int const linenumber) {
-  printf("### ERROR\n  Message:     %s\n  File:        %s\n  Line number: %i\n",
-         message, filename, linenumber);
+  std::printf("### ERROR\n  Message:     %s\n  File:        %s\n  Line number: %i\n",
+              message, filename, linenumber);
   impl::abort(message);
 }
 
@@ -143,9 +146,9 @@ inline void require(const char *const condition,
 PORTABLE_INLINE_FUNCTION
 void warn(const char *const message, const char *const filename,
           int const linenumber) {
-  printf("### WARNING\n  Message:     %s\n  File:        %s\n  Line number: "
-         "%i\n",
-         message, filename, linenumber);
+  std::printf("### WARNING\n  Message:     %s\n  File:        %s\n  Line number: "
+              "%i\n",
+              message, filename, linenumber);
 }
 
 inline void warn(std::stringstream const &message, const char *const filename,
@@ -156,6 +159,24 @@ inline void warn(std::stringstream const &message, const char *const filename,
 inline void warn(std::string const &message, const char *const filename,
                  int const linenumber) {
   warn(message.c_str(), filename, linenumber);
+}
+
+PORTABLE_INLINE_FUNCTION
+void error_msg(const char *const input_message, const char *const filename,
+               int const linenumber, char *output_message) {
+  std::sprintf(output_message,
+               "### ERROR\n  Message:     %s\n  File:        %s\n  Line number: %i\n",
+               input_message, filename, linenumber);
+}
+
+inline void error_msg(std::stringstream const &input_message, const char *const filename,
+                      int const linenumber, char *output_message) {
+  error_msg(input_message.str().c_str(), filename, linenumber, output_message);
+}
+
+inline void error_msg(std::string const &message, const char *const filename,
+                        int const linenumber) {
+  error_msg(input_message.c_str(), filename, linenumber, output_message);
 }
 
 } // namespace ErrorChecking

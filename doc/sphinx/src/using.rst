@@ -96,6 +96,12 @@ Each of the above macros is **disabled** and becomes a no-op for most builds and
 * ``PORTABLE_ALWAYS_WARN(message)`` prints a warning message.
 * ``PORTABLE_ALWAYS_THROW_OR_ABORT(message)`` prints an error message and then raises a runtime error if ``PORTABILITY_STRATEGY`` is ``NONE`` and otherwise aborts the program without an exception.
 
+Additionally the macro
+
+* ``PORTABLE_ERROR_MESSAGE(message, output)`` fills an output ``char*`` with a useful error message containing the filename and line number where the macro is called. Note there is no bounds checking so you **must** provide the macro with a sufficiently large ``char*`` array.
+
+The ``message`` parameter in the above macros can be ``char*`` arrays and string literals on device and additionally accepts ``std::string`` and ``std::stringstream`` on host.
+
 Please note that none of these functions are thread or MPI aware. In a parallel program, the same message may be called **many times**. Therefore caution should be used with this machinery and you may wish to hide these macros in if statements, for example,
 
 .. code-block::
