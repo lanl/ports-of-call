@@ -33,41 +33,29 @@
                                         __LINE__);                             \
   }
 
-#define PORTABLE_ALWAYS_REQUIRE_THROWS(condition, message)                     \
-  if (!(condition)) {                                                          \
-    PortsOfCall::ErrorChecking::require_throws(#condition, message, __FILE__,  \
-                                               __LINE__);                      \
-  }
-
 #define PORTABLE_ALWAYS_ABORT(message)                                         \
   PortsOfCall::ErrorChecking::abort(message, __FILE__, __LINE__);
-
-#define PORTABLE_ALWAYS_THROW(message)                                         \
-  PortsOfCall::ErrorChecking::abort_throws(message, __FILE__, __LINE__);
 
 #define PORTABLE_ALWAYS_WARN(message)                                          \
   PortsOfCall::ErrorChecking::warn(message, __FILE__, __LINE__);
 
 #ifdef PORTABILITY_STRATEGY_NONE
-#define PORTABLE_ALWAYS_THROW_OR_ABORT(message) PORTABLE_ALWAYS_THROW(message)
+#define PORTABLE_ALWAYS_THROW_OR_ABORT(message)                                \
+  PortsOfCall::ErrorChecking::abort_throws(message, __FILE__, __LINE__);
 #else
-#define PORTABLE_ALWAYS_THROW_OR_ABORT(message) PORTABLE_ALWYAS_ABORT(message)
+#define PORTABLE_ALWAYS_THROW_OR_ABORT(message)                                \
+  PortsOfCall::ErrorChecking::abort(message, __FILE__, __LINE__);
 #endif // PORTABILITY_STRATEGY_NONE
 
 #ifdef NDEBUG
 #define PORTABLE_REQUIRE(condition, message) ((void)0)
-#define PORTABLE_REQUIRE_THROWS(condition, message) ((void)0)
 #define PORTABLE_ABORT(message) ((void)0)
-#define PORTABLE_THROW(message) ((void)0)
 #define PORTABLE_WARN(message) ((void)0)
 #define PORTABLE_THROW_OR_ABORT(message) ((void)0)
 #else
 #define PORTABLE_REQUIRE(condition, message)                                   \
   PORTABLE_ALWAYS_REQUIRE(condition, message)
-#define PORTABLE_REQUIRE_THROWS(condition, message)                            \
-  PORTABLE_ALWAYS_REQUIRE_THROWS(condition, message)
 #define PORTABLE_ABORT(message) PORTABLE_ALWAYS_ABORT(message)
-#define PORTABLE_THROW(message) PORTABLE_ALWAYS_THROW(message)
 #define PORTABLE_WARN(message) PORTABLE_ALWAYS_WARN(message)
 #define PORTABLE_THROW_OR_ABORT(message) PORTABLE_ALWAYS_THROW_OR_ABORT(message)
 #endif // NDEBUG
@@ -110,28 +98,6 @@ inline void require(const char *const condition,
   require(condition, message.str().c_str(), filename, linenumber);
 }
 
-inline void require_throws(const char *const condition,
-                           const char *const message,
-                           const char *const filename, int const linenumber) {
-  std::stringstream msg;
-  msg << "### ERROR\n  Condition:   " << condition
-      << "\n  Message:     " << message << "\n  File:        " << filename
-      << "\n  Line number: " << linenumber << std::endl;
-  throw std::runtime_error(msg.str().c_str());
-}
-
-inline void require_throws(const char *const condition,
-                           std::string const &message,
-                           const char *const filename, int const linenumber) {
-  require_throws(condition, message.c_str(), filename, linenumber);
-}
-
-inline void require_throws(const char *const condition,
-                           std::stringstream const &message,
-                           const char *const filename, int const linenumber) {
-  require_throws(condition, message.str().c_str(), filename, linenumber);
-}
-
 [[noreturn]] PORTABLE_INLINE_FUNCTION void abort(const char *const message,
                                                  const char *const filename,
                                                  int const linenumber) {
@@ -168,7 +134,7 @@ inline void require_throws(const char *const condition,
   abort_throws(message.c_str(), filename, linenumber);
 }
 
-[[noreturn]] inline void fail_throws(std::stringstream const &message,
+[[noreturn]] inline void abort_throws(std::stringstream const &message,
                                      const char *const filename,
                                      int const linenumber) {
   abort_throws(message.str().c_str(), filename, linenumber);
