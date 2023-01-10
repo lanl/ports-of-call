@@ -118,7 +118,7 @@ inline void require(const char *const condition,
 [[noreturn]] inline void abort(std::string const &message,
                                const char *const filename,
                                int const linenumber) {
-  abort(message.str().c_str(), filename, linenumber);
+  abort(message.c_str(), filename, linenumber);
 }
 
 [[noreturn]] inline void abort_throws(const char *const message,
