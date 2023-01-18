@@ -90,9 +90,9 @@ namespace ErrorChecking {
 namespace impl {
 // Abort with an error message. The abort function depends on
 // portability backend.
-[[noreturn]] PORTABLE_INLINE_FUNCTION void abort(const char *const message) {
+[[noreturn]] PORTABLE_INLINE_FUNCTION void abort() {
 #ifdef PORTABILITY_STRATEGY_KOKKOS
-  Kokkos::abort(message);
+  Kokkos::abort("");
   // For some versions of Kokkos, Kokkos::abort ends control flow, but
   // is not marked as `[[noreturn]]`, so we need this loop to supress
   // a warning that the function does not return.
@@ -111,10 +111,12 @@ namespace impl {
                                                    const char *const message,
                                                    const char *const filename,
                                                    int const linenumber) {
-  std::printf("### ERROR\n  Condition:   %s\n  Message:     %s\n  File:        "
-              "%s\n  Line number: %i\n",
-              condition, message, filename, linenumber);
-  impl::abort(message);
+  std::fprintf(
+      stderr,
+      "### ERROR\n  Condition:   %s\n  Message:     %s\n  File:        "
+      "%s\n  Line number: %i\n",
+      condition, message, filename, linenumber);
+  impl::abort();
 }
 inline void require(const char *const condition, std::string const &message,
                     const char *const filename, int const linenumber) {
@@ -130,9 +132,11 @@ inline void require(const char *const condition,
 [[noreturn]] PORTABLE_INLINE_FUNCTION void abort(const char *const message,
                                                  const char *const filename,
                                                  int const linenumber) {
-  std::printf("### ERROR\n  Message:     %s\n  File:        %s\n  Line number: %i\n",
-              message, filename, linenumber);
-  impl::abort(message);
+  std::fprintf(
+      stderr,
+      "### ERROR\n  Message:     %s\n  File:        %s\n  Line number: %i\n",
+      message, filename, linenumber);
+  impl::abort();
 }
 [[noreturn]] inline void abort(std::stringstream const &message,
                                const char *const filename,
@@ -162,8 +166,8 @@ inline void require(const char *const condition,
   abort_throws(message.c_str(), filename, linenumber);
 }
 [[noreturn]] inline void abort_throws(std::stringstream const &message,
-                                     const char *const filename,
-                                     int const linenumber) {
+                                      const char *const filename,
+                                      int const linenumber) {
   abort_throws(message.str().c_str(), filename, linenumber);
 }
 
@@ -172,9 +176,11 @@ inline void require(const char *const condition,
 PORTABLE_INLINE_FUNCTION
 void warn(const char *const message, const char *const filename,
           int const linenumber) {
-  std::printf("### WARNING\n  Message:     %s\n  File:        %s\n  Line number: "
-              "%i\n",
-              message, filename, linenumber);
+  std::fprintf(
+      stderr,
+      "### WARNING\n  Message:     %s\n  File:        %s\n  Line number: "
+      "%i\n",
+      message, filename, linenumber);
 }
 inline void warn(std::stringstream const &message, const char *const filename,
                  int const linenumber) {
@@ -190,12 +196,14 @@ inline void warn(std::string const &message, const char *const filename,
 PORTABLE_INLINE_FUNCTION
 void error_msg(const char *const input_message, const char *const filename,
                int const linenumber, char *output_message) {
-  std::sprintf(output_message,
-               "### ERROR\n  Message:     %s\n  File:        %s\n  Line number: %i\n",
-               input_message, filename, linenumber);
+  std::sprintf(
+      output_message,
+      "### ERROR\n  Message:     %s\n  File:        %s\n  Line number: %i\n",
+      input_message, filename, linenumber);
 }
-inline void error_msg(std::stringstream const &input_message, const char *const filename,
-                      int const linenumber, char *output_message) {
+inline void error_msg(std::stringstream const &input_message,
+                      const char *const filename, int const linenumber,
+                      char *output_message) {
   error_msg(input_message.str().c_str(), filename, linenumber, output_message);
 }
 inline void error_msg(std::string const &message, const char *const filename,
