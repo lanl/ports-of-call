@@ -103,6 +103,7 @@ install(FILES ${CMAKE_CURRENT_BINARY_DIR}/${POCLIB}Config.cmake
 install(
   FILES "${CMAKE_CURRENT_SOURCE_DIR}/ports-of-call/portability.hpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/ports-of-call/portable_arrays.hpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/ports-of-call/portable_errors.hpp"
   DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/${POCLIB}
 )
 
