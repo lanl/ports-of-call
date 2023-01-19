@@ -207,8 +207,9 @@ inline void error_msg(std::stringstream const &input_message,
                       char *output_message) {
   error_msg(input_message.str().c_str(), filename, linenumber, output_message);
 }
-inline void error_msg(std::string const &message, const char *const filename,
-                      int const linenumber, char *output_message) {
+inline void error_msg(std::string const &input_message,
+                      const char *const filename, int const linenumber,
+                      char *output_message) {
   error_msg(input_message.c_str(), filename, linenumber, output_message);
 }
 
