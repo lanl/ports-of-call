@@ -125,7 +125,7 @@ inline void require(bool condition_bool, const char *const condition,
                     int const linenumber) {
   require(condition_bool, condition, message.c_str(), filename, linenumber);
 }
-inline void require(cool condition_bool, const char *const condition,
+inline void require(bool condition_bool, const char *const condition,
                     std::stringstream const &message,
                     const char *const filename, int const linenumber) {
   require(condition, condition, message.str().c_str(), filename, linenumber);
