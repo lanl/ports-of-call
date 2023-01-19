@@ -18,6 +18,7 @@
 
 // C++ headers
 #include <iostream>
+#include <sstream>
 #include <stdexcept>
 
 // C headers
