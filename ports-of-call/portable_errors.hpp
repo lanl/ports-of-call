@@ -37,35 +37,33 @@
 // Use this as an assert with an error message. This assert is *not*
 // disabled when compiling for production.
 #define PORTABLE_ALWAYS_REQUIRE(condition, message)                            \
-  if (!(condition)) {                                                          \
-    PortsOfCall::ErrorChecking::require(#condition, message, __FILE__,         \
-                                        __LINE__);                             \
-  }
+  PortsOfCall::ErrorChecking::require(condition, #condition, message,          \
+                                      __FILE__, __LINE__)
 
 // Use this to abort the program with an error message with file and
 // line number.
 #define PORTABLE_ALWAYS_ABORT(message)                                         \
-  PortsOfCall::ErrorChecking::abort(message, __FILE__, __LINE__);
+  PortsOfCall::ErrorChecking::abort(message, __FILE__, __LINE__)
 
 // Prints a warning with file and line number.
 #define PORTABLE_ALWAYS_WARN(message)                                          \
-  PortsOfCall::ErrorChecking::warn(message, __FILE__, __LINE__);
+  PortsOfCall::ErrorChecking::warn(message, __FILE__, __LINE__)
 
 // Fills a char* array output with an error message
 // with file name and line number. Note there is no bounds checking
 // so make sure you allocate enough memory.
 #define PORTABLE_ERROR_MESSAGE(message, output)                                \
-  PortsOfCall::ErrorChecking::error_msg(message, __FILE__, __LINE__, output);
+  PortsOfCall::ErrorChecking::error_msg(message, __FILE__, __LINE__, output)
 
 // Aborts the program with an error message with file and line number.
 // if PORTABILITY_STRATEGY_NONE is enabled, then this throws a C++
 // exception. Otherwise exceptions are not used.
 #ifdef PORTABILITY_STRATEGY_NONE
 #define PORTABLE_ALWAYS_THROW_OR_ABORT(message)                                \
-  PortsOfCall::ErrorChecking::abort_throws(message, __FILE__, __LINE__);
+  PortsOfCall::ErrorChecking::abort_throws(message, __FILE__, __LINE__)
 #else
 #define PORTABLE_ALWAYS_THROW_OR_ABORT(message)                                \
-  PortsOfCall::ErrorChecking::abort(message, __FILE__, __LINE__);
+  PortsOfCall::ErrorChecking::abort(message, __FILE__, __LINE__)
 #endif // PORTABILITY_STRATEGY_NONE
 
 // Same as the above, but disabled when compiled in release mode.
@@ -108,16 +106,19 @@ namespace impl {
 // Prints an error message describing the failed condition in an
 // assert (the assertion is applied above in the macro) with file name
 // and line number. Then aborts.
-[[noreturn]] PORTABLE_INLINE_FUNCTION void require(const char *const condition,
+[[noreturn]] PORTABLE_INLINE_FUNCTION void require(bool condition_bool,
+                                                   const char *const condition,
                                                    const char *const message,
                                                    const char *const filename,
                                                    int const linenumber) {
-  std::fprintf(
-      stderr,
-      "### ERROR\n  Condition:   %s\n  Message:     %s\n  File:        "
-      "%s\n  Line number: %i\n",
-      condition, message, filename, linenumber);
-  impl::abort();
+  if (condition_bool) {
+    std::fprintf(
+        stderr,
+        "### ERROR\n  Condition:   %s\n  Message:     %s\n  File:        "
+        "%s\n  Line number: %i\n",
+        condition, message, filename, linenumber);
+    impl::abort();
+  }
 }
 inline void require(const char *const condition, std::string const &message,
                     const char *const filename, int const linenumber) {
