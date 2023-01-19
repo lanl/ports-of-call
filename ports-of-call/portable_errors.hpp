@@ -120,14 +120,15 @@ namespace impl {
     impl::abort();
   }
 }
-inline void require(const char *const condition, std::string const &message,
-                    const char *const filename, int const linenumber) {
-  require(condition, message.c_str(), filename, linenumber);
+inline void require(bool condition_bool, const char *const condition,
+                    std::string const &message, const char *const filename,
+                    int const linenumber) {
+  require(condition_bool, condition, message.c_str(), filename, linenumber);
 }
-inline void require(const char *const condition,
+inline void require(cool condition_bool, const char *const condition,
                     std::stringstream const &message,
                     const char *const filename, int const linenumber) {
-  require(condition, message.str().c_str(), filename, linenumber);
+  require(condition, condition, message.str().c_str(), filename, linenumber);
 }
 
 // Prints an error message with file name and line number and then aborts.
