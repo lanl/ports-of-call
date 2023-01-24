@@ -112,8 +112,7 @@ namespace impl {
                                                    const char *const filename,
                                                    int const linenumber) {
   if (condition_bool) {
-    std::fprintf(
-        stdout,
+    std::printf(
         "### ERROR\n  Condition:   %s\n  Message:     %s\n  File:        "
         "%s\n  Line number: %i\n",
         condition, message, filename, linenumber);
@@ -135,8 +134,7 @@ inline void require(bool condition_bool, const char *const condition,
 [[noreturn]] PORTABLE_INLINE_FUNCTION void abort(const char *const message,
                                                  const char *const filename,
                                                  int const linenumber) {
-  std::fprintf(
-      stdout,
+  std::printf(
       "### ERROR\n  Message:     %s\n  File:        %s\n  Line number: %i\n",
       message, filename, linenumber);
   impl::abort();
@@ -179,8 +177,7 @@ inline void require(bool condition_bool, const char *const condition,
 PORTABLE_INLINE_FUNCTION
 void warn(const char *const message, const char *const filename,
           int const linenumber) {
-  std::fprintf(
-      stdout,
+  std::printf(
       "### WARNING\n  Message:     %s\n  File:        %s\n  Line number: "
       "%i\n",
       message, filename, linenumber);
