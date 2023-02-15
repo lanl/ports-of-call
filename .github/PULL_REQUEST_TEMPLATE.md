@@ -17,3 +17,4 @@ detail.  Why is this change required?  What problem does it solve?-->
 - [ ] Code is formatted.
 - [ ] Install test passes.
 - [ ] Docs build.
+- [ ] If preparing for a new release, update the version in cmake.

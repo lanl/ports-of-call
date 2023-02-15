@@ -29,7 +29,7 @@ it defaults to NONE). The above macros then behave as expected. In
 particular, ``PORTABLE_FUNCTION`` and friends resolve to ``__host__
 __device__`` decorators as appropriate.
 
-There are to be two headers in this library, for different use cases.
+There are several headers in this library, for different use cases.
 
 portability.hpp
 ^^^^^^^^^^^^^^^^
@@ -73,7 +73,44 @@ limited. The syntax is:
 where ``Function`` now takes as many indices are required and
 ``reduced`` as arguments.
 
-portable_arrays.hpp
+portable_errors.hpp
+^^^^^^^^^^^^^^^^^^^^
+
+``portable_errors.hpp`` provides error handling that works with
+different portability backends, such as `Kokkos`. We provide several
+useful macros. All the macros in this file will print the file and
+line number where the macro was called, enabling easier debugging.
+
+The following macros are **disabled** automaticaly for production
+builds (e.g., when the ``NDEBUG`` preprocessor macro is defined):
+
+* ``PORTABLE_REQUIRE(condition, message)`` prints an error message and aborts the program (without throwing an exception) if compiled in debug mode and ``condition`` is not satisfied.
+* ``PORTABLE_ABORT(message)`` prints an error message and aborts the program when compiled in debug mode.
+* ``PORTABLE_WARN(message)`` prints a warning message if compiled in debug mode.
+* ``PORTABLE_THROW_OR_ABORT(message)`` prints an error message and then raises a runtime error if ``PORTABILITY_STRATEGY`` is ``NONE`` and otherwise aborts the program without an exception. This macro is disabled in production.
+
+Each of the above macros is **disabled** and becomes a no-op for most builds and only enabled for ``Debug`` builds. However, for each of the above macros there is an equivalent ``PORTABLE_ALWAYS_*`` macro, which **always** functions and is **never** a no-op:
+
+* ``PORTABLE_ALWAYS_REQUIRE(condition, message)`` prints an error message and aborts the program (without throwing an exception) if ``condition`` is not satisfied.
+* ``PORTABLE_ALWAYS_ABORT(message)`` prints an error message and aborts the program.
+* ``PORTABLE_ALWAYS_WARN(message)`` prints a warning message.
+* ``PORTABLE_ALWAYS_THROW_OR_ABORT(message)`` prints an error message and then raises a runtime error if ``PORTABILITY_STRATEGY`` is ``NONE`` and otherwise aborts the program without an exception.
+
+Additionally the macro
+
+* ``PORTABLE_ERROR_MESSAGE(message, output)`` fills an output ``char*`` with a useful error message containing the filename and line number where the macro is called. Note there is no bounds checking so you **must** provide the macro with a sufficiently large ``char*`` array.
+
+The ``message`` parameter in the above macros can be ``char*`` arrays and string literals on device and additionally accepts ``std::string`` and ``std::stringstream`` on host.
+
+Please note that none of these functions are thread or MPI aware. In a parallel program, the same message may be called **many times**. Therefore caution should be used with this machinery and you may wish to hide these macros in if statements, for example,
+
+.. code-block::
+
+  if (rank == 0) PORTABLE_REQUIRE(my_condition, my_message);
+
+as appropriate.
+
+macros_arrays.hpp
 ^^^^^^^^^^^^^^^^^^^
 
 ``portable_arrays.hpp`` provides a wrapper class, ``PortableMDArray``,

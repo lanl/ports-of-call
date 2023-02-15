@@ -18,7 +18,7 @@ cmake_minimum_required(VERSION 3.14)
 # ----------------------------------------
 
 # define project and version
-set(PORTS_OF_CALL_VERSION 1.0.0)
+set(PORTS_OF_CALL_VERSION 1.3.0)
 project(ports-of-call VERSION ${PORTS_OF_CALL_VERSION})
 
 # CMAKE WARMUP
@@ -103,6 +103,7 @@ install(FILES ${CMAKE_CURRENT_BINARY_DIR}/${POCLIB}Config.cmake
 install(
   FILES "${CMAKE_CURRENT_SOURCE_DIR}/ports-of-call/portability.hpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/ports-of-call/portable_arrays.hpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/ports-of-call/portable_errors.hpp"
   DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/${POCLIB}
 )
 
