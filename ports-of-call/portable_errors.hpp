@@ -111,7 +111,7 @@ namespace impl {
                                                    const char *const message,
                                                    const char *const filename,
                                                    int const linenumber) {
-  if (condition_bool) {
+  if (!condition_bool) {
     std::printf(
         "### ERROR\n  Condition:   %s\n  Message:     %s\n  File:        "
         "%s\n  Line number: %i\n",
