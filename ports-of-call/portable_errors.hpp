@@ -106,11 +106,11 @@ namespace impl {
 // Prints an error message describing the failed condition in an
 // assert (the assertion is applied above in the macro) with file name
 // and line number. Then aborts.
-[[noreturn]] PORTABLE_INLINE_FUNCTION void require(bool condition_bool,
-                                                   const char *const condition,
-                                                   const char *const message,
-                                                   const char *const filename,
-                                                   int const linenumber) {
+PORTABLE_INLINE_FUNCTION void require(bool condition_bool,
+                                      const char *const condition,
+                                      const char *const message,
+                                      const char *const filename,
+                                      int const linenumber) {
   if (!condition_bool) {
     std::printf(
         "### ERROR\n  Condition:   %s\n  Message:     %s\n  File:        "
