@@ -25,6 +25,7 @@ if (PORTS_OF_CALL_TEST_USE_KOKKOS)
   target_compile_definitions(portsofcall_iface INTERFACE PORTABILITY_STRATEGY_KOKKOS)
 endif()
 
+target_link_libraries(portsofcall_iface INTERFACE Catch2::Catch2)
 # add unit tests
 add_executable(test_portsofcall test_portsofcall.cpp)
 
