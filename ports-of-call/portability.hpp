@@ -94,7 +94,9 @@ void portableCopyToDevice(T * const to, T const * const from, size_t const size_
 #elif defined(PORTABILITY_STRATEGY_CUDA)
   cudaMemcpy(to, from, size_bytes, cudaMemcpyHostToDevice);
 #else
-  std::copy(to, to + length, from);
+  if (to != from) {
+    std::copy(to, to + length, from);
+  }
 #endif
   return;
 }
@@ -111,7 +113,9 @@ void portableCopyToHost(T * const to, T const * const from, size_t const size_by
 #elif defined(PORTABILITY_STRATEGY_CUDA)
   cudaMemcpy(to, from, size_bytes, cudaMemcpyDeviceToHost);
 #else
-  std::copy(to, to + length, from);
+  if (to != from) {
+    std::copy(to, to + length, from);
+  }
 #endif
   return;
 }
