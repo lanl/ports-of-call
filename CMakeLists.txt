@@ -68,6 +68,7 @@ target_compile_features(${POCLIB}
 # ----------------------------------------
 if(PORTS_OF_CALL_BUILD_TESTING)
   message(STATUS "Configuring tests")
+  enable_testing()
   add_subdirectory(test)
 endif()
 
