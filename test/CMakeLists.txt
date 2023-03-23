@@ -16,13 +16,14 @@ find_package(Catch2 REQUIRED)
 # this interface target is to collect
 # compile/link options for the test
 add_library(portsofcall_iface INTERFACE)
-# instructions for local content
-# https://cmake.org/cmake/help/latest/module/FetchContent.html#variable:FETCHCONTENT_SOURCE_DIR_%3CuppercaseName%3E
-# TLDR: set FETCHCONTENT_SOURCE_DIR_KOKKOS=path/to/local/checkout
-if (PORTS_OF_CALL_TEST_USE_KOKKOS)
-  find_package(Kokkos REQUIRED)
+if (PORTABILITY_STRATEGY_KOKKOS)
+  if(NOT TARGET Kokkos::kokkos)
+    find_package(Kokkos REQUIRED)
+  endif()
+
   target_link_libraries(portsofcall_iface INTERFACE Kokkos::kokkos)
-  target_compile_definitions(portsofcall_iface INTERFACE PORTABILITY_STRATEGY_KOKKOS)
+  # this comes with ports-of-call target
+  #target_compile_definitions(portsofcall_iface INTERFACE PORTABILITY_STRATEGY_KOKKOS)
 endif()
 
 target_link_libraries(portsofcall_iface INTERFACE Catch2::Catch2)

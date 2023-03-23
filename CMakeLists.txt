@@ -31,9 +31,7 @@ if(${CMAKE_SOURCE_DIR} STREQUAL ${CMAKE_BINARY_DIR})
     "Please make a build subdirectory. Feel free to remove CMakeCache.txt and CMakeFiles.")
 endif()
 
-include(CTest) # brings in option `BUILD_TESTING`
-
-option (PORTS_OF_CALL_TEST_USE_KOKKOS "Use kokkos offloading for testing")
+option (PORTS_OF_CALL_BUILD_TESTING "Test the current installation")
 
 # CONFIGURATION LOGIC
 # ----------------------------------------
@@ -68,7 +66,7 @@ target_compile_features(${POCLIB}
 
 # TESTING
 # ----------------------------------------
-if(BUILD_TESTING)
+if(PORTS_OF_CALL_BUILD_TESTING)
   message(STATUS "Configuring tests")
   add_subdirectory(test)
 endif()
