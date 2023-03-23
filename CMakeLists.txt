@@ -31,6 +31,7 @@ if(${CMAKE_SOURCE_DIR} STREQUAL ${CMAKE_BINARY_DIR})
     "Please make a build subdirectory. Feel free to remove CMakeCache.txt and CMakeFiles.")
 endif()
 
+option (PORTS_OF_CALL_BUILD_TESTING "Test the current installation")
 
 # CONFIGURATION LOGIC
 # ----------------------------------------
@@ -62,6 +63,14 @@ target_compile_features(${POCLIB}
   INTERFACE
     cxx_std_14
 )
+
+# TESTING
+# ----------------------------------------
+if(PORTS_OF_CALL_BUILD_TESTING)
+  message(STATUS "Configuring tests")
+  enable_testing()
+  add_subdirectory(test)
+endif()
 
 # INSTALL & EXPORT
 # ----------------------------------------
