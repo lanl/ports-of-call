@@ -22,7 +22,7 @@ if (PORTABILITY_STRATEGY_KOKKOS)
 
   target_link_libraries(portsofcall_iface INTERFACE Kokkos::kokkos)
   # this comes with ports-of-call target
-  #target_compile_definitions(portsofcall_iface INTERFACE PORTABILITY_STRATEGY_KOKKOS)
+  target_compile_definitions(portsofcall_iface INTERFACE PORTABILITY_STRATEGY_KOKKOS)
 endif()
 
 target_link_libraries(portsofcall_iface INTERFACE Catch2::Catch2)

@@ -57,6 +57,47 @@ TEST_CASE("PortableMDArrays can be allocated from a pointer",
 
 }
 
+PORTABLE_FORCEINLINE_FUNCTION
+Real index_func(size_t i) {
+  return i*i + 2.0*i + 3.0;
+}
+
+TEST_CASE("portableCopy works with all portability strategies",
+          "[portableCopy]") {
+  constexpr const size_t N = 32;
+  constexpr const size_t Nb = N*sizeof(Real);
+  std::vector<Real> b(N);
+  Real* a = (Real*)PORTABLE_MALLOC(Nb);
+
+  // set device values to 0
+  portableFor("set to 0", 0, N, PORTABLE_LAMBDA(const int& i)
+  {
+    a[i] = 0.0;
+  });
+  
+  // set host values to reference
+  for(size_t i = 0; i < N; ++i) {
+    b[i] = index_func(i);
+  }
+
+  // copy data to device pointer
+  portableCopyToDevice(a, b.data(), Nb);
+  
+  // check if device values match reference
+  int sum {0};
+  portableReduce("check portableCopy", 0, N, 0, 0, 0, 0,
+		 PORTABLE_LAMBDA(const int& i, const int &j, const int& k, int& isum)
+  {
+    if (a[i] != index_func(i)) {
+      isum += 1;
+    }
+  }, sum);
+
+  REQUIRE(sum == 0);
+
+  PORTABLE_FREE(a);
+}
+
 #ifdef PORTABILITY_STRATEGY_KOKKOS
 
 SCENARIO("Kokkos functionality","sometest") {
