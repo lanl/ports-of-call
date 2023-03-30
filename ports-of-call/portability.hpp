@@ -33,6 +33,13 @@
 #endif // PORTABILITY_STRATEGY_NONE
 #endif // PORTABILITY_STRATEGY_CUDA
 
+// if no portability strategy defined, define none
+#if !(defined PORTABILITY_STRATEGY_CUDA || defined PORTABILITY_STRATEGY_KOKKOS)
+#ifndef PORTABILITY_STRATEGY_NONE
+#define PORTABILITY_STRATEGY_NONE
+#endif // none not defined
+#endif
+
 #ifdef PORTABILITY_STRATEGY_KOKKOS
 #include "Kokkos_Core.hpp"
 #define PORTABLE_FUNCTION KOKKOS_FUNCTION
@@ -46,6 +53,8 @@
 // Do we want to include additional terms here (for memory spaces, etc.)?
 #else
 #ifdef PORTABILITY_STRATEGY_CUDA
+// currently error out on cuda since its not implemented
+#error "CUDA portability strategy not yet implemented"
 #include "cuda.h"
 #define PORTABLE_FUNCTION __host__ __device__
 #define PORTABLE_INLINE_FUNCTION __host__ __device__ inline
@@ -81,6 +90,44 @@ typedef float Real;
 #else
 typedef double Real;
 #endif
+
+template <typename T>
+void portableCopyToDevice(T * const to, T const * const from, size_t const size_bytes) {
+  auto const length = size_bytes / sizeof(T);
+#ifdef PORTABILITY_STRATEGY_KOKKOS
+  using UM = Kokkos::MemoryUnmanaged;
+  using HS = Kokkos::HostSpace;
+  Kokkos::View<const T*, HS, UM> from_v(from, length);
+  Kokkos::View<T*, UM> to_v(to, length);
+  deep_copy(to_v, from_v);
+#elif defined(PORTABILITY_STRATEGY_CUDA)
+  cudaMemcpy(to, from, size_bytes, cudaMemcpyHostToDevice);
+#else
+  if (to != from) {
+    std::copy(from, from + length, to);
+  }
+#endif
+  return;
+}
+
+template <typename T>
+void portableCopyToHost(T * const to, T const * const from, size_t const size_bytes) {
+  auto const length = size_bytes / sizeof(T);
+#ifdef PORTABILITY_STRATEGY_KOKKOS
+  using UM = Kokkos::MemoryUnmanaged;
+  using HS = Kokkos::HostSpace;
+  Kokkos::View<const T*, UM> from_v(from, length);
+  Kokkos::View<T*, HS, UM> to_v(to, length);
+  deep_copy(to_v, from_v);
+#elif defined(PORTABILITY_STRATEGY_CUDA)
+  cudaMemcpy(to, from, size_bytes, cudaMemcpyDeviceToHost);
+#else
+  if (to != from) {
+    std::copy(from, from + length, to);
+  }
+#endif
+  return;
+}
 
 template <typename Function>
 void portableFor(const char *name, int start, int stop, Function function) {
