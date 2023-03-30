@@ -33,6 +33,13 @@
 #endif // PORTABILITY_STRATEGY_NONE
 #endif // PORTABILITY_STRATEGY_CUDA
 
+// if no portability strategy defined, define none
+#if !(defined PORTABILITY_STRATEGY_CUDA || defined PORTABILITY_STRATEGY_KOKKOS)
+#ifndef PORTABILITY_STRATEGY_NONE
+#define PORTABILITY_STRATEGY_NONE
+#endif // none not defined
+#endif
+
 #ifdef PORTABILITY_STRATEGY_KOKKOS
 #include "Kokkos_Core.hpp"
 #define PORTABLE_FUNCTION KOKKOS_FUNCTION

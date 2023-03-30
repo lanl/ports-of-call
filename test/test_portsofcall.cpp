@@ -13,6 +13,7 @@
 
 #include <ports-of-call/portability.hpp>
 #include <ports-of-call/portable_arrays.hpp>
+#include <vector>
 
 #define CATCH_CONFIG_RUNNER
 #include "catch2/catch.hpp"
