@@ -21,7 +21,7 @@ To include Ports of Call in your project, simply include the directory
 5. ``_WITH_KOKKOS_``: Defined if Kokkos is enabled.
 6. ``_WITH_CUDA_``: Defined when Cuda is enabled
 7. ``Real``: a typedef to double (default) or float (if you define ``SINGLE_PRECISION_ENABLED``)
-8. ``PORTABLE_MALLOC()``, ``PORTABLE_FREE()``: A macro or wrapper for kokkos_malloc or cudaMalloc, or raw malloc.
+8. ``PORTABLE_MALLOC()``, ``PORTABLE_FREE()``: A wrapper for kokkos_malloc or cudaMalloc, or raw malloc and equivalent free.
 
 At compile time, you define
 ``PORTABILITY_STRATEGY_{KOKKOS,CUDA,NONE}`` (if you don't define it,
@@ -72,6 +72,16 @@ limited. The syntax is:
 
 where ``Function`` now takes as many indices are required and
 ``reduced`` as arguments.
+
+Also provided are host to device and device to host memory transfers of the form:
+
+.. cpp:function:: void portableCopyToHost(T * const to, T const * const from, size_t const size_bytes)
+
+.. cpp:function:: void portableCopyToDevice(T * const to, T const * const from, size_t const size_bytes)
+
+with `to` being the target location, from being the source location, and size_bytes is
+the size of the transfer in bytes. This has implemenatations for kokkos and none 
+portability strategies.
 
 portable_errors.hpp
 ^^^^^^^^^^^^^^^^^^^^
