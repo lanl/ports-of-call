@@ -46,6 +46,8 @@
 // Do we want to include additional terms here (for memory spaces, etc.)?
 #else
 #ifdef PORTABILITY_STRATEGY_CUDA
+// currently error out on cuda since its not implemented
+#error "CUDA portability strategy not yet implemented"
 #include "cuda.h"
 #define PORTABLE_FUNCTION __host__ __device__
 #define PORTABLE_INLINE_FUNCTION __host__ __device__ inline

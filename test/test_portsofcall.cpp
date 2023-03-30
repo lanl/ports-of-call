@@ -39,7 +39,7 @@ TEST_CASE("PortableMDArrays can be allocated from a pointer",
   }
 
   SECTION("Stride is as set by initialized pointer") {
-    int tot = 0;
+    tot = 0;
     for (int j = 0; j < M; j++) {
       for (int i = 0; i < N; i++) {
         REQUIRE(a(j, i) == tot);
@@ -64,9 +64,13 @@ Real index_func(size_t i) {
 
 TEST_CASE("portableCopy works with all portability strategies",
           "[portableCopy]") {
+  // number of elements
   constexpr const size_t N = 32;
+  // size in bytes
   constexpr const size_t Nb = N*sizeof(Real);
+  // vector length N on host of Real
   std::vector<Real> b(N);
+  // device pointer
   Real* a = (Real*)PORTABLE_MALLOC(Nb);
 
   // set device values to 0
@@ -95,15 +99,27 @@ TEST_CASE("portableCopy works with all portability strategies",
 
   REQUIRE(sum == 0);
 
+  // set b to 0
+  for (auto& v : b) {
+    v = 0.0;
+  }
+
+  // copy reference device a into b
+  portableCopyToHost(b.data(), a, Nb);
+
+  // count elements that don't match reference
+  sum = 0;
+  for (int i = 0; i < N; ++i) {
+    if (b[i] != index_func(i)) {
+      sum += 1;
+    }
+  }
+  // make sure all elements match
+  REQUIRE(sum == 0);
+
+  // free device memory
   PORTABLE_FREE(a);
 }
-
-#ifdef PORTABILITY_STRATEGY_KOKKOS
-
-SCENARIO("Kokkos functionality","sometest") {
-
-}
-#endif
 
 int main(int argc, char *argv[]) {
 
