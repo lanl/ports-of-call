@@ -91,6 +91,18 @@ typedef float Real;
 typedef double Real;
 #endif
 
+bool portableExecIsHost()
+{
+#ifdef PORTABILITY_STRATEGY_KOKKOS
+  // check if default exec space is the same as the host exec space
+  return std::is_same<Kokkos::DefaultExecutionSpace,Kokkos::HostSpace::execution_space>::value;
+#elif PORTABILITY_STRATEGY_CUDA
+  return false;
+#else
+  return true;
+#endif
+}
+
 template <typename T>
 void portableCopyToDevice(T * const to, T const * const from, size_t const size_bytes) {
   auto const length = size_bytes / sizeof(T);
