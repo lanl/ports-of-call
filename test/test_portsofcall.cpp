@@ -18,6 +18,22 @@
 #define CATCH_CONFIG_RUNNER
 #include "catch2/catch.hpp"
 
+TEST_CASE("EXECUTION_IS_HOST is set correctly", 
+    "[PortsOfCall]") {
+  // testing this is maybe nontrivial?
+  auto isHost = PortsOfCall::EXECUTION_IS_HOST;
+
+#if defined(PORTABILITY_STRATEGY_KOKKOS)
+  auto checkHost = std::is_same<Kokkos::DefaultExecutionSpace, Kokkos::HostSpace::execution_space>::value;
+  REQUIRE( isHost == checkHost );
+#elif defined(PORTABILITY_STRATEGY_CUDA)
+  REQUIRE( isHost == false );
+#else
+  REQUIRE( isHost == true );
+#endif
+
+}
+
 // this test is lifted directly from `spiner`;
 // and there appears to be a significant amount of
 // ports-of-call testing done there.

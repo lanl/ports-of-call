@@ -91,6 +91,18 @@ typedef float Real;
 typedef double Real;
 #endif
 
+namespace PortsOfCall{
+// compile-time constant to check if execution of memory space
+// will be done on the host or is offloaded
+#if defined(PORTABILITY_STRATEGY_KOKKOS)
+inline constexpr bool EXECUTION_IS_HOST{Kokkos::SpaceAccessibility<Kokkos::DefaultExecutionSpace::memory_space,Kokkos::HostSpace>::accessible};
+#elif defined(PORTABILITY_STRATEGY_CUDA)
+inline constexpr bool EXECUTION_IS_HOST{false};
+#else
+inline constexpr bool EXECUTION_IS_HOST{true};
+#endif
+} // PortsOfCall
+
 template <typename T>
 void portableCopyToDevice(T * const to, T const * const from, size_t const size_bytes) {
   auto const length = size_bytes / sizeof(T);
