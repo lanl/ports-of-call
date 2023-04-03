@@ -18,7 +18,7 @@ cmake_minimum_required(VERSION 3.14)
 # ----------------------------------------
 
 # define project and version
-set(PORTS_OF_CALL_VERSION 1.3.0)
+set(PORTS_OF_CALL_VERSION 1.5.1)
 project(ports-of-call VERSION ${PORTS_OF_CALL_VERSION})
 
 # CMAKE WARMUP
