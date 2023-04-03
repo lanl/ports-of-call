@@ -18,10 +18,10 @@
 #define CATCH_CONFIG_RUNNER
 #include "catch2/catch.hpp"
 
-TEST_CASE("portableExecIsHost() returns correctly", 
-    "[portableExecIsHost]") {
+TEST_CASE("execution_is_host is set correctly", 
+    "[portibility flags]") {
   // testing this is maybe nontrivial?
-  auto isHost = portableExecIsHost();
+  auto isHost = execution_is_host;
 
 #if defined(PORTABILITY_STRATEGY_KOKKOS)
   auto checkHost = std::is_same<Kokkos::DefaultExecutionSpace, Kokkos::HostSpace::execution_space>::value;

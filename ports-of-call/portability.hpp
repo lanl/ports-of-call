@@ -91,17 +91,15 @@ typedef float Real;
 typedef double Real;
 #endif
 
-bool portableExecIsHost()
-{
+// compile-time constant to check if execution of memory space
+// will be done on the host or is offloaded
 #if defined(PORTABILITY_STRATEGY_KOKKOS)
-  // check if default exec space is the same as the host exec space
-  return std::is_same<Kokkos::DefaultExecutionSpace,Kokkos::HostSpace::execution_space>::value;
+inline constexpr bool execution_is_host{Kokkos::SpaceAccessibility<Kokkos::DefaultExecutionSpace::memory_space,Kokkos::HostSpace>::accessible};
 #elif defined(PORTABILITY_STRATEGY_CUDA)
-  return false;
+inline constexpr bool execution_is_host{false};
 #else
-  return true;
+inline constexpr bool execution_is_host{true};
 #endif
-}
 
 template <typename T>
 void portableCopyToDevice(T * const to, T const * const from, size_t const size_bytes) {
