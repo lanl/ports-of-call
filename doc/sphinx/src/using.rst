@@ -83,6 +83,14 @@ with `to` being the target location, from being the source location, and size_by
 the size of the transfer in bytes. This has implemenatations for kokkos and none 
 portability strategies.
 
+It may be useful to query the execution space, for example to know where memory needs to be copied.
+To this end, a compile-time constant boolean can be queried:
+
+.. cpp:var:: PortsOfCall::EXECUTION_IS_HOST
+
+which is `true` if the host execution space can trivially access device memory space. For example,
+for `PORTABILITY_STRATEGY_CUDA`, `PortsOfCall::EXECUTION_IS_HOST == false`.
+
 portable_errors.hpp
 ^^^^^^^^^^^^^^^^^^^^
 
