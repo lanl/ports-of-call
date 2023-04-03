@@ -18,10 +18,10 @@
 #define CATCH_CONFIG_RUNNER
 #include "catch2/catch.hpp"
 
-TEST_CASE("execution_is_host is set correctly", 
-    "[portibility flags]") {
+TEST_CASE("EXECUTION_IS_HOST is set correctly", 
+    "[PortsOfCall]") {
   // testing this is maybe nontrivial?
-  auto isHost = execution_is_host;
+  auto isHost = PortsOfCall::EXECUTION_IS_HOST;
 
 #if defined(PORTABILITY_STRATEGY_KOKKOS)
   auto checkHost = std::is_same<Kokkos::DefaultExecutionSpace, Kokkos::HostSpace::execution_space>::value;
