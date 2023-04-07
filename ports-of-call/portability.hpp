@@ -95,11 +95,11 @@ namespace PortsOfCall{
 // compile-time constant to check if execution of memory space
 // will be done on the host or is offloaded
 #if defined(PORTABILITY_STRATEGY_KOKKOS)
-inline constexpr bool EXECUTION_IS_HOST{Kokkos::SpaceAccessibility<Kokkos::DefaultExecutionSpace::memory_space,Kokkos::HostSpace>::accessible};
+constexpr bool EXECUTION_IS_HOST{Kokkos::SpaceAccessibility<Kokkos::DefaultExecutionSpace::memory_space,Kokkos::HostSpace>::accessible};
 #elif defined(PORTABILITY_STRATEGY_CUDA)
-inline constexpr bool EXECUTION_IS_HOST{false};
+constexpr bool EXECUTION_IS_HOST{false};
 #else
-inline constexpr bool EXECUTION_IS_HOST{true};
+constexpr bool EXECUTION_IS_HOST{true};
 #endif
 } // PortsOfCall
 
