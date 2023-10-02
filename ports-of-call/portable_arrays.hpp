@@ -35,40 +35,52 @@
 #include <type_traits>
 #include <utility> // swap()
 
+// maximum number of dimensions
 constexpr std::size_t MAXDIM = 6;
+// array type of dimensions/strides
 using narr = std::array<std::size_t, MAXDIM>;
+
 namespace detail {
 
+// set_value end-case
 template <std::size_t Ind, typename NX>
 constexpr void set_value(narr &ndat, NX value) {
   ndat[Ind] = value;
 }
 
+// set_valueS end case, dispatch to set_value
 template <std::size_t Ind, typename NX>
 constexpr void set_values(narr &ndat, NX value) {
   set_value<Ind>(ndat, value);
 }
 
+// set_values general case, set `Ind` position of array (tracking from RIGHT)
+// with head of size list `NX`
 template <std::size_t Ind, typename NX, typename... NXs>
 constexpr void set_values(narr &ndat, NX value, NXs... nxs) {
   set_value<Ind>(ndat, value);
   set_values<Ind - 1>(ndat, nxs...);
 }
 
+// compute_index base case, i.e. fastest moving index
 template <std::size_t Ind>
-size_t computeIndex(const narr &nd, const size_t index) {
+size_t compute_index(const narr &nd, const size_t index) {
   return index;
 }
+
+// compute_index general case, computing slower moving index strides
 template <std::size_t Ind, typename... Tail>
-size_t computeIndex(const narr &nd, const size_t index, const Tail... tail) {
-  return index * nd[Ind] + computeIndex<Ind + 1>(nd, tail...);
+size_t compute_index(const narr &nd, const size_t index, const Tail... tail) {
+  return index * nd[Ind] + compute_index<Ind + 1>(nd, tail...);
 }
 
+// variadic multiplication, recursive end
 template <typename NX>
 PORTABLE_INLINE_FUNCTION auto varmul(NX v) {
   return v;
 }
 
+// variadic value parameter mutliplication
 template <typename NX, typename... NXs>
 PORTABLE_INLINE_FUNCTION auto varmul(NX v, NXs... vs) {
   return v * varmul(vs...);
@@ -76,21 +88,30 @@ PORTABLE_INLINE_FUNCTION auto varmul(NX v, NXs... vs) {
 
 } // namespace detail
 
+// driver of nx array creation.
+// Note we iterate from the RIGHT, to match
+// what was done explicilt prior.
 template <typename... NXs>
 PORTABLE_INLINE_FUNCTION auto nx_arr(NXs... nxs) {
   narr r;
   constexpr std::size_t NP = sizeof...(NXs);
   detail::set_values<NP - 1>(r, nxs...);
+  // fill "empty" dims with 1
   for (auto i = NP; i < MAXDIM; ++i)
     r[i] = 1;
   return r;
 }
 
+// compute index driver.
 template <typename... Indicies>
-size_t compute_index(const narr &nd, const Indicies... idxs) {
-  return 0 + detail::computeIndex<0>(nd, idxs...);
+PORTABLE_INLINE_FUNCTION std::size_t compute_index(const narr &nd,
+                                                   const Indicies... idxs) {
+  // adding `0` if sizeof...(Indicies) == 0
+  return 0 + detail::compute_index<0>(nd, idxs...);
 }
 
+// recursive variadic multiply
+// multiply a set of variadic values
 template <typename... NXs>
 PORTABLE_INLINE_FUNCTION auto nx_mul(NXs... nxs) {
   return detail::varmul(nxs...);
@@ -99,11 +120,11 @@ PORTABLE_INLINE_FUNCTION auto nx_mul(NXs... nxs) {
 template <typename T>
 class PortableMDArray {
  public:
+  // explicit initialization of objects
   PORTABLE_FUNCTION PortableMDArray(T *data, narr nxa, std::size_t rank)
       : pdata_(data), nxs_(nxa), rank_(rank) {}
-  // rank_{std::distance(nxs_.cbegin(), std::find(nxs_.cbegin(), nxs_.cend(),
-  // 1))} {}
 
+  // variadic ctor, dispatch to explicit constructor
   template <typename... NXs>
   PORTABLE_FUNCTION PortableMDArray(T *p, NXs... nxs) noexcept
       : PortableMDArray(p, nx_arr(nxs...), sizeof...(NXs)) {}
@@ -133,7 +154,6 @@ class PortableMDArray {
   PORTABLE_FUNCTION constexpr auto GetDim() const {
     return nxs_[I];
   }
-  // PORTABLE_FUNCTION constexpr GetSize() const { return computeSize()}
 
   // legacy API, TODO: deprecate
   PORTABLE_FORCEINLINE_FUNCTION int GetDim1() const { return GetDim<0>(); }
