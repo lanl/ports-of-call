@@ -44,33 +44,36 @@ namespace detail {
 
 // set_value end-case
 template <std::size_t Ind, typename NX>
-constexpr void set_value(narr &ndat, NX value) {
+PORTABLE_INLINE_FUNCTION void set_value(narr &ndat, NX value) {
   ndat[Ind] = value;
 }
 
 // set_valueS end case, dispatch to set_value
 template <std::size_t Ind, typename NX>
-constexpr void set_values(narr &ndat, NX value) {
+PORTABLE_INLINE_FUNCTION void set_values(narr &ndat, NX value) {
   set_value<Ind>(ndat, value);
 }
 
 // set_values general case, set `Ind` position of array (tracking from RIGHT)
 // with head of size list `NX`
 template <std::size_t Ind, typename NX, typename... NXs>
-constexpr void set_values(narr &ndat, NX value, NXs... nxs) {
+PORTABLE_INLINE_FUNCTION void set_values(narr &ndat, NX value, NXs... nxs) {
   set_value<Ind>(ndat, value);
   set_values<Ind - 1>(ndat, nxs...);
 }
 
 // compute_index base case, i.e. fastest moving index
 template <std::size_t Ind>
-size_t compute_index(const narr &nd, const size_t index) {
+PORTABLE_INLINE_FUNCTION size_t compute_index(const narr &nd,
+                                              const size_t index) {
   return index;
 }
 
 // compute_index general case, computing slower moving index strides
 template <std::size_t Ind, typename... Tail>
-size_t compute_index(const narr &nd, const size_t index, const Tail... tail) {
+PORTABLE_INLINE_FUNCTION size_t compute_index(const narr &nd,
+                                              const size_t index,
+                                              const Tail... tail) {
   return index * nd[Ind] + compute_index<Ind + 1>(nd, tail...);
 }
 
