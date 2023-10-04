@@ -11,6 +11,8 @@
 // copies to the public, perform publicly and display publicly, and to
 // permit others to do so.
 
+#include <bits/utility.h>
+#include <functional>
 #include <ports-of-call/portability.hpp>
 #include <ports-of-call/portable_arrays.hpp>
 #include <vector>
@@ -18,20 +20,19 @@
 #define CATCH_CONFIG_RUNNER
 #include "catch2/catch.hpp"
 
-TEST_CASE("EXECUTION_IS_HOST is set correctly", 
-    "[PortsOfCall]") {
+TEST_CASE("EXECUTION_IS_HOST is set correctly", "[PortsOfCall]") {
   // testing this is maybe nontrivial?
   auto isHost = PortsOfCall::EXECUTION_IS_HOST;
 
 #if defined(PORTABILITY_STRATEGY_KOKKOS)
-  auto checkHost = std::is_same<Kokkos::DefaultExecutionSpace, Kokkos::HostSpace::execution_space>::value;
-  REQUIRE( isHost == checkHost );
+  auto checkHost = std::is_same<Kokkos::DefaultExecutionSpace,
+                                Kokkos::HostSpace::execution_space>::value;
+  REQUIRE(isHost == checkHost);
 #elif defined(PORTABILITY_STRATEGY_CUDA)
-  REQUIRE( isHost == false );
+  REQUIRE(isHost == false);
 #else
-  REQUIRE( isHost == true );
+  REQUIRE(isHost == true);
 #endif
-
 }
 
 // this test is lifted directly from `spiner`;
@@ -71,53 +72,79 @@ TEST_CASE("PortableMDArrays can be allocated from a pointer",
     aslc2.InitWithShallowSlice(a, 1, 0, 2);
     REQUIRE(aslc1 == aslc2);
   }
+}
 
+TEST_CASE("PortableMDArrays Sizes are sane", "[PortableMDArray]") {
+  using tape_t = std::vector<int>;
+
+  constexpr std::array<std::size_t, MAXDIM> nxs{2, 5, 10, 10, 5, 2};
+
+  std::vector<int> subsz(MAXDIM);
+  std::vector<tape_t> dats;
+
+  std::partial_sum(nxs.cbegin(), nxs.cend(), subsz.begin(),
+                   std::multiplies<int>());
+  for (auto i = 0; i < MAXDIM; ++i) {
+    dats.push_back(std::vector<int>(subsz[i], nxs[i]));
+  }
+
+  SECTION("Can construct correctly") {
+    auto pmd1 = PortableMDArray<int>(dats[0].data(), nxs[0]);
+
+    REQUIRE(pmd1.GetSize() == subsz[0]);
+    REQUIRE(pmd1.GetRank() == 1);
+
+    auto pmd3 = PortableMDArray<int>(dats[3].data(), nxs[0], nxs[1], nxs[2]);
+
+    REQUIRE(pmd3.GetSize() == subsz[2]);
+    REQUIRE(pmd3.GetRank() == 3);
+    REQUIRE(pmd3.GetDim1() == nxs[2]);
+    REQUIRE(pmd3.GetDim2() == nxs[1]);
+    REQUIRE(pmd3.GetDim3() == nxs[0]);
+  }
 }
 
 PORTABLE_FORCEINLINE_FUNCTION
-Real index_func(size_t i) {
-  return i*i + 2.0*i + 3.0;
-}
+Real index_func(size_t i) { return i * i + 2.0 * i + 3.0; }
 
 TEST_CASE("portableCopy works with all portability strategies",
           "[portableCopy]") {
   // number of elements
   constexpr const size_t N = 32;
   // size in bytes
-  constexpr const size_t Nb = N*sizeof(Real);
+  constexpr const size_t Nb = N * sizeof(Real);
   // vector length N on host of Real
   std::vector<Real> b(N);
   // device pointer
-  Real* a = (Real*)PORTABLE_MALLOC(Nb);
+  Real *a = (Real *)PORTABLE_MALLOC(Nb);
 
   // set device values to 0
-  portableFor("set to 0", 0, N, PORTABLE_LAMBDA(const int& i)
-  {
-    a[i] = 0.0;
-  });
-  
+  portableFor(
+      "set to 0", 0, N, PORTABLE_LAMBDA(const int &i) { a[i] = 0.0; });
+
   // set host values to reference
-  for(size_t i = 0; i < N; ++i) {
+  for (size_t i = 0; i < N; ++i) {
     b[i] = index_func(i);
   }
 
   // copy data to device pointer
   portableCopyToDevice(a, b.data(), Nb);
-  
+
   // check if device values match reference
-  int sum {0};
-  portableReduce("check portableCopy", 0, N, 0, 0, 0, 0,
-		 PORTABLE_LAMBDA(const int& i, const int &j, const int& k, int& isum)
-  {
-    if (a[i] != index_func(i)) {
-      isum += 1;
-    }
-  }, sum);
+  int sum{0};
+  portableReduce(
+      "check portableCopy", 0, N, 0, 0, 0, 0,
+      PORTABLE_LAMBDA(const int &i, const int &j, const int &k, int &isum) {
+        if (a[i] != index_func(i)) {
+          isum += 1;
+        }
+      },
+      sum);
 
   REQUIRE(sum == 0);
 
   // set b to 0
-  for (auto& v : b) {
+  for (auto &v : b) {
     v = 0.0;
   }
 

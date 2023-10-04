@@ -77,18 +77,6 @@ PORTABLE_INLINE_FUNCTION size_t compute_index(const narr &nd,
   return index * nd[Ind] + compute_index<Ind + 1>(nd, tail...);
 }
 
-// variadic multiplication, recursive end
-template <typename NX>
-PORTABLE_INLINE_FUNCTION auto varmul(NX v) {
-  return v;
-}
-
-// variadic value parameter mutliplication
-template <typename NX, typename... NXs>
-PORTABLE_INLINE_FUNCTION auto varmul(NX v, NXs... vs) {
-  return v * varmul(vs...);
-}
-
 } // namespace detail
 
 // driver of nx array creation.
@@ -113,11 +101,15 @@ PORTABLE_INLINE_FUNCTION std::size_t compute_index(const narr &nd,
   return 0 + detail::compute_index<0>(nd, idxs...);
 }
 
-// recursive variadic multiply
-// multiply a set of variadic values
-template <typename... NXs>
-PORTABLE_INLINE_FUNCTION auto nx_mul(NXs... nxs) {
-  return detail::varmul(nxs...);
+// multiply reduce array
+// NOTE: we can do product of variadic parameters `vars...` as
+// `arr_mul({vars...})`
+template <typename T, std::size_t N>
+PORTABLE_INLINE_FUNCTION auto arr_mul(const std::array<T, N> &a) {
+  auto r = T{1};
+  for (auto v : a)
+    r *= v;
+  return r;
 }
 
 template <typename T>
@@ -185,10 +177,7 @@ class PortableMDArray {
     return -1;
   }
 
-  PORTABLE_FORCEINLINE_FUNCTION int GetSize() const {
-    return std::accumulate(nxs_.cbegin(), nxs_.cend(), 1,
-                           std::multiplies<std::size_t>());
-  }
+  PORTABLE_FORCEINLINE_FUNCTION int GetSize() const { return arr_mul(nxs_); }
   PORTABLE_FORCEINLINE_FUNCTION std::size_t GetSizeInBytes() const {
     return GetSize() * sizeof(T);
   }
@@ -196,7 +185,7 @@ class PortableMDArray {
   PORTABLE_INLINE_FUNCTION size_t GetRank() const { return rank_; }
   template <typename... NXs>
   PORTABLE_INLINE_FUNCTION void Reshape(NXs... nxs) {
-    assert(nx_mul(nxs...) == GetSize());
+    assert(arr_mul({nxs...}) == GetSize());
     nxs_ = nx_arr(nxs...);
     rank_ = sizeof...(NXs);
   }
