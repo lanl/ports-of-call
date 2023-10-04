@@ -62,19 +62,29 @@ PORTABLE_INLINE_FUNCTION void set_values(narr &ndat, NX value, NXs... nxs) {
   set_values<Ind - 1>(ndat, nxs...);
 }
 
+template <std::size_t N>
+PORTABLE_INLINE_FUNCTION auto stride_arr(const narr &nd) {
+  std::array<std::size_t, N> sa;
+  sa[0] = 1;
+  for (auto i = 1; i < N; ++i) {
+    sa[i] = sa[i - 1] * nd[i - 1];
+  }
+  return sa;
+}
+
 // compute_index base case, i.e. fastest moving index
-template <std::size_t Ind>
-PORTABLE_INLINE_FUNCTION size_t compute_index(const narr &nd,
-                                              const size_t index) {
+template <std::size_t Ind, std::size_t N>
+PORTABLE_INLINE_FUNCTION size_t
+compute_index(const std::array<std::size_t, N> &sa, const size_t index) {
   return index;
 }
 
 // compute_index general case, computing slower moving index strides
-template <std::size_t Ind, typename... Tail>
-PORTABLE_INLINE_FUNCTION size_t compute_index(const narr &nd,
-                                              const size_t index,
-                                              const Tail... tail) {
-  return index * nd[Ind] + compute_index<Ind + 1>(nd, tail...);
+template <std::size_t Ind, std::size_t N, typename... Tail>
+PORTABLE_INLINE_FUNCTION size_t
+compute_index(const std::array<std::size_t, N> &sa, const size_t index,
+              const Tail... tail) {
+  return index * sa[N - Ind - 1] + compute_index<Ind + 1, N>(sa, tail...);
 }
 
 } // namespace detail
@@ -97,8 +107,10 @@ PORTABLE_INLINE_FUNCTION auto nx_arr(NXs... nxs) {
 template <typename... Indicies>
 PORTABLE_INLINE_FUNCTION std::size_t compute_index(const narr &nd,
                                                    const Indicies... idxs) {
+  constexpr auto N = sizeof...(Indicies);
+  auto strides = detail::stride_arr<N>(nd);
   // adding `0` if sizeof...(Indicies) == 0
-  return 0 + detail::compute_index<0>(nd, idxs...);
+  return 0 + detail::compute_index<0, N>(strides, idxs...);
 }
 
 // multiply reduce array

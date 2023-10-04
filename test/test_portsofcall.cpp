@@ -104,6 +104,47 @@ TEST_CASE("PortableMDArrays Sizes are sane", "[PortableMDArray]") {
   }
 }
 
+template <std::size_t NX, std::size_t NXNY, typename T>
+PORTABLE_FORCEINLINE_FUNCTION Real iflat(T k, T j, T i) {
+  return i + NX * j + NXNY * k;
+}
+
+TEST_CASE("Correct portable indexing", "[PortableMDArray]") {
+  // layout
+  constexpr std::size_t NX = 32, NY = 64, NZ = 4;
+  constexpr std::size_t NC = NX * NY * NZ;
+  constexpr Real scale = 0.1;
+  // size in bytes
+  constexpr const size_t NCb = NC * sizeof(Real);
+
+  // vector length N on host of Real
+  std::vector<Real> tape_ref(NC), tape_buf(NC);
+
+  for (auto n = 0; n < NC; ++n)
+    tape_ref[n] = scale * n;
+
+  // device pointer
+  Real *tape_d = (Real *)PORTABLE_MALLOC(NCb);
+
+  auto view_d = PortableMDArray<Real>(tape_d, NZ, NY, NX);
+
+  // set device values
+  portableFor(
+      "set unique val", 0, NZ, 0, NY, 0, NX,
+      PORTABLE_LAMBDA(const int &k, const int &j, const int &i) {
+        view_d(k, j, i) = scale * iflat<NX, NX * NY>(k, j, i);
+      });
+
+  portableCopyToHost(tape_buf.data(), tape_d, NCb);
+
+  for (auto n = 0; n < NC; ++n) {
+    INFO("REF=" << tape_ref[n] << " BUF=" << tape_buf[n]);
+    REQUIRE_THAT(tape_buf[n], Catch::Matchers::WithinRel(tape_ref[n]));
+  }
+
+  PORTABLE_FREE(tape_d);
+}
+
 PORTABLE_FORCEINLINE_FUNCTION
 Real index_func(size_t i) { return i * i + 2.0 * i + 3.0; }
 
