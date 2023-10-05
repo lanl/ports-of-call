@@ -28,6 +28,7 @@
 #include <algorithm>
 #include <array>
 #include <assert.h>
+#include <bits/utility.h>
 #include <cstddef> // size_t
 #include <cstring> // memset()
 #include <functional>
@@ -37,82 +38,13 @@
 
 // maximum number of dimensions
 constexpr std::size_t MAXDIM = 6;
-// array type of dimensions/strides
-using narr = std::array<std::size_t, MAXDIM>;
 
 namespace detail {
+// convert `index_sequence` values to constant
+template <std::size_t I, std::size_t V>
+constexpr std::size_t to_const = V;
 
-// set_value end-case
-template <std::size_t Ind, typename NX>
-PORTABLE_INLINE_FUNCTION void set_value(narr &ndat, NX value) {
-  ndat[Ind] = value;
-}
-
-// set_valueS end case, dispatch to set_value
-template <std::size_t Ind, typename NX>
-PORTABLE_INLINE_FUNCTION void set_values(narr &ndat, NX value) {
-  set_value<Ind>(ndat, value);
-}
-
-// set_values general case, set `Ind` position of array (tracking from RIGHT)
-// with head of size list `NX`
-template <std::size_t Ind, typename NX, typename... NXs>
-PORTABLE_INLINE_FUNCTION void set_values(narr &ndat, NX value, NXs... nxs) {
-  set_value<Ind>(ndat, value);
-  set_values<Ind - 1>(ndat, nxs...);
-}
-
-template <std::size_t N>
-PORTABLE_INLINE_FUNCTION auto stride_arr(const narr &nd) {
-  std::array<std::size_t, N> sa;
-  sa[0] = 1;
-  for (auto i = 1; i < N; ++i) {
-    sa[i] = sa[i - 1] * nd[i - 1];
-  }
-  return sa;
-}
-
-// compute_index base case, i.e. fastest moving index
-template <std::size_t Ind, std::size_t N>
-PORTABLE_INLINE_FUNCTION size_t
-compute_index(const std::array<std::size_t, N> &sa, const size_t index) {
-  return index;
-}
-
-// compute_index general case, computing slower moving index strides
-template <std::size_t Ind, std::size_t N, typename... Tail>
-PORTABLE_INLINE_FUNCTION size_t
-compute_index(const std::array<std::size_t, N> &sa, const size_t index,
-              const Tail... tail) {
-  return index * sa[N - Ind - 1] + compute_index<Ind + 1, N>(sa, tail...);
-}
-
-} // namespace detail
-
-// driver of nx array creation.
-// Note we iterate from the RIGHT, to match
-// what was done explicilt prior.
-template <typename... NXs>
-PORTABLE_INLINE_FUNCTION auto nx_arr(NXs... nxs) {
-  narr r;
-  constexpr std::size_t NP = sizeof...(NXs);
-  detail::set_values<NP - 1>(r, nxs...);
-  // fill "empty" dims with 1
-  for (auto i = NP; i < MAXDIM; ++i)
-    r[i] = 1;
-  return r;
-}
-
-// compute index driver.
-template <typename... Indicies>
-PORTABLE_INLINE_FUNCTION std::size_t compute_index(const narr &nd,
-                                                   const Indicies... idxs) {
-  constexpr auto N = sizeof...(Indicies);
-  auto strides = detail::stride_arr<N>(nd);
-  // adding `0` if sizeof...(Indicies) == 0
-  return 0 + detail::compute_index<0, N>(strides, idxs...);
-}
-
+// array type of dimensions/strides
 // multiply reduce array
 // NOTE: we can do product of variadic parameters `vars...` as
 // `arr_mul({vars...})`
@@ -123,18 +55,24 @@ PORTABLE_INLINE_FUNCTION auto arr_mul(const std::array<T, N> &a) {
     r *= v;
   return r;
 }
+} // namespace detail
 
 template <typename T>
 class PortableMDArray {
  public:
   // explicit initialization of objects
-  PORTABLE_FUNCTION PortableMDArray(T *data, narr nxa, std::size_t rank)
-      : pdata_(data), nxs_(nxa), rank_(rank) {}
+  PORTABLE_FUNCTION PortableMDArray(T *data,
+                                    std::array<std::size_t, MAXDIM> extents,
+                                    std::array<std::size_t, MAXDIM> strides,
+                                    std::size_t rank) noexcept
+      : pdata_(data), nxs_(extents), strides_(strides), rank_(rank) {}
 
   // variadic ctor, dispatch to explicit constructor
-  template <typename... NXs>
-  PORTABLE_FUNCTION PortableMDArray(T *p, NXs... nxs) noexcept
-      : PortableMDArray(p, nx_arr(nxs...), sizeof...(NXs)) {}
+  template <typename... NXs, std::size_t N = sizeof...(NXs)>
+  PORTABLE_FUNCTION PortableMDArray(T *p, NXs... nxs) noexcept {
+    NewPortableMDArray(p, nxs...);
+  } //: PortableMDArray(p, make_nxs_array(nxs...), make_strides_array<N>(), N) {
+  //}
 
   // ctors
   // default ctor: simply set null PortableMDArray
@@ -149,8 +87,7 @@ class PortableMDArray {
   template <typename... NXs>
   PORTABLE_FUNCTION void NewPortableMDArray(T *data, NXs... nxs) noexcept {
     pdata_ = data;
-    nxs_ = nx_arr(nxs...);
-    rank_ = sizeof...(NXs);
+    update_layout(nxs...);
   }
   // public function to swap underlying data pointers of two equally-sized
   // arrays
@@ -189,7 +126,9 @@ class PortableMDArray {
     return -1;
   }
 
-  PORTABLE_FORCEINLINE_FUNCTION int GetSize() const { return arr_mul(nxs_); }
+  PORTABLE_FORCEINLINE_FUNCTION int GetSize() const {
+    return detail::arr_mul(nxs_);
+  }
   PORTABLE_FORCEINLINE_FUNCTION std::size_t GetSizeInBytes() const {
     return GetSize() * sizeof(T);
   }
@@ -197,9 +136,8 @@ class PortableMDArray {
   PORTABLE_INLINE_FUNCTION size_t GetRank() const { return rank_; }
   template <typename... NXs>
   PORTABLE_INLINE_FUNCTION void Reshape(NXs... nxs) {
-    assert(arr_mul({nxs...}) == GetSize());
-    nxs_ = nx_arr(nxs...);
-    rank_ = sizeof...(NXs);
+    assert(detail::arr_mul({nxs...}) == GetSize());
+    update_layout(nxs...);
   }
   PORTABLE_FORCEINLINE_FUNCTION bool IsShallowSlice() { return true; }
   PORTABLE_FORCEINLINE_FUNCTION bool IsEmpty() { return GetSize() < 1; }
@@ -222,12 +160,12 @@ class PortableMDArray {
   // l-value, e.g.: a(3) = 3.0;
   template <typename... Is>
   PORTABLE_FORCEINLINE_FUNCTION T &operator()(const Is... idxs) {
-    return pdata_[compute_index(nxs_, idxs...)];
+    return pdata_[compute_index(idxs...)];
   }
 
   template <typename... Is>
   PORTABLE_FORCEINLINE_FUNCTION T &operator()(const Is... idxs) const {
-    return pdata_[compute_index(nxs_, idxs...)];
+    return pdata_[compute_index(idxs...)];
   }
 
   PortableMDArray<T> &operator*=(T scale) {
@@ -263,8 +201,68 @@ class PortableMDArray {
                             const int indx, const int nvar);
 
  private:
+  template <typename... NX, std::size_t N = sizeof...(NX)>
+  PORTABLE_FORCEINLINE_FUNCTION auto make_nxs_array(NX... nxs) {
+    std::array<std::size_t, MAXDIM> a;
+    std::array<std::size_t, N> t{static_cast<std::size_t>(nxs)...};
+    for (auto i = 0; i < N; ++i) {
+      a[i] = t[N - i - 1];
+    }
+    for (auto i = N; i < MAXDIM; ++i) {
+      a[i] = 1;
+    }
+    return a;
+  }
+
+  template <std::size_t N>
+  PORTABLE_INLINE_FUNCTION auto make_strides_array() {
+    std::array<std::size_t, MAXDIM> a;
+    a[0] = 1;
+    for (auto i = 1; i < N; ++i) {
+      a[i] = a[i - 1] * nxs_[i - 1];
+    }
+    for (auto i = N; i < MAXDIM; ++i)
+      a[i] = 0;
+
+    return a;
+  }
+
+  // driver of nx array creation.
+  // Note we iterate from the RIGHT, to match
+  // what was done explicilt prior.
+  template <typename... NXs, std::size_t N = sizeof...(NXs)>
+  PORTABLE_INLINE_FUNCTION auto update_layout(NXs... nxs) {
+
+    rank_ = N;
+    nxs_ = make_nxs_array(nxs...);
+    strides_ = make_strides_array<N>();
+  }
+
+  // compute_index base case, i.e. fastest moving index
+  template <std::size_t Ind, std::size_t N>
+  PORTABLE_FORCEINLINE_FUNCTION size_t
+  compute_index_impl(const size_t index) const {
+    return index;
+  }
+
+  // compute_index general case, computing slower moving index strides
+  template <std::size_t Ind, std::size_t N, typename... Tail>
+  PORTABLE_FORCEINLINE_FUNCTION size_t
+  compute_index_impl(const size_t index, const Tail... tail) const {
+    return index * strides_[N - Ind - 1] +
+           compute_index_impl<Ind + 1, N>(tail...);
+  }
+  // compute index driver.
+  template <typename... Indicies, std::size_t N = sizeof...(Indicies)>
+  PORTABLE_FORCEINLINE_FUNCTION std::size_t
+  compute_index(const Indicies... idxs) const {
+    // adding `0` if sizeof...(Indicies) == 0
+    return 0 + compute_index_impl<0, N>(idxs...);
+  }
+
   T *pdata_;
-  narr nxs_;
+  std::array<std::size_t, MAXDIM> nxs_;
+  std::array<std::size_t, MAXDIM> strides_;
   int rank_;
 };
 
@@ -274,6 +272,7 @@ template <typename T>
 PortableMDArray<T>::PortableMDArray(const PortableMDArray<T> &src) noexcept {
   nxs_ = src.nxs_;
   rank_ = src.rank_;
+  strides_ = src.strides_;
   if (src.pdata_) pdata_ = src.pdata_;
 }
 
