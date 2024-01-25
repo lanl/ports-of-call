@@ -28,11 +28,6 @@
 // TODO(JMM): Is relative path right here?
 #include "portability.hpp"
 
-// use kokkos printf if available
-//#ifdef PORTABILITY_STRATEGY_KOKKOS
-//#include <Kokkos_Printf.hpp>
-//#endif // PORTABILITY_STRATEGY_KOKKOS
-
 // Use these macros for error handling. A macro is required, as
 // opposed to a function, so that the file name and line number can be
 // pulled from the call site.
@@ -106,18 +101,6 @@ namespace impl {
   std::abort();
 #endif // PORTABILITY_STRATEGY_KOKKOS
 }
-
-template <typename ... Ts>
-PORTABLE_INLINE_FUNCTION void printf(char const * const format, Ts ... ts) {
-//#ifdef PORTABILITY_STRATEGY_KOKKOS
-//  Kokkos::printf(format, ts...);
-//#else
-#ifndef __HIPCC__
-  std::printf(format, ts...);
-#endif // __HIPCC__
-//#endif // PORTABILITY_STRATEGY_KOKKOS
-  return;
-}
 } // namespace impl
 
 // Prints an error message describing the failed condition in an
@@ -128,8 +111,9 @@ PORTABLE_INLINE_FUNCTION void require(bool condition_bool,
                                       const char *const message,
                                       const char *const filename,
                                       int const linenumber) {
+  using PortsOfCall::printf;
   if (!condition_bool) {
-    impl::printf(
+    printf(
         "### ERROR\n  Condition:   %s\n  Message:     %s\n  File:        "
         "%s\n  Line number: %i\n",
         condition, message, filename, linenumber);
@@ -151,7 +135,8 @@ inline void require(bool condition_bool, const char *const condition,
 [[noreturn]] PORTABLE_INLINE_FUNCTION void abort(const char *const message,
                                                  const char *const filename,
                                                  int const linenumber) {
-  impl::printf(
+  using PortsOfCall::printf;
+  printf(
       "### ERROR\n  Message:     %s\n  File:        %s\n  Line number: %i\n",
       message, filename, linenumber);
   impl::abort();
@@ -194,7 +179,8 @@ inline void require(bool condition_bool, const char *const condition,
 PORTABLE_INLINE_FUNCTION
 void warn(const char *const message, const char *const filename,
           int const linenumber) {
-  impl::printf(
+  using PortsOfCall::printf;
+  printf(
       "### WARNING\n  Message:     %s\n  File:        %s\n  Line number: "
       "%i\n",
       message, filename, linenumber);

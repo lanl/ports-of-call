@@ -101,6 +101,15 @@ constexpr bool EXECUTION_IS_HOST{false};
 #else
 constexpr bool EXECUTION_IS_HOST{true};
 #endif
+// portable printf
+template <typename ... Ts>
+PORTABLE_INLINE_FUNCTION void printf(char const * const format, Ts ... ts) {
+  // disable for hip
+#ifndef __HIPCC__
+  std::printf(format, ts...);
+#endif // __HIPCC__
+  return;
+}
 } // PortsOfCall
 
 template <typename T>
