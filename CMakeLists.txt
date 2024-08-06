@@ -64,6 +64,14 @@ target_compile_features(${POCLIB}
     cxx_std_14
 )
 
+#NOTE this option is done downstream, maybe poc should control it
+set(with_cxx "$<COMPILE_LANGUAGE:CXX>")
+set(ps_kokkos "$<BOOL:${PORTABILITY_STRATEGY_KOKKOS}>")
+
+target_compile_options(${POCLIB}
+INTERFACE
+$<${with_cxx}:$<${ps_kokkos}:--expt-relaxed-constexpr>>)
+
 # TESTING
 # ----------------------------------------
 if(PORTS_OF_CALL_BUILD_TESTING)
