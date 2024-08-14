@@ -128,7 +128,7 @@ inline void require(bool condition_bool, const char *const condition,
 inline void require(bool condition_bool, const char *const condition,
                     std::stringstream const &message,
                     const char *const filename, int const linenumber) {
-  require(condition, condition, message.str().c_str(), filename, linenumber);
+  require(condition_bool, condition, message.str().c_str(), filename, linenumber);
 }
 
 // Prints an error message with file name and line number and then aborts.
