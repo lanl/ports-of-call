@@ -28,7 +28,6 @@
 #include <algorithm>
 #include <array>
 #include <assert.h>
-#include <bits/utility.h>
 #include <cstddef> // size_t
 #include <cstring> // memset()
 #include <functional>
@@ -55,6 +54,14 @@ PORTABLE_INLINE_FUNCTION auto arr_mul(const std::array<T, N> &a) {
     r *= v;
   return r;
 }
+PORTABLE_FORCEINLINE_FUNCTION
+decltype(auto) vp_prod() {
+  return [](auto &&v) {
+    return std::accumulate(v.begin(), v.end(), 1,
+                           std::multiplies<std::size_t>());
+  };
+}
+
 } // namespace detail
 
 template <typename T>
@@ -127,7 +134,7 @@ class PortableMDArray {
   }
 
   PORTABLE_FORCEINLINE_FUNCTION int GetSize() const {
-    return detail::arr_mul(nxs_);
+    return detail::vp_prod()(nxs_);
   }
   PORTABLE_FORCEINLINE_FUNCTION std::size_t GetSizeInBytes() const {
     return GetSize() * sizeof(T);
@@ -136,7 +143,7 @@ class PortableMDArray {
   PORTABLE_INLINE_FUNCTION size_t GetRank() const { return rank_; }
   template <typename... NXs>
   PORTABLE_INLINE_FUNCTION void Reshape(NXs... nxs) {
-    assert(detail::arr_mul({nxs...}) == GetSize());
+    assert(detail::vp_prod()(std::array{nxs...}) == GetSize());
     update_layout(nxs...);
   }
   PORTABLE_FORCEINLINE_FUNCTION bool IsShallowSlice() { return true; }

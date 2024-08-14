@@ -11,14 +11,18 @@
 // copies to the public, perform publicly and display publicly, and to
 // permit others to do so.
 
-#include <bits/utility.h>
 #include <functional>
+#include <iostream>
+#include <numeric>
 #include <ports-of-call/portability.hpp>
 #include <ports-of-call/portable_arrays.hpp>
+// #include <sys/_types/_ucontext.h>
+#include <utility>
 #include <vector>
 
 #define CATCH_CONFIG_RUNNER
-#include "catch2/catch.hpp"
+#include "catch2/catch_all.hpp"
+#include "test_utilities.hpp"
 
 TEST_CASE("EXECUTION_IS_HOST is set correctly", "[PortsOfCall]") {
   // testing this is maybe nontrivial?
@@ -104,24 +108,24 @@ TEST_CASE("PortableMDArrays Sizes are sane", "[PortableMDArray]") {
   }
 }
 
-template <std::size_t NX, std::size_t NXNY, typename T>
-PORTABLE_FORCEINLINE_FUNCTION Real iflat(T k, T j, T i) {
-  return i + NX * j + NXNY * k;
-}
-
 TEST_CASE("Correct portable indexing", "[PortableMDArray]") {
   // layout
+  auto iflat = [](auto nx, auto nxny) {
+    return [=](auto k, auto j, auto i) { return i + nx * j + nxny * k; };
+  };
+
   constexpr std::size_t NX = 32, NY = 64, NZ = 4;
   constexpr std::size_t NC = NX * NY * NZ;
   constexpr Real scale = 0.1;
   // size in bytes
-  constexpr const size_t NCb = NC * sizeof(Real);
+  constexpr const std::size_t NCb = NC * sizeof(Real);
 
   // vector length N on host of Real
   std::vector<Real> tape_ref(NC), tape_buf(NC);
 
-  for (auto n = 0; n < NC; ++n)
-    tape_ref[n] = scale * n;
+  for (auto n = 0; n < NC; ++n) {
+    tape_ref[n] = scale * static_cast<Real>(n);
+  }
 
   // device pointer
   Real *tape_d = (Real *)PORTABLE_MALLOC(NCb);
@@ -132,24 +136,22 @@ TEST_CASE("Correct portable indexing", "[PortableMDArray]") {
   portableFor(
       "set unique val", 0, NZ, 0, NY, 0, NX,
       PORTABLE_LAMBDA(const int &k, const int &j, const int &i) {
-        view_d(k, j, i) = scale * iflat<NX, NX * NY>(k, j, i);
+        view_d(k, j, i) = scale * iflat(NX, NX * NY)(k, j, i);
       });
 
   portableCopyToHost(tape_buf.data(), tape_d, NCb);
 
   for (auto n = 0; n < NC; ++n) {
-    INFO("REF=" << tape_ref[n] << " BUF=" << tape_buf[n]);
+    INFO("REF=" << tape_ref[n] << " BUF=" << tape_buf[n] << " n=" << n);
     REQUIRE_THAT(tape_buf[n], Catch::Matchers::WithinRel(tape_ref[n]));
   }
 
   PORTABLE_FREE(tape_d);
 }
 
-PORTABLE_FORCEINLINE_FUNCTION
-Real index_func(size_t i) { return i * i + 2.0 * i + 3.0; }
-
 TEST_CASE("portableCopy works with all portability strategies",
-          "[portableCopy]") {
+          "[PortableMDArray]") {
+  auto index_func = [](auto i) { return i * i + 2.0 * i + 3.0; };
   // number of elements
   constexpr const size_t N = 32;
   // size in bytes
@@ -193,17 +195,65 @@ TEST_CASE("portableCopy works with all portability strategies",
   portableCopyToHost(b.data(), a, Nb);
 
   // count elements that don't match reference
-  sum = 0;
+  int nbad{0};
   for (int i = 0; i < N; ++i) {
     if (b[i] != index_func(i)) {
-      sum += 1;
+      nbad += 1;
     }
   }
   // make sure all elements match
-  REQUIRE(sum == 0);
+  INFO("nbad=" << nbad);
+  REQUIRE(nbad == 0);
 
   // free device memory
   PORTABLE_FREE(a);
+}
+
+// runs benchmarks for indexing.
+// note: to run, execute
+//    ./tests/test_portsofcall "[!benchmark]"
+// (you may need to escape the `!` char depending
+// on your shell)
+TEST_CASE("Benchmark Indexing", "[!benchmark]") {
+  constexpr std::size_t NX = 32, NY = 64, NZ = 16;
+  constexpr std::size_t NU = 256, NV = 256, NW = 128;
+
+  // construct a series of PortableMDArrays
+  // of different rank and sizes, and
+  // iterates through all contiguous indexing.
+
+  // clang-format off
+  SECTION("small") {
+    BENCHMARK("index calc 1D") 
+    { 
+      return testing::idx_contiguous_bm(std::array{NX}); 
+    };
+    BENCHMARK("index calc 2D") 
+    { 
+      return testing::idx_contiguous_bm(std::array{NX, NY}); 
+    };
+    BENCHMARK("index calc 3D") 
+    { 
+      return testing::idx_contiguous_bm(std::array{NX, NY, NZ}); 
+    };
+  }
+
+  SECTION("big") {
+    BENCHMARK("index calc 1D") 
+    { 
+      return testing::idx_contiguous_bm(std::array{NU}); 
+    };
+    BENCHMARK("index calc 2D") 
+    { 
+      return testing::idx_contiguous_bm(std::array{NU, NV}); 
+    };
+    BENCHMARK("index calc 3D") 
+    { 
+      return testing::idx_contiguous_bm(std::array{NU, NV, NW}); 
+    };
+
+  }
+  // clang-format on
 }
 
 int main(int argc, char *argv[]) {
