@@ -111,8 +111,9 @@ PORTABLE_INLINE_FUNCTION void require(bool condition_bool,
                                       const char *const message,
                                       const char *const filename,
                                       int const linenumber) {
+  using PortsOfCall::printf;
   if (!condition_bool) {
-    std::printf(
+    printf(
         "### ERROR\n  Condition:   %s\n  Message:     %s\n  File:        "
         "%s\n  Line number: %i\n",
         condition, message, filename, linenumber);
@@ -134,7 +135,8 @@ inline void require(bool condition_bool, const char *const condition,
 [[noreturn]] PORTABLE_INLINE_FUNCTION void abort(const char *const message,
                                                  const char *const filename,
                                                  int const linenumber) {
-  std::printf(
+  using PortsOfCall::printf;
+  printf(
       "### ERROR\n  Message:     %s\n  File:        %s\n  Line number: %i\n",
       message, filename, linenumber);
   impl::abort();
@@ -177,7 +179,8 @@ inline void require(bool condition_bool, const char *const condition,
 PORTABLE_INLINE_FUNCTION
 void warn(const char *const message, const char *const filename,
           int const linenumber) {
-  std::printf(
+  using PortsOfCall::printf;
+  printf(
       "### WARNING\n  Message:     %s\n  File:        %s\n  Line number: "
       "%i\n",
       message, filename, linenumber);
