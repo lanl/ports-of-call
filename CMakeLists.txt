@@ -61,7 +61,7 @@ target_include_directories(${POCLIB}
 
 target_compile_features(${POCLIB}
   INTERFACE
-    cxx_std_14
+    cxx_std_17
 )
 
 # TESTING
