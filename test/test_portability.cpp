@@ -15,8 +15,10 @@
 #include <ports-of-call/portable_arrays.hpp>
 #include <vector>
 
-#define CATCH_CONFIG_RUNNER
-#include "catch2/catch.hpp"
+#ifndef CATCH_CONFIG_FAST_COMPILE
+#define CATCH_CONFIG_FAST_COMPILE
+#include <catch2/catch_test_macros.hpp>
+#endif
 
 TEST_CASE("EXECUTION_IS_HOST is set correctly", "[PortsOfCall]") {
   // testing this is maybe nontrivial?
@@ -129,17 +131,4 @@ TEST_CASE("portableCopy works with all portability strategies", "[portableCopy]"
 
   // free device memory
   PORTABLE_FREE(a);
-}
-
-int main(int argc, char *argv[]) {
-
-#ifdef PORTABILITY_STRATEGY_KOKKOS
-  Kokkos::initialize();
-#endif
-  int result;
-  { result = Catch::Session().run(argc, argv); }
-#ifdef PORTABILITY_STRATEGY_KOKKOS
-  Kokkos::finalize();
-#endif
-  return result;
 }

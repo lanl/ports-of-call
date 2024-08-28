@@ -29,6 +29,17 @@ internal tests will not be run automatically. So when the code is
 ready for merge, you must ask a project maintainer to trigger the
 remaining tests for you.
 
+Tests
+-------
+
+``ports-of-call`` uses the `Catch2`_ unit testing infrastructure,
+v3. To add a test, add a new ``cpp`` file in the ``test`` directory
+that implements your ``catch2`` scenarios and/or test cases and then
+add it to the ``target_sources`` line at the bottom of
+``test/CMakeLists.txt``.
+
+.. _Catch2: https://github.com/catchorg/Catch2
+
 Expectations for code review
 -----------------------------
 
