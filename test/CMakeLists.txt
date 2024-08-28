@@ -26,15 +26,15 @@ if (PORTABILITY_STRATEGY_KOKKOS)
 endif()
 
 target_link_libraries(portsofcall_iface INTERFACE Catch2::Catch2)
-# add unit tests
-add_executable(test_portsofcall test_portsofcall.cpp)
 
-target_link_libraries(test_portsofcall
+add_executable(test_main test_main.cpp)
+target_link_libraries(test_main
   PRIVATE
     ports-of-call::ports-of-call
     portsofcall_iface
 )
 
 include(Catch)
-catch_discover_tests(test_portsofcall)
+catch_discover_tests(test_main)
 
+target_sources(test_main PRIVATE test_portsofcall.cpp)
