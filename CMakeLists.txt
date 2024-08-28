@@ -35,6 +35,7 @@ option (PORTS_OF_CALL_BUILD_TESTING "Test the current installation")
 
 # CONFIGURATION LOGIC
 # ----------------------------------------
+set(CMAKE_MODULE_PATH ${CMAKE_CURRENT_LIST_DIR}/cmake)
 
 # TARGET CONFIGURATION
 # ----------------------------------------
@@ -71,6 +72,10 @@ if(PORTS_OF_CALL_BUILD_TESTING)
   enable_testing()
   add_subdirectory(test)
 endif()
+
+# FORMATTING
+# ----------------------------------------
+include(Format)
 
 # INSTALL & EXPORT
 # ----------------------------------------
