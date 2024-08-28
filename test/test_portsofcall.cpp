@@ -18,27 +18,25 @@
 #define CATCH_CONFIG_RUNNER
 #include "catch2/catch.hpp"
 
-TEST_CASE("EXECUTION_IS_HOST is set correctly", 
-    "[PortsOfCall]") {
+TEST_CASE("EXECUTION_IS_HOST is set correctly", "[PortsOfCall]") {
   // testing this is maybe nontrivial?
   auto isHost = PortsOfCall::EXECUTION_IS_HOST;
 
 #if defined(PORTABILITY_STRATEGY_KOKKOS)
-  auto checkHost = std::is_same<Kokkos::DefaultExecutionSpace, Kokkos::HostSpace::execution_space>::value;
-  REQUIRE( isHost == checkHost );
+  auto checkHost = std::is_same<Kokkos::DefaultExecutionSpace,
+                                Kokkos::HostSpace::execution_space>::value;
+  REQUIRE(isHost == checkHost);
 #elif defined(PORTABILITY_STRATEGY_CUDA)
-  REQUIRE( isHost == false );
+  REQUIRE(isHost == false);
 #else
-  REQUIRE( isHost == true );
+  REQUIRE(isHost == true);
 #endif
-
 }
 
 // this test is lifted directly from `spiner`;
 // and there appears to be a significant amount of
 // ports-of-call testing done there.
-TEST_CASE("PortableMDArrays can be allocated from a pointer",
-          "[PortableMDArray]") {
+TEST_CASE("PortableMDArrays can be allocated from a pointer", "[PortableMDArray]") {
   constexpr int N = 2;
   constexpr int M = 3;
   std::vector<int> data(N * M);
@@ -71,53 +69,48 @@ TEST_CASE("PortableMDArrays can be allocated from a pointer",
     aslc2.InitWithShallowSlice(a, 1, 0, 2);
     REQUIRE(aslc1 == aslc2);
   }
-
 }
 
 PORTABLE_FORCEINLINE_FUNCTION
-Real index_func(size_t i) {
-  return i*i + 2.0*i + 3.0;
-}
+Real index_func(size_t i) { return i * i + 2.0 * i + 3.0; }
 
-TEST_CASE("portableCopy works with all portability strategies",
-          "[portableCopy]") {
+TEST_CASE("portableCopy works with all portability strategies", "[portableCopy]") {
   // number of elements
   constexpr const size_t N = 32;
   // size in bytes
-  constexpr const size_t Nb = N*sizeof(Real);
+  constexpr const size_t Nb = N * sizeof(Real);
   // vector length N on host of Real
   std::vector<Real> b(N);
   // device pointer
-  Real* a = (Real*)PORTABLE_MALLOC(Nb);
+  Real *a = (Real *)PORTABLE_MALLOC(Nb);
 
   // set device values to 0
-  portableFor("set to 0", 0, N, PORTABLE_LAMBDA(const int& i)
-  {
-    a[i] = 0.0;
-  });
-  
+  portableFor(
+      "set to 0", 0, N, PORTABLE_LAMBDA(const int &i) { a[i] = 0.0; });
+
   // set host values to reference
-  for(size_t i = 0; i < N; ++i) {
+  for (size_t i = 0; i < N; ++i) {
     b[i] = index_func(i);
   }
 
   // copy data to device pointer
   portableCopyToDevice(a, b.data(), Nb);
-  
+
   // check if device values match reference
-  int sum {0};
-  portableReduce("check portableCopy", 0, N, 0, 0, 0, 0,
-		 PORTABLE_LAMBDA(const int& i, const int &j, const int& k, int& isum)
-  {
-    if (a[i] != index_func(i)) {
-      isum += 1;
-    }
-  }, sum);
+  int sum{0};
+  portableReduce(
+      "check portableCopy", 0, N, 0, 0, 0, 0,
+      PORTABLE_LAMBDA(const int &i, const int &j, const int &k, int &isum) {
+        if (a[i] != index_func(i)) {
+          isum += 1;
+        }
+      },
+      sum);
 
   REQUIRE(sum == 0);
 
   // set b to 0
-  for (auto& v : b) {
+  for (auto &v : b) {
     v = 0.0;
   }
 
