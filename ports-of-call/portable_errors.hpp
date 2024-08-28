@@ -2,7 +2,7 @@
 #define _PORTS_OF_CALL_PORTABLE_ERRORS_HPP_
 
 // ========================================================================================
-// © (or copyright) 2023. Triad National Security, LLC. All rights
+// © (or copyright) 2023-2024. Triad National Security, LLC. All rights
 // reserved.  This program was produced under U.S. Government contract
 // 89233218CNA000001 for Los Alamos National Laboratory (LANL), which is
 // operated by Triad National Security, LLC for the U.S.  Department of
