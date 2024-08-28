@@ -27,14 +27,14 @@ endif()
 
 target_link_libraries(portsofcall_iface INTERFACE Catch2::Catch2)
 
-add_executable(test_main test_main.cpp)
-target_link_libraries(test_main
+add_executable(test_portsofcall test_main.cpp)
+target_link_libraries(test_portsofcall
   PRIVATE
     ports-of-call::ports-of-call
     portsofcall_iface
 )
 
 include(Catch)
-catch_discover_tests(test_main)
+catch_discover_tests(test_portsofcall)
 
-target_sources(test_main PRIVATE test_portability.cpp)
+target_sources(test_portsofcall PRIVATE test_portability.cpp)
