@@ -25,12 +25,14 @@
 //  NOTE THE TRAILING INDEX INSIDE THE PARENTHESES IS INDEXED FASTEST
 
 #include "portability.hpp"
+#include "utility/array.hpp"
 #include <algorithm>
 #include <array>
 #include <assert.h>
 #include <cstddef> // size_t
 #include <cstring> // memset()
 #include <functional>
+#include <integer_sequence>
 #include <numeric>
 #include <type_traits>
 #include <utility> // swap()
@@ -42,25 +44,6 @@ namespace detail {
 // convert `index_sequence` values to constant
 template <std::size_t I, std::size_t V>
 constexpr std::size_t to_const = V;
-
-// array type of dimensions/strides
-// multiply reduce array
-// NOTE: we can do product of variadic parameters `vars...` as
-// `arr_mul({vars...})`
-template <typename T, std::size_t N>
-PORTABLE_INLINE_FUNCTION auto arr_mul(const std::array<T, N> &a) {
-  auto r = T{1};
-  for (auto v : a)
-    r *= v;
-  return r;
-}
-PORTABLE_FORCEINLINE_FUNCTION
-decltype(auto) vp_prod() {
-  return [](auto &&v) {
-    return std::accumulate(v.begin(), v.end(), 1,
-                           std::multiplies<std::size_t>());
-  };
-}
 
 } // namespace detail
 
@@ -134,7 +117,7 @@ class PortableMDArray {
   }
 
   PORTABLE_FORCEINLINE_FUNCTION int GetSize() const {
-    return detail::vp_prod()(nxs_);
+    return util::array_reduce(nxs_, std::multiplies<std::size_t>{});
   }
   PORTABLE_FORCEINLINE_FUNCTION std::size_t GetSizeInBytes() const {
     return GetSize() * sizeof(T);
@@ -143,7 +126,8 @@ class PortableMDArray {
   PORTABLE_INLINE_FUNCTION size_t GetRank() const { return rank_; }
   template <typename... NXs>
   PORTABLE_INLINE_FUNCTION void Reshape(NXs... nxs) {
-    assert(detail::vp_prod()(std::array{nxs...}) == GetSize());
+    assert(util::array_reduce(std::array{nxs...},
+                              std::multiplies<std::size_t>{}) == GetSize());
     update_layout(nxs...);
   }
   PORTABLE_FORCEINLINE_FUNCTION bool IsShallowSlice() { return true; }
