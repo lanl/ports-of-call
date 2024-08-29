@@ -220,3 +220,13 @@ data pointer. It accepts anywhere between 1 and 6 sizes.
 
 ``PortableMDArray`` also supports some simple boolean comparitors,
 such as ``==`` and arithmetic such as ``+``, and ``-``.
+
+array.hpp
+^^^^^^^^^
+
+``PortsOfCall::array`` is intended to be a drop-in replacement for ``std::array``, with the
+exception that it works on GPUs.  As of C++17, ``std::array::fill`` and ``std::array::swap`` are
+not yet ``constexpr``, so even with the "relaxed ``constexpr``" compilation mode ``std::array`` is
+not feature-complete on GPUs.  This will change when those member functions become ``constexpr`` in
+C++20.
+
