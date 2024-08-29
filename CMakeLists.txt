@@ -21,6 +21,9 @@ cmake_minimum_required(VERSION 3.14)
 set(PORTS_OF_CALL_VERSION 1.6.0)
 project(ports-of-call VERSION ${PORTS_OF_CALL_VERSION})
 
+# dependent options
+include(CMakeDependentOption)
+
 # CMAKE WARMUP
 # ----------------------------------------
 
@@ -32,6 +35,10 @@ if(${CMAKE_SOURCE_DIR} STREQUAL ${CMAKE_BINARY_DIR})
 endif()
 
 option (PORTS_OF_CALL_BUILD_TESTING "Test the current installation")
+# off by default but possible to turn on
+cmake_dependent_option(PORTS_OF_CALL_TEST_USE_KOKKOS
+  "Use Kokkos offloading for tests"
+  OFF "PORTS_OF_CALL_BUILD_TESTING" OFF)
 
 # CONFIGURATION LOGIC
 # ----------------------------------------

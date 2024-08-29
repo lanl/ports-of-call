@@ -29,7 +29,7 @@ endif()
 # this interface target is to collect
 # compile/link options for the test
 add_library(portsofcall_iface INTERFACE)
-if (PORTABILITY_STRATEGY_KOKKOS)
+if (PORTS_OF_CALL_TEST_USE_KOKKOS)
   if(NOT TARGET Kokkos::kokkos)
     find_package(Kokkos REQUIRED)
   endif()
