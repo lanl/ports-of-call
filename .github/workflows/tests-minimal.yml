@@ -23,7 +23,8 @@ jobs:
             sudo apt-get install -y --force-yes -qq build-essential
         - name: build and install
           run: |
-            mkdir -p buld && cd build
+            mkdir -p buld
+            cd build
             cmake -DPORTS_OF_CALL_BUILD_TESTING=ON ..
             make -j
             make test
