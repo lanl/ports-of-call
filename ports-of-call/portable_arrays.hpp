@@ -97,9 +97,11 @@ class PortableMDArray {
     pdata_ = data;
     update_layout(nxs...);
   }
-  // public function to swap underlying data pointers of two equally-sized
-  // arrays
-  // void SwapPortableMDArray(PortableMDArray<T> &array2);
+  //----------------------------------------------------------------------------------------
+  //! \fn PortableMDArray::SwapPortableMDArray()
+  //  \brief  swap pdata_ pointers of two equally sized PortableMDArrays
+  //  (shallow swap)
+  // Does not allocate memory for either array
 
   void SwapPortableMDArray(PortableMDArray<T, D> &array2) {
     std::swap(pdata_, array2.pdata_);
@@ -209,6 +211,15 @@ class PortableMDArray {
 
   bool operator!=(const PortableMDArray<T, D> &other) const { return !(*this == other); }
 
+  //----------------------------------------------------------------------------------------
+  //! \fn PortableMDArray::InitWithShallowSlice()
+  //  \brief shallow copy of nvar elements in dimension dim of an array,
+  //  starting at index=indx. Copies pointer to data, but not data itself.
+
+  //  Shallow slice is only able to address the "nvar" range in "dim", and all
+  //  entries of the src array for d<dim (cannot access any nx4=2, etc. entries
+  //  if dim=3 for example)
+
   PORTABLE_FUNCTION void InitWithShallowSlice(const PortableMDArray<T, D> &src,
                                               const int dim, const int indx,
                                               const int nvar) {
@@ -292,19 +303,5 @@ class PortableMDArray {
 
  public:
 };
-//----------------------------------------------------------------------------------------
-//! \fn PortableMDArray::InitWithShallowSlice()
-//  \brief shallow copy of nvar elements in dimension dim of an array,
-//  starting at index=indx. Copies pointer to data, but not data itself.
-
-//  Shallow slice is only able to address the "nvar" range in "dim", and all
-//  entries of the src array for d<dim (cannot access any nx4=2, etc. entries
-//  if dim=3 for example)
-
-//----------------------------------------------------------------------------------------
-//! \fn PortableMDArray::SwapPortableMDArray()
-//  \brief  swap pdata_ pointers of two equally sized PortableMDArrays
-//  (shallow swap)
-// Does not allocate memory for either array
 
 #endif // _PORTABLE_ARRAYS_HPP_

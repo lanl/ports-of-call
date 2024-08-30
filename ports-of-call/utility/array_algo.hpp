@@ -20,15 +20,17 @@
 
 namespace util {
 
+// shorter make_index_sequence
 template <auto N>
-constexpr auto
-is(std::integral_constant<decltype(N), N>) { // = std::make_index_sequence<N>;
+constexpr auto is(std::integral_constant<decltype(N), N>) {
   return std::make_index_sequence<N>{};
 }
 
+// shorter value_type
 template <class A>
 using value_t = typename A::value_type;
 
+// determines the return type of Op(a,b)
 template <class A, class Op>
 using reduction_value_t =
     decltype(std::declval<Op>()(std::declval<value_t<A>>(), std::declval<value_t<A>>()));
@@ -60,10 +62,15 @@ PORTABLE_INLINE_FUNCTION constexpr auto array_reduce_impl(A const &x, Op op) {
 
 } // namespace detail
 
+// maps an unary function f(x) to each array value, returning an array of results
+// x = {f(a[0]), f(a[1]),..., f(a[N-1])}
 template <class A, class F>
 PORTABLE_FORCEINLINE_FUNCTION constexpr auto array_map(A const &x, F f) {
   return detail::array_map_impl(x, f, is(x.size()));
 }
+
+// maps a binary function to each array value, returning an array of results
+// x = {f(a[0], b[0]), f(a[1], b[1]),..., f(a[N-1], b[N-1])}
 
 template <class A, class B, class F>
 PORTABLE_FORCEINLINE_FUNCTION constexpr auto array_map(A const &x, B const &y, F f) {
@@ -82,26 +89,11 @@ PORTABLE_FORCEINLINE_FUNCTION constexpr T array_partial_reduce(A x, T initial_va
 
 template <class A, class Op, class T = reduction_value_t<A, Op>>
 
+// performs a reduction on an array of values
+// e.g. x = sum_i a[i]
 PORTABLE_FORCEINLINE_FUNCTION constexpr T array_reduce(A x, T initial_value, Op op) {
   return array_partial_reduce<x.size()>(x, initial_value, op);
 }
-/*
-namespace detail {
-template <class A, std::size_t... I>
-PORTABLE_FORCEINLINE_FUNCTION constexpr bool
-arrays_equal_impl(const A &x, const A &y, std::index_sequence<I...>) {
-  return (... && (x[I] == y[I]));
-}
-} // namespace detail
-template <class A>
-PORTABLE_FORCEINLINE_FUNCTION constexpr bool arrays_equal(const A &x, const A &y) {
-  return detail::arrays_equal_impl(x, y, is(x.size()));
-}*/
-/*template <std::size_t... Is>
-PORTABLE_FORCEINLINE_FUNCTION constexpr auto
-as_array(std::index_sequence<sizeof...(Is)>) {
-  return std::array{Is...};
-}*/
 
 } // namespace util
 

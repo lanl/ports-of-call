@@ -22,10 +22,11 @@
 
 namespace util {
 
+// returns the stride (offset) needed to move one unit in dimension D
 template <auto I, class A>
 PORTABLE_FORCEINLINE_FUNCTION static constexpr auto get_stride(A const &dim) {
 
-  // column major
+  // NB: column major
   return array_partial_reduce<I>(dim, value_t<A>{1}, std::multiplies<std::size_t>{});
 }
 
@@ -40,6 +41,9 @@ PORTABLE_FORCEINLINE_FUNCTION static constexpr auto get_strides(A const &dim) {
   return detail::get_strides_impl(dim, is(dim.size()));
 }
 } // namespace detail
+
+// returns the flat (1D) index of the md index set {i,j,k}
+// NB: fast because the strides are provided and don't need to be recomputed
 template <class A>
 PORTABLE_FORCEINLINE_FUNCTION static constexpr auto
 fast_findex(A const &ijk, A const &dim, A const &stride) {
@@ -47,11 +51,14 @@ fast_findex(A const &ijk, A const &dim, A const &stride) {
   return array_reduce(array_map(ijk, stride, [](auto a, auto b) { return a * b; }),
                       value_t<A>{1}, std::plus<std::size_t>{});
 }
+
+// same as fast_findex, except the strides are calculated on the fly
 template <class A>
 PORTABLE_FORCEINLINE_FUNCTION static constexpr auto findex(A const &ijk, A const &dim) {
   return fast_findex(ijk, dim, get_strides(dim));
 }
 
+// returns the md index set {i,j,k} of the flat (1D) index
 template <class A>
 PORTABLE_FORCEINLINE_FUNCTION static constexpr A
 fast_mindices(std::size_t idx, A const &dim, A const &stride) {
