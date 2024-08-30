@@ -24,15 +24,15 @@
 //  [N4xN3xN2xN1] are accessed as:  A(n,k,j,i) = A[i + N1*(j + N2*(k + N3*n))]
 //  NOTE THE TRAILING INDEX INSIDE THE PARENTHESES IS INDEXED FASTEST
 
+#include "array.hpp"
 #include "portability.hpp"
-#include "utility/array.hpp"
+#include "utility/array_algo.hpp"
 #include <algorithm>
 #include <array>
 #include <assert.h>
 #include <cstddef> // size_t
 #include <cstring> // memset()
 #include <functional>
-#include <integer_sequence>
 #include <numeric>
 #include <type_traits>
 #include <utility> // swap()
@@ -47,12 +47,17 @@ constexpr std::size_t to_const = V;
 
 } // namespace detail
 
-template <typename T>
+template <class T, auto N>
+using Array = PortsOfCall::array<T, N>;
+
+template <auto N>
+using IArray = Array<std::size_t, N>;
+
+template <typename T, std::size_t D = MAXDIM>
 class PortableMDArray {
  public:
   // explicit initialization of objects
-  PORTABLE_FUNCTION PortableMDArray(T *data, std::array<std::size_t, MAXDIM> extents,
-                                    std::array<std::size_t, MAXDIM> strides,
+  PORTABLE_FUNCTION PortableMDArray(T *data, IArray<D> extents, IArray<D> strides,
                                     std::size_t rank) noexcept
       : pdata_(data), nxs_(extents), strides_(strides), rank_(rank) {}
 
@@ -69,8 +74,23 @@ class PortableMDArray {
   PortableMDArray() noexcept : pdata_(nullptr), nxs_{{0}}, rank_{0} {}
   // define copy constructor and overload assignment operator so both do deep
   // copies.
-  PortableMDArray(const PortableMDArray<T> &t) noexcept;
-  PortableMDArray<T> &operator=(const PortableMDArray<T> &t) noexcept;
+  //  PortableMDArray(const PortableMDArray<T> &t) noexcept;
+  //  PortableMDArray<T> &operator=(const PortableMDArray<T> &t) noexcept;
+  PortableMDArray(const PortableMDArray<T, D> &src) noexcept {
+    nxs_ = src.nxs_;
+    rank_ = src.rank_;
+    strides_ = src.strides_;
+    if (src.pdata_) pdata_ = src.pdata_;
+  }
+
+  PortableMDArray<T, D> &operator=(const PortableMDArray<T, D> &src) noexcept {
+    if (this != &src) {
+      nxs_ = src.nxs;
+      rank_ = src.rank_;
+      pdata_ = src.pdata_;
+    }
+    return *this;
+  }
 
   template <typename... NXs>
   PORTABLE_FUNCTION void NewPortableMDArray(T *data, NXs... nxs) noexcept {
@@ -79,7 +99,12 @@ class PortableMDArray {
   }
   // public function to swap underlying data pointers of two equally-sized
   // arrays
-  void SwapPortableMDArray(PortableMDArray<T> &array2);
+  // void SwapPortableMDArray(PortableMDArray<T> &array2);
+
+  void SwapPortableMDArray(PortableMDArray<T, D> &array2) {
+    std::swap(pdata_, array2.pdata_);
+    return;
+  }
 
   // functions to get array dimensions
   template <std::size_t I>
@@ -115,16 +140,16 @@ class PortableMDArray {
   }
 
   PORTABLE_FORCEINLINE_FUNCTION int GetSize() const {
-    return util::array_reduce(nxs_, std::multiplies<std::size_t>{});
+    return util::array_reduce(nxs_, 1, std::multiplies<std::size_t>{});
   }
   PORTABLE_FORCEINLINE_FUNCTION std::size_t GetSizeInBytes() const {
     return GetSize() * sizeof(T);
   }
 
-  PORTABLE_INLINE_FUNCTION size_t GetRank() const { return rank_; }
+  PORTABLE_INLINE_FUNCTION std::size_t GetRank() const { return rank_; }
   template <typename... NXs>
   PORTABLE_INLINE_FUNCTION void Reshape(NXs... nxs) {
-    assert(util::array_reduce(std::array{nxs...}, std::multiplies<std::size_t>{}) ==
+    assert(util::array_reduce(IArray<D>{nxs...}, 1, std::multiplies<std::size_t>{}) ==
            GetSize());
     update_layout(nxs...);
   }
@@ -158,19 +183,19 @@ class PortableMDArray {
     return pdata_[compute_index(idxs...)];
   }
 
-  PortableMDArray<T> &operator*=(T scale) {
+  PortableMDArray<T, D> &operator*=(T scale) {
     std::transform(pdata_, pdata_ + GetSize(), pdata_,
                    [scale](T val) { return scale * val; });
     return *this;
   }
 
-  PortableMDArray<T> &operator+=(const PortableMDArray<T> &other) {
+  PortableMDArray<T, D> &operator+=(const PortableMDArray<T, D> &other) {
     assert(GetSize() == other.GetSize());
     std::transform(pdata_, pdata_ + GetSize(), other.pdata_, pdata_, std::plus<T>());
     return *this;
   }
 
-  PortableMDArray<T> &operator-=(const PortableMDArray<T> &other) {
+  PortableMDArray<T, D> &operator-=(const PortableMDArray<T, D> &other) {
     assert(GetSize() == other.GetSize());
     std::transform(pdata_, pdata_ + GetSize(), other.pdata_, pdata_, std::minus<T>());
     return *this;
@@ -178,23 +203,40 @@ class PortableMDArray {
 
   // Checks that arrays point to same data with same shape
   // note this POINTER equivalence, not data equivalence
-  bool operator==(const PortableMDArray<T> &other) const;
-  bool operator!=(const PortableMDArray<T> &other) const { return !(*this == other); }
+  bool operator==(const PortableMDArray<T, D> &rhs) const {
+    return (pdata_ == rhs.pdata_ && nxs_ == rhs.nxs_); // NB rank is implied
+  }
 
-  // (deferred) initialize an array with slice from another array
-  PORTABLE_FUNCTION
-  void InitWithShallowSlice(const PortableMDArray<T> &src, const int dim, const int indx,
-                            const int nvar);
+  bool operator!=(const PortableMDArray<T, D> &other) const { return !(*this == other); }
+
+  PORTABLE_FUNCTION void InitWithShallowSlice(const PortableMDArray<T, D> &src,
+                                              const int dim, const int indx,
+                                              const int nvar) {
+    pdata_ = src.pdata_;
+    std::size_t offs = indx;
+    nxs_[dim - 1] = nvar;
+
+    for (std::size_t i = 0; i < dim - 1; ++i) {
+      nxs_[i] = src.nxs_[i];
+      offs *= nxs_[i];
+    }
+    for (std::size_t i = dim; i < MAXDIM; ++i) {
+      nxs_[i] = 1;
+    }
+    pdata_ += offs;
+
+    return;
+  }
 
  private:
   template <typename... NX, std::size_t N = sizeof...(NX)>
   PORTABLE_FORCEINLINE_FUNCTION auto make_nxs_array(NX... nxs) {
-    std::array<std::size_t, MAXDIM> a;
-    std::array<std::size_t, N> t{static_cast<std::size_t>(nxs)...};
+    IArray<D> a;
+    IArray<N> t{static_cast<std::size_t>(nxs)...};
     for (auto i = 0; i < N; ++i) {
       a[i] = t[N - i - 1];
     }
-    for (auto i = N; i < MAXDIM; ++i) {
+    for (auto i = N; i < D; ++i) {
       a[i] = 1;
     }
     return a;
@@ -202,12 +244,12 @@ class PortableMDArray {
 
   template <std::size_t N>
   PORTABLE_INLINE_FUNCTION auto make_strides_array() {
-    std::array<std::size_t, MAXDIM> a;
+    IArray<D> a;
     a[0] = 1;
     for (auto i = 1; i < N; ++i) {
       a[i] = a[i - 1] * nxs_[i - 1];
     }
-    for (auto i = N; i < MAXDIM; ++i)
+    for (auto i = N; i < D; ++i)
       a[i] = 0;
 
     return a;
@@ -244,41 +286,12 @@ class PortableMDArray {
   }
 
   T *pdata_;
-  std::array<std::size_t, MAXDIM> nxs_;
-  std::array<std::size_t, MAXDIM> strides_;
+  IArray<D> nxs_;
+  IArray<D> strides_;
   int rank_;
+
+ public:
 };
-
-// copy constructor (does a shallow copy)
-
-template <typename T>
-PortableMDArray<T>::PortableMDArray(const PortableMDArray<T> &src) noexcept {
-  nxs_ = src.nxs_;
-  rank_ = src.rank_;
-  strides_ = src.strides_;
-  if (src.pdata_) pdata_ = src.pdata_;
-}
-
-// shallow copy assignment operator
-
-template <typename T>
-PortableMDArray<T> &
-PortableMDArray<T>::operator=(const PortableMDArray<T> &src) noexcept {
-  if (this != &src) {
-    nxs_ = src.nxs;
-    rank_ = src.rank_;
-    pdata_ = src.pdata_;
-  }
-  return *this;
-}
-
-// Checks that arrays point to same data with same shape
-// note this POINTER equivalence, not data equivalence
-template <typename T>
-bool PortableMDArray<T>::operator==(const PortableMDArray<T> &rhs) const {
-  return (pdata_ == rhs.pdata_ && nxs_ == rhs.nxs_); // NB rank is implied
-}
-
 //----------------------------------------------------------------------------------------
 //! \fn PortableMDArray::InitWithShallowSlice()
 //  \brief shallow copy of nvar elements in dimension dim of an array,
@@ -288,36 +301,10 @@ bool PortableMDArray<T>::operator==(const PortableMDArray<T> &rhs) const {
 //  entries of the src array for d<dim (cannot access any nx4=2, etc. entries
 //  if dim=3 for example)
 
-template <typename T>
-PORTABLE_FUNCTION void
-PortableMDArray<T>::InitWithShallowSlice(const PortableMDArray<T> &src, const int dim,
-                                         const int indx, const int nvar) {
-  pdata_ = src.pdata_;
-  std::size_t offs = indx;
-  nxs_[dim - 1] = nvar;
-
-  for (std::size_t i = 0; i < dim - 1; ++i) {
-    nxs_[i] = src.nxs_[i];
-    offs *= nxs_[i];
-  }
-  for (std::size_t i = dim; i < MAXDIM; ++i) {
-    nxs_[i] = 1;
-  }
-  pdata_ += offs;
-
-  return;
-}
-
 //----------------------------------------------------------------------------------------
 //! \fn PortableMDArray::SwapPortableMDArray()
 //  \brief  swap pdata_ pointers of two equally sized PortableMDArrays
 //  (shallow swap)
 // Does not allocate memory for either array
-
-template <typename T>
-void PortableMDArray<T>::SwapPortableMDArray(PortableMDArray<T> &array2) {
-  std::swap(pdata_, array2.pdata_);
-  return;
-}
 
 #endif // _PORTABLE_ARRAYS_HPP_

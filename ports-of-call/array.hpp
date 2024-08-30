@@ -3,6 +3,7 @@
 
 #include "portability.hpp"
 #include "portable_errors.hpp"
+#include "ports-of-call/utility/array_algo.hpp"
 
 #include <cstddef>
 #include <iterator>
@@ -190,6 +191,12 @@ struct array {
     for (auto &element : *this) {
       element = value;
     }
+  }
+
+  PORTABLE_FUNCTION constexpr bool operator==(const array &rhs) const {
+    for (size_type i = 0; i < N; ++i)
+      if (arr[i] != rhs.arr[i]) return false;
+    return true;
   }
 
   //! swap the array contents with another

@@ -1,9 +1,8 @@
 #ifndef _TEST_PORTOFCALL_HPP_
 #define _TEST_PORTOFCALL_HPP_
 
-#include <__utility/integer_sequence.h>
-#include <array>
 #include <functional>
+#include <ports-of-call/array.hpp>
 #include <ports-of-call/portability.hpp>
 #include <ports-of-call/portable_arrays.hpp>
 #include <utility>
@@ -27,10 +26,8 @@ constexpr auto array_fix_impl(const Array &a, std::index_sequence<I...> is) {
 // it into an array 2N {0, NX} contiguous pairs.
 // ex:
 //    array{10,12,13} -> array{0,10,0,12,0,13}
-template <typename T, std::size_t N,
-          typename Indx = std::make_index_sequence<N>>
-PORTABLE_FORCEINLINE_FUNCTION constexpr auto
-array_fix(const std::array<T, N> &a) {
+template <typename T, std::size_t N, typename Indx = std::make_index_sequence<N>>
+PORTABLE_FORCEINLINE_FUNCTION constexpr auto array_fix(const std::array<T, N> &a) {
   return array_fix_impl(a, Indx{});
 }
 
@@ -50,13 +47,12 @@ PORTABLE_INLINE_FUNCTION constexpr auto pf_invoke(View v, const Array &ext_par,
 
   auto stud_arr = array_fix(ext_par);
   portableFor(
-      "set unique val", stud_arr[J]...,
-      PORTABLE_LAMBDA(auto... is) { v(is...) = 1.0; });
+      "set unique val", stud_arr[J]..., PORTABLE_LAMBDA(auto... is) { v(is...) = 1.0; });
 }
 
 template <class Ptr, class Array, std::size_t... I>
-PORTABLE_FORCEINLINE_FUNCTION constexpr decltype(auto)
-mdview(Ptr *d, const Array &arr, std::index_sequence<I...>) {
+PORTABLE_FORCEINLINE_FUNCTION constexpr decltype(auto) mdview(Ptr *d, const Array &arr,
+                                                              std::index_sequence<I...>) {
   return PortableMDArray<Real>(d, arr[I]...);
 }
 
@@ -65,8 +61,7 @@ mdview(Ptr *d, const Array &arr, std::index_sequence<I...>) {
 template <class T, std::size_t N, typename I1 = std::make_index_sequence<N>,
           typename I2 = std::make_index_sequence<2 * N>>
 PORTABLE_FUNCTION auto idx_contiguous_bm(const std::array<T, N> &nxa) {
-  auto nc =
-      std::accumulate(std::begin(nxa), std::end(nxa), 1, std::multiplies<T>{});
+  auto nc = std::accumulate(std::begin(nxa), std::end(nxa), 1, std::multiplies<T>{});
 
   Real *tape_d = (Real *)PORTABLE_MALLOC(nc * sizeof(Real));
 
