@@ -1,3 +1,16 @@
+// © (or copyright) 2019-2024. Triad National Security, LLC. All rights
+// reserved.  This program was produced under U.S. Government contract
+// 89233218CNA000001 for Los Alamos National Laboratory (LANL), which is
+// operated by Triad National Security, LLC for the U.S.  Department of
+// Energy/National Nuclear Security Administration. All rights in the
+// program are reserved by Triad National Security, LLC, and the
+// U.S. Department of Energy/National Nuclear Security
+// Administration. The Government is granted for itself and others acting
+// on its behalf a nonexclusive, paid-up, irrevocable worldwide license
+// in this material to reproduce, prepare derivative works, distribute
+// copies to the public, perform publicly and display publicly, and to
+// permit others to do so.
+
 #ifndef _PORTSOFCALL_UTILITY_INDEX_ALGO_HPP_
 #define _PORTSOFCALL_UTILITY_INDEX_ALGO_HPP_
 
@@ -9,47 +22,6 @@
 
 namespace util {
 
-/*
- template <auto I, class T, std::size_t N>
-PORTABLE_FORCEINLINE_FUNCTION static constexpr auto
-get_stride(std::array<T, N> const &dim) {
-  static_assert(I < dim.size(), "Dim index is out of bounds");
-
-  // column major
-  return std::accumulate(std::begin(dim), std::begin(dim) + I, std::size_t{1},
-                         std::multiplies<std::size_t>{});
-}
-
-namespace detail {
-template <class T, std::size_t N, std::size_t... Is>
-PORTABLE_FORCEINLINE_FUNCTION static constexpr auto
-get_strides_impl(std::array<T, N> const &dim, std::index_sequence<Is...>) {
-  return std::array{get_stride<Is>(dim)...};
-}
-
-} // namespace detail
-
-template <class T, std::size_t N>
-PORTABLE_FORCEINLINE_FUNCTION static constexpr auto
-get_strides(std::array<T, N> const &dim) {
-  return detail::get_strides_impl(dim, std::make_index_sequence<dim.size()>{});
-}
-
-template <class T, std::size_t N>
-PORTABLE_FORCEINLINE_FUNCTION static constexpr auto
-fast_findex(std::array<T, N> const &ijk, std::array<T, N> const &dim,
-            std::array<T, N> const &stride) {
-  // TODO: assert ijk in bounds
-  return std::inner_product(std::begin(ijk), std::end(ijk), std::begin(stride),
-                            std::size_t{0});
-}
-
-template <class T, std::size_t N>
-PORTABLE_FORCEINLINE_FUNCTION static constexpr auto
-findex(std::array<T, N> const &ijk, std::array<T, N> const &dim) {
-  return fast_findex(ijk, dim, get_strides(dim));
-}
-*/
 template <auto I, class A>
 PORTABLE_FORCEINLINE_FUNCTION static constexpr auto get_stride(A const &dim) {
 
