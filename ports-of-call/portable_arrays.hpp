@@ -6,7 +6,7 @@
 // contributors Licensed under the 3-clause BSD License, see LICENSE file for
 // details
 //
-// © (or copyright) 2019-2021. Triad National Security, LLC. All rights
+// © (or copyright) 2019-2024. Triad National Security, LLC. All rights
 // reserved.  This program was produced under U.S. Government contract
 // 89233218CNA000001 for Los Alamos National Laboratory (LANL), which
 // is operated by Triad National Security, LLC for the U.S.
@@ -51,8 +51,7 @@ template <typename T>
 class PortableMDArray {
  public:
   // explicit initialization of objects
-  PORTABLE_FUNCTION PortableMDArray(T *data,
-                                    std::array<std::size_t, MAXDIM> extents,
+  PORTABLE_FUNCTION PortableMDArray(T *data, std::array<std::size_t, MAXDIM> extents,
                                     std::array<std::size_t, MAXDIM> strides,
                                     std::size_t rank) noexcept
       : pdata_(data), nxs_(extents), strides_(strides), rank_(rank) {}
@@ -68,7 +67,6 @@ class PortableMDArray {
   // default ctor: simply set null PortableMDArray
   PORTABLE_FUNCTION
   PortableMDArray() noexcept : pdata_(nullptr), nxs_{{0}}, rank_{0} {}
-
   // define copy constructor and overload assignment operator so both do deep
   // copies.
   PortableMDArray(const PortableMDArray<T> &t) noexcept;
@@ -126,10 +124,11 @@ class PortableMDArray {
   PORTABLE_INLINE_FUNCTION size_t GetRank() const { return rank_; }
   template <typename... NXs>
   PORTABLE_INLINE_FUNCTION void Reshape(NXs... nxs) {
-    assert(util::array_reduce(std::array{nxs...},
-                              std::multiplies<std::size_t>{}) == GetSize());
+    assert(util::array_reduce(std::array{nxs...}, std::multiplies<std::size_t>{}) ==
+           GetSize());
     update_layout(nxs...);
   }
+
   PORTABLE_FORCEINLINE_FUNCTION bool IsShallowSlice() { return true; }
   PORTABLE_FORCEINLINE_FUNCTION bool IsEmpty() { return GetSize() < 1; }
   // "getter" function to access private data member
@@ -167,29 +166,25 @@ class PortableMDArray {
 
   PortableMDArray<T> &operator+=(const PortableMDArray<T> &other) {
     assert(GetSize() == other.GetSize());
-    std::transform(pdata_, pdata_ + GetSize(), other.pdata_, pdata_,
-                   std::plus<T>());
+    std::transform(pdata_, pdata_ + GetSize(), other.pdata_, pdata_, std::plus<T>());
     return *this;
   }
 
   PortableMDArray<T> &operator-=(const PortableMDArray<T> &other) {
     assert(GetSize() == other.GetSize());
-    std::transform(pdata_, pdata_ + GetSize(), other.pdata_, pdata_,
-                   std::minus<T>());
+    std::transform(pdata_, pdata_ + GetSize(), other.pdata_, pdata_, std::minus<T>());
     return *this;
   }
 
   // Checks that arrays point to same data with same shape
   // note this POINTER equivalence, not data equivalence
   bool operator==(const PortableMDArray<T> &other) const;
-  bool operator!=(const PortableMDArray<T> &other) const {
-    return !(*this == other);
-  }
+  bool operator!=(const PortableMDArray<T> &other) const { return !(*this == other); }
 
   // (deferred) initialize an array with slice from another array
   PORTABLE_FUNCTION
-  void InitWithShallowSlice(const PortableMDArray<T> &src, const int dim,
-                            const int indx, const int nvar);
+  void InitWithShallowSlice(const PortableMDArray<T> &src, const int dim, const int indx,
+                            const int nvar);
 
  private:
   template <typename... NX, std::size_t N = sizeof...(NX)>
@@ -231,22 +226,19 @@ class PortableMDArray {
 
   // compute_index base case, i.e. fastest moving index
   template <std::size_t Ind, std::size_t N>
-  PORTABLE_FORCEINLINE_FUNCTION size_t
-  compute_index_impl(const size_t index) const {
+  PORTABLE_FORCEINLINE_FUNCTION size_t compute_index_impl(const size_t index) const {
     return index;
   }
 
   // compute_index general case, computing slower moving index strides
   template <std::size_t Ind, std::size_t N, typename... Tail>
-  PORTABLE_FORCEINLINE_FUNCTION size_t
-  compute_index_impl(const size_t index, const Tail... tail) const {
-    return index * strides_[N - Ind - 1] +
-           compute_index_impl<Ind + 1, N>(tail...);
+  PORTABLE_FORCEINLINE_FUNCTION size_t compute_index_impl(const size_t index,
+                                                          const Tail... tail) const {
+    return index * strides_[N - Ind - 1] + compute_index_impl<Ind + 1, N>(tail...);
   }
   // compute index driver.
   template <typename... Indicies, std::size_t N = sizeof...(Indicies)>
-  PORTABLE_FORCEINLINE_FUNCTION std::size_t
-  compute_index(const Indicies... idxs) const {
+  PORTABLE_FORCEINLINE_FUNCTION std::size_t compute_index(const Indicies... idxs) const {
     // adding `0` if sizeof...(Indicies) == 0
     return 0 + compute_index_impl<0, N>(idxs...);
   }
@@ -298,9 +290,8 @@ bool PortableMDArray<T>::operator==(const PortableMDArray<T> &rhs) const {
 
 template <typename T>
 PORTABLE_FUNCTION void
-PortableMDArray<T>::InitWithShallowSlice(const PortableMDArray<T> &src,
-                                         const int dim, const int indx,
-                                         const int nvar) {
+PortableMDArray<T>::InitWithShallowSlice(const PortableMDArray<T> &src, const int dim,
+                                         const int indx, const int nvar) {
   pdata_ = src.pdata_;
   std::size_t offs = indx;
   nxs_[dim - 1] = nvar;

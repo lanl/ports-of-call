@@ -35,6 +35,7 @@ option (PORTS_OF_CALL_BUILD_TESTING "Test the current installation")
 
 # CONFIGURATION LOGIC
 # ----------------------------------------
+set(CMAKE_MODULE_PATH ${CMAKE_CURRENT_LIST_DIR}/cmake)
 
 # TARGET CONFIGURATION
 # ----------------------------------------
@@ -61,7 +62,7 @@ target_include_directories(${POCLIB}
 
 target_compile_features(${POCLIB}
   INTERFACE
-    cxx_std_14
+    cxx_std_17
 )
 
 #NOTE this option is done downstream, maybe poc should control it
@@ -79,6 +80,10 @@ if(PORTS_OF_CALL_BUILD_TESTING)
   enable_testing()
   add_subdirectory(test)
 endif()
+
+# FORMATTING
+# ----------------------------------------
+include(Format)
 
 # INSTALL & EXPORT
 # ----------------------------------------

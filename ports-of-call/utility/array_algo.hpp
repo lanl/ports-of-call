@@ -1,5 +1,5 @@
-#ifndef _PORTSOFCALL_UTILITY_ARRAY_HPP_
-#define _PORTSOFCALL_UTILITY_ARRAY_HPP_
+#ifndef _PORTSOFCALL_UTILITY_ARRAY_ALGO_HPP_
+#define _PORTSOFCALL_UTILITY_ARRAY_ALGO_HPP_
 
 #include "../portability.hpp"
 #include <array>
@@ -22,8 +22,7 @@ array_map_impl(std::array<T, N> const &x, std::array<U, N> const &y, F f,
 }
 
 template <std::size_t f, std::size_t l, class T, std::size_t N, class Op>
-PORTABLE_INLINE_FUNCTION constexpr T
-array_reduce_impl(std::array<T, N> const &x, Op op) {
+PORTABLE_INLINE_FUNCTION constexpr T array_reduce_impl(std::array<T, N> const &x, Op op) {
   if constexpr ((l - f) == 1)
     return x[f];
   else {
@@ -37,20 +36,19 @@ array_reduce_impl(std::array<T, N> const &x, Op op) {
 } // namespace detail
 
 template <class T, std::size_t N, class F>
-PORTABLE_FORCEINLINE_FUNCTION constexpr auto
-array_map(std::array<T, N> const &x, F f) {
+PORTABLE_FORCEINLINE_FUNCTION constexpr auto array_map(std::array<T, N> const &x, F f) {
   return detail::array_map_impl(x, f, std::make_index_sequence<N>{});
 }
 
 template <class T, class U, std::size_t N, class F>
-PORTABLE_FORCEINLINE_FUNCTION constexpr auto
-array_map(std::array<T, N> const &x, std::array<U, N> const &y, F f) {
+PORTABLE_FORCEINLINE_FUNCTION constexpr auto array_map(std::array<T, N> const &x,
+                                                       std::array<U, N> const &y, F f) {
   return detail::array_map_impl(x, y, f, std::make_index_sequence<N>{});
 }
 
 template <std::size_t I, class T, std::size_t N, class Op>
-PORTABLE_FORCEINLINE_FUNCTION constexpr T
-array_partial_reduce(std::array<T, N> x, T initial_value, Op op) {
+PORTABLE_FORCEINLINE_FUNCTION constexpr T array_partial_reduce(std::array<T, N> x,
+                                                               T initial_value, Op op) {
   static_assert(I <= N);
   if constexpr (I == 0)
     return initial_value;
