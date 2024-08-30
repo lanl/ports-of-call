@@ -47,4 +47,4 @@ target_link_libraries(test_portsofcall PRIVATE ports-of-call::ports-of-call
 include(Catch)
 catch_discover_tests(test_portsofcall)
 
-target_sources(test_portsofcall PRIVATE test_portability.cpp)
+target_sources(test_portsofcall PRIVATE test_portability.cpp test_array.cpp)
