@@ -20,6 +20,29 @@
 
 namespace util {
 
+// NB:
+// the array type is explicitly left unspecified, as it may be
+// desirable to use a type other than std::array.
+// however, it is required that the underlying type must
+// conform to a minimum std::array interface:
+//
+//  1.) constexpr operator[]
+//  2.) constexpr size_type size()
+//  3.) array_type::value_type
+//
+// A casual choice early on was that the array parameter is
+// assumed to be "complete" at instanciation. That is,
+// we use
+//
+//  template<class A>
+//
+// rather than (the more specific)
+//
+//  template<template<class, auto> A, class T, auto N>
+//
+// this imposes some structure that is a little loose, and may
+// be refactored at some point.
+
 // shorter make_index_sequence
 template <auto N>
 constexpr auto is(std::integral_constant<decltype(N), N>) {
@@ -42,7 +65,7 @@ PORTABLE_FORCEINLINE_FUNCTION constexpr auto array_map_impl(A const &x, F f,
   return std::array{f(x[Is])...};
 }
 
-template <class A, class B, std::size_t N, class F, std::size_t... Is>
+template <class A, class B, class F, std::size_t... Is>
 PORTABLE_FORCEINLINE_FUNCTION constexpr auto array_map_impl(A const &x, B const &y, F f,
                                                             std::index_sequence<Is...>) {
   return A{f(x[Is], y[Is])...};
