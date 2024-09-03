@@ -21,9 +21,6 @@ cmake_minimum_required(VERSION 3.14)
 set(PORTS_OF_CALL_VERSION 1.6.0)
 project(ports-of-call VERSION ${PORTS_OF_CALL_VERSION})
 
-# dependent options
-include(CMakeDependentOption)
-
 # CMAKE WARMUP
 # ----------------------------------------
 
