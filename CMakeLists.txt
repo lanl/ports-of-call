@@ -31,7 +31,14 @@ if(${CMAKE_SOURCE_DIR} STREQUAL ${CMAKE_BINARY_DIR})
     "Please make a build subdirectory. Feel free to remove CMakeCache.txt and CMakeFiles.")
 endif()
 
-option (PORTS_OF_CALL_BUILD_TESTING "Test the current installation")
+option (PORTS_OF_CALL_BUILD_TESTING "Test the current installation" OFF)
+# off by default but possible to turn on
+if (PORTS_OF_CALL_BUILD_TESTING)
+  set(PORTS_OF_CALL_TEST_PORTABILITY_STRATEGY "None" CACHE STRING
+    "Portability strategy used by tests")
+  set_property(CACHE PORTS_OF_CALL_TEST_PORTABILITY_STRATEGY
+    PROPERTY STRINGS None Cuda Kokkos)
+endif()
 
 # CONFIGURATION LOGIC
 # ----------------------------------------
