@@ -27,6 +27,7 @@
 #include "array.hpp"
 #include "portability.hpp"
 #include "utility/array_algo.hpp"
+#include "utility/index_algo.hpp"
 #include <algorithm>
 #include <array>
 #include <assert.h>
@@ -47,22 +48,62 @@ constexpr std::size_t to_const = V;
 
 } // namespace detail
 
+#if __cplusplus == 202002L
+template <class T, auto N>
+using Array = std::array<T, N>;
+#else
 template <class T, auto N>
 using Array = PortsOfCall::array<T, N>;
+#endif // __cplusplus
 
 template <auto N>
 using IArray = Array<std::size_t, N>;
 
+/*
+#define ENABLE_CRTP(DerivedType) \
+    constexpr DerivedType &base() noexcept { return static_cast<DerivedType &>(*this); } \
+    constexpr const DerivedType &base() const noexcept { return static_cast<const
+DerivedType &>(*this); }
+
+
+
+template <class Derived>
+struct WithStoredStrides
+{
+  ENABLE_CRTP(Derived)
+  using size_type = typename Derived :: size_type;
+  using index_type = typename Derived :: index_type;
+  using strides_type = decltype(Derived::nx_);
+
+  strides_type strides_;
+
+  template<index_type ...Is>
+  constexpr auto operator() noexcept(Is...is)
+  {
+    return util::findex({is...}, base.nxs_, strides_);
+  }
+};
+*/
+
 template <typename T, std::size_t D = MAXDIM>
 class PortableMDArray {
  public:
+  using element_type = T;
+  using value_type = typename std::remove_cv<T>::type;
+  using index_type = std::ptrdiff_t;
+  using size_type = std::size_t;
+  using pointer = T *;
+  using const_pointer = const T *;
+  using reference = T &;
+  using const_reference = const T &;
+
   // explicit initialization of objects
   PORTABLE_FUNCTION PortableMDArray(T *data, IArray<D> extents, IArray<D> strides,
-                                    std::size_t rank) noexcept
+                                    size_type rank) noexcept
       : pdata_(data), nxs_(extents), strides_(strides), rank_(rank) {}
 
   // variadic ctor, dispatch to explicit constructor
-  template <typename... NXs, std::size_t N = sizeof...(NXs)>
+  template <typename... NXs, size_type N = sizeof...(NXs)>
   PORTABLE_FUNCTION PortableMDArray(T *p, NXs... nxs) noexcept {
     NewPortableMDArray(p, nxs...);
   } //: PortableMDArray(p, make_nxs_array(nxs...), make_strides_array<N>(), N) {
@@ -111,62 +152,81 @@ class PortableMDArray {
   // functions to get array dimensions
   template <std::size_t I>
   PORTABLE_FUNCTION constexpr auto GetDim() const {
-    return nxs_[I];
+    return nxs_[rank_ - I];
   }
 
   // legacy API, TODO: deprecate
-  PORTABLE_FORCEINLINE_FUNCTION int GetDim1() const { return GetDim<0>(); }
-  PORTABLE_FORCEINLINE_FUNCTION int GetDim2() const { return GetDim<1>(); }
-  PORTABLE_FORCEINLINE_FUNCTION int GetDim3() const { return GetDim<2>(); }
-  PORTABLE_FORCEINLINE_FUNCTION int GetDim4() const { return GetDim<3>(); }
-  PORTABLE_FORCEINLINE_FUNCTION int GetDim5() const { return GetDim<4>(); }
-  PORTABLE_FORCEINLINE_FUNCTION int GetDim6() const { return GetDim<5>(); }
+  [[deprecated("Use GetDim<N> instead.")]]
+  PORTABLE_FORCEINLINE_FUNCTION int GetDim1() const {
+    return GetDim<1>();
+  }
+  [[deprecated("Use GetDim<N> instead.")]]
+  PORTABLE_FORCEINLINE_FUNCTION int GetDim2() const {
+    return GetDim<2>();
+  }
+  [[deprecated("Use GetDim<N> instead.")]]
+  PORTABLE_FORCEINLINE_FUNCTION int GetDim3() const {
+    return GetDim<3>();
+  }
+  [[deprecated("Use GetDim<N> instead.")]]
+  PORTABLE_FORCEINLINE_FUNCTION int GetDim4() const {
+    return GetDim<4>();
+  }
+  [[deprecated("Use GetDim<N> instead.")]]
+  PORTABLE_FORCEINLINE_FUNCTION int GetDim5() const {
+    return GetDim<5>();
+  }
+  [[deprecated("Use GetDim<N> instead.")]]
+  PORTABLE_FORCEINLINE_FUNCTION int GetDim6() const {
+    return GetDim<6>();
+  }
   PORTABLE_INLINE_FUNCTION int GetDim(size_t i) const {
     // TODO: remove if performance cirtical
     assert(0 < i && i <= 6 && "PortableMDArrays are max 6D");
     switch (i) {
     case 1:
-      return GetDim1();
+      return GetDim<1>();
     case 2:
-      return GetDim2();
+      return GetDim<2>();
     case 3:
-      return GetDim3();
+      return GetDim<3>();
     case 4:
-      return GetDim4();
+      return GetDim<4>();
     case 5:
-      return GetDim5();
+      return GetDim<5>();
     case 6:
-      return GetDim6();
+      return GetDim<6>();
     }
     return -1;
   }
 
-  PORTABLE_FORCEINLINE_FUNCTION int GetSize() const {
-    return util::array_reduce(nxs_, 1, std::multiplies<std::size_t>{});
+  PORTABLE_FORCEINLINE_FUNCTION int GetSize() const noexcept {
+    return util::array_reduce(nxs_, 1, std::multiplies<size_type>{});
   }
-  PORTABLE_FORCEINLINE_FUNCTION std::size_t GetSizeInBytes() const {
+  PORTABLE_FORCEINLINE_FUNCTION size_type GetSizeInBytes() const noexcept {
     return GetSize() * sizeof(T);
   }
 
-  PORTABLE_INLINE_FUNCTION std::size_t GetRank() const { return rank_; }
+  PORTABLE_INLINE_FUNCTION size_type GetRank() const noexcept { return rank_; }
   template <typename... NXs>
   PORTABLE_INLINE_FUNCTION void Reshape(NXs... nxs) {
-    assert(util::array_reduce(IArray<D>{nxs...}, 1, std::multiplies<std::size_t>{}) ==
-           GetSize());
+    assert(util::array_reduce(IArray<D>{nxs...}, 1, std::multiplies<size_type>{}) ==
+               GetSize() &&
+           "New shape gives different size than existing size");
     update_layout(nxs...);
   }
 
-  PORTABLE_FORCEINLINE_FUNCTION bool IsShallowSlice() { return true; }
-  PORTABLE_FORCEINLINE_FUNCTION bool IsEmpty() { return GetSize() < 1; }
+  PORTABLE_FORCEINLINE_FUNCTION bool IsShallowSlice() const noexcept { return true; }
+  PORTABLE_FORCEINLINE_FUNCTION bool IsEmpty() const noexcept { return GetSize() < 1; }
   // "getter" function to access private data member
   // TODO(felker): Replace this unrestricted "getter" with a limited, safer
   // alternative.
   // TODO(felker): Rename function. Conflicts with "PortableMDArray<> data"
   // OutputData member.
-  PORTABLE_FORCEINLINE_FUNCTION T *data() { return pdata_; }
-  PORTABLE_FORCEINLINE_FUNCTION const T *data() const { return pdata_; }
-  PORTABLE_FORCEINLINE_FUNCTION T *begin() { return pdata_; }
-  PORTABLE_FORCEINLINE_FUNCTION T *end() { return pdata_ + GetSize(); }
+  PORTABLE_FORCEINLINE_FUNCTION pointer data() noexcept { return pdata_; }
+  PORTABLE_FORCEINLINE_FUNCTION const_pointer data() const noexcept { return pdata_; }
+  PORTABLE_FORCEINLINE_FUNCTION pointer begin() noexcept { return pdata_; }
+  PORTABLE_FORCEINLINE_FUNCTION pointer end() noexcept { return pdata_ + GetSize(); }
 
   // overload "function call" operator() to access 1d-5d data
   // provides Fortran-like syntax for multidimensional arrays vs. "subscript"
@@ -176,13 +236,13 @@ class PortableMDArray {
   // access via returning by reference, enabling assignment on returned
   // l-value, e.g.: a(3) = 3.0;
   template <typename... Is>
-  PORTABLE_FORCEINLINE_FUNCTION T &operator()(const Is... idxs) {
-    return pdata_[compute_index(idxs...)];
+  PORTABLE_FORCEINLINE_FUNCTION reference operator()(Is... idxs) noexcept {
+    return pdata_[util::fast_findex({static_cast<size_type>(idxs)...}, nxs_, strides_)];
   }
 
   template <typename... Is>
-  PORTABLE_FORCEINLINE_FUNCTION T &operator()(const Is... idxs) const {
-    return pdata_[compute_index(idxs...)];
+  PORTABLE_FORCEINLINE_FUNCTION T &operator()(Is... idxs) const noexcept {
+    return pdata_[util::fast_findex({static_cast<size_type>(idxs)...}, nxs_, strides_)];
   }
 
   PortableMDArray<T, D> &operator*=(T scale) {
@@ -240,60 +300,15 @@ class PortableMDArray {
   }
 
  private:
-  template <typename... NX, std::size_t N = sizeof...(NX)>
-  PORTABLE_FORCEINLINE_FUNCTION auto make_nxs_array(NX... nxs) {
-    IArray<D> a;
-    IArray<N> t{static_cast<std::size_t>(nxs)...};
-    for (auto i = 0; i < N; ++i) {
-      a[i] = t[N - i - 1];
-    }
-    for (auto i = N; i < D; ++i) {
-      a[i] = 1;
-    }
-    return a;
-  }
-
-  template <std::size_t N>
-  PORTABLE_INLINE_FUNCTION auto make_strides_array() {
-    IArray<D> a;
-    a[0] = 1;
-    for (auto i = 1; i < N; ++i) {
-      a[i] = a[i - 1] * nxs_[i - 1];
-    }
-    for (auto i = N; i < D; ++i)
-      a[i] = 0;
-
-    return a;
-  }
-
   // driver of nx array creation.
   // Note we iterate from the RIGHT, to match
   // what was done explicilt prior.
-  template <typename... NXs, std::size_t N = sizeof...(NXs)>
-  PORTABLE_INLINE_FUNCTION auto update_layout(NXs... nxs) {
+  template <typename... NXs, auto N = sizeof...(NXs)>
+  PORTABLE_INLINE_FUNCTION constexpr auto update_layout(NXs... nxs) noexcept {
 
     rank_ = N;
-    nxs_ = make_nxs_array(nxs...);
-    strides_ = make_strides_array<N>();
-  }
-
-  // compute_index base case, i.e. fastest moving index
-  template <std::size_t Ind, std::size_t N>
-  PORTABLE_FORCEINLINE_FUNCTION size_t compute_index_impl(const size_t index) const {
-    return index;
-  }
-
-  // compute_index general case, computing slower moving index strides
-  template <std::size_t Ind, std::size_t N, typename... Tail>
-  PORTABLE_FORCEINLINE_FUNCTION size_t compute_index_impl(const size_t index,
-                                                          const Tail... tail) const {
-    return index * strides_[N - Ind - 1] + compute_index_impl<Ind + 1, N>(tail...);
-  }
-  // compute index driver.
-  template <typename... Indicies, std::size_t N = sizeof...(Indicies)>
-  PORTABLE_FORCEINLINE_FUNCTION std::size_t compute_index(const Indicies... idxs) const {
-    // adding `0` if sizeof...(Indicies) == 0
-    return 0 + compute_index_impl<0, N>(idxs...);
+    nxs_ = util::make_underfilled_array<D>(util::wrap_vars<IArray<N>>(nxs...));
+    strides_ = util::make_underfilled_array<D, 0>(util::get_strides(nxs_));
   }
 
   T *pdata_;

@@ -16,9 +16,6 @@
 
 #include "../portability.hpp"
 #include "array_algo.hpp"
-#include <array>
-#include <numeric>
-#include <type_traits>
 
 namespace util {
 
@@ -27,7 +24,8 @@ template <auto I, class A>
 PORTABLE_FORCEINLINE_FUNCTION static constexpr auto get_stride(A const &dim) {
 
   // NB: column major
-  return array_partial_reduce<I>(dim, value_t<A>{1}, std::multiplies<std::size_t>{});
+  return array_partial_reduce<I + 1, get_size(A{})>(dim, value_t<A>{1},
+                                                    std::multiplies<std::size_t>{});
 }
 
 namespace detail {
@@ -36,11 +34,12 @@ PORTABLE_FORCEINLINE_FUNCTION static constexpr auto
 get_strides_impl(A const &dim, std::index_sequence<Is...>) {
   return A{get_stride<Is>(dim)...};
 }
+} // namespace detail
+
 template <class A>
 PORTABLE_FORCEINLINE_FUNCTION static constexpr auto get_strides(A const &dim) {
-  return detail::get_strides_impl(dim, is(dim.size()));
+  return detail::get_strides_impl(dim, std::make_index_sequence<get_size(A{})>{});
 }
-} // namespace detail
 
 // returns the flat (1D) index of the md index set {i,j,k}
 // NB: fast because the strides are provided and don't need to be recomputed
@@ -49,7 +48,7 @@ PORTABLE_FORCEINLINE_FUNCTION static constexpr auto
 fast_findex(A const &ijk, A const &dim, A const &stride) {
   // TODO: assert ijk in bounds
   return array_reduce(array_map(ijk, stride, [](auto a, auto b) { return a * b; }),
-                      value_t<A>{1}, std::plus<std::size_t>{});
+                      value_t<A>{0}, std::plus<std::size_t>{});
 }
 
 // same as fast_findex, except the strides are calculated on the fly

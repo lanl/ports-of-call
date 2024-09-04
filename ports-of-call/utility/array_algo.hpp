@@ -17,6 +17,7 @@
 #include "../portability.hpp"
 #include <array>
 #include <type_traits>
+#include <utility>
 
 namespace util {
 
@@ -53,6 +54,16 @@ constexpr auto is(std::integral_constant<decltype(N), N>) {
 template <class A>
 using value_t = typename A::value_type;
 
+template <class A>
+constexpr auto get_size(const A &a) {
+  return a.size();
+}
+
+template <class A, class... B>
+constexpr auto wrap_vars(B... vv) {
+  return A{static_cast<value_t<A>>(vv)...};
+}
+
 // determines the return type of Op(a,b)
 template <class A, class Op>
 using reduction_value_t =
@@ -83,7 +94,66 @@ PORTABLE_INLINE_FUNCTION constexpr auto array_reduce_impl(A const &x, Op op) {
   }
 }
 
+/*
+template <auto, auto V>
+constexpr auto NREP = V;
+
+template <class A, auto Fill, std::size_t... Is, std::size_t... Rs, class... B>
+PORTABLE_FORCEINLINE_FUNCTION constexpr auto
+make_underfilled_reverse_array_impl(std::index_sequence<Is...>,
+                                    std::index_sequence<Rs...>, B &&...vv) {
+    return wrap_vars<A>((std::get<sizeof...(Is) - 1 - Is>(std::tie(vv...)))...,
+                      NREP<Rs, Fill>...);
+}
+template <class A, auto Fill, std::size_t... Is, std::size_t... Rs, class... B>
+PORTABLE_FORCEINLINE_FUNCTION constexpr auto
+make_underfilled_array_impl(std::index_sequence<Is...>, std::index_sequence<Rs...>,
+                            B &&...vv) {
+    return wrap_vars<A>((std::get<Is>(std::tie(vv...)))..., NREP<Rs, Fill>...);
+}
+*/
+
 } // namespace detail
+
+/*
+template <class A, auto Fill = 1, class... B>
+PORTABLE_FORCEINLINE_FUNCTION constexpr auto make_underfilled_reverse_array(B... vv) {
+  constexpr auto D = get_size(A{});
+  return detail::make_underfilled_reverse_array_impl<A, Fill>(
+      std::index_sequence_for<B...>{}, std::make_index_sequence<D - sizeof...(B)>{},
+      vv...);
+}
+*/
+/*
+template <class A, auto Fill = 1, class... B>
+PORTABLE_FORCEINLINE_FUNCTION constexpr auto make_underfilled_array(B... vv) {
+  constexpr auto D = get_size(A{});
+  return detail::make_underfilled_array_impl<A, Fill>(
+      std::index_sequence_for<B...>{}, std::make_index_sequence<D - sizeof...(B)>{},
+      vv...);
+}
+*/
+template <auto P, auto Fill = 1, template <class, auto> class A, class T, auto O>
+PORTABLE_FORCEINLINE_FUNCTION constexpr decltype(auto)
+make_underfilled_array(const A<T, O> &in) {
+  A<T, P> out;
+  for (auto i = 0; i < in.size(); ++i)
+    out[i] = in[i];
+  for (auto i = in.size(); i < out.size(); ++i)
+    out[i] = Fill;
+  return out;
+}
+
+template <auto P, auto Fill = 1, template <class, auto> class A, class T, auto O>
+PORTABLE_FORCEINLINE_FUNCTION constexpr decltype(auto)
+make_underfilled_reversed_array(const A<T, O> &in) {
+  A<T, P> out;
+  for (auto i = in.size() - 1; i >= 0; i--)
+    out[i] = in[i];
+  for (auto i = in.size(); i < out.size(); ++i)
+    out[i] = Fill;
+  return out;
+}
 
 // maps an unary function f(x) to each array value, returning an array of results
 // x = {f(a[0]), f(a[1]),..., f(a[N-1])}
@@ -97,25 +167,25 @@ PORTABLE_FORCEINLINE_FUNCTION constexpr auto array_map(A const &x, F f) {
 
 template <class A, class B, class F>
 PORTABLE_FORCEINLINE_FUNCTION constexpr auto array_map(A const &x, B const &y, F f) {
-  return detail::array_map_impl(x, y, f, is(x.size()));
+  return detail::array_map_impl(x, y, f, std::make_index_sequence<get_size(A{})>{});
 }
 
-template <std::size_t I, class A, class Op, class T = reduction_value_t<A, Op>>
+template <std::size_t I, std::size_t N, class A, class Op,
+          class T = reduction_value_t<A, Op>>
 PORTABLE_FORCEINLINE_FUNCTION constexpr T array_partial_reduce(A x, T initial_value,
                                                                Op op) {
-  static_assert(I <= x.size());
-  if constexpr (I == 0)
+  static_assert(N <= x.size());
+  if constexpr ((N - I) == 0)
     return initial_value;
   else
-    return detail::array_reduce_impl<0, I>(x, op);
+    return detail::array_reduce_impl<I, N>(x, op);
 }
-
-template <class A, class Op, class T = reduction_value_t<A, Op>>
 
 // performs a reduction on an array of values
 // e.g. x = sum_i a[i]
+template <class A, class Op, class T = reduction_value_t<A, Op>>
 PORTABLE_FORCEINLINE_FUNCTION constexpr T array_reduce(A x, T initial_value, Op op) {
-  return array_partial_reduce<x.size()>(x, initial_value, op);
+  return array_partial_reduce<0, x.size()>(x, initial_value, op);
 }
 
 } // namespace util

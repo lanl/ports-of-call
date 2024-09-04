@@ -49,9 +49,9 @@ TEST_CASE("PortableMDArrays Sizes are sane", "[PortableMDArray]") {
 
     REQUIRE(pmd3.GetSize() == subsz[2]);
     REQUIRE(pmd3.GetRank() == 3);
-    REQUIRE(pmd3.GetDim1() == nxs[2]);
-    REQUIRE(pmd3.GetDim2() == nxs[1]);
-    REQUIRE(pmd3.GetDim3() == nxs[0]);
+    REQUIRE(pmd3.GetDim<1>() == nxs[2]);
+    REQUIRE(pmd3.GetDim<2>() == nxs[1]);
+    REQUIRE(pmd3.GetDim<3>() == nxs[0]);
   }
 }
 
