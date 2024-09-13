@@ -23,7 +23,7 @@ TEST_CASE("array nominal element access (GPU)", "[array][GPU]") {
   // Can we read from it on the GPU?
   int count = 0;
   auto func = PORTABLE_LAMBDA(const int i, int &count) mutable {
-    if (arr[i] = i + 1) {
+    if (arr[i] == i + 1) {
       ++count;
     }
   };
