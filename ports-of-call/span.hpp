@@ -19,6 +19,18 @@ class span {
   std::size_t size_{0};
 
  public:
+  // Member types
+  using element_type = T;
+  using value_type = std::remove_cv_t<T>;
+  using size_type = std::size_t;
+  using difference_type = std::ptrdiff_t;
+  using pointer = T*;
+  using const_pointer = const T*;
+  using reference = T&;
+  using const_reference = const T&;
+  using iterator = T*;
+  using reverse_iterator = std::reverse_iterator<iterator>;
+
   // Construct an empty span
   PORTABLE_FUNCTION constexpr span() = default;
 
