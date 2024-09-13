@@ -45,7 +45,7 @@ class span {
   // object provides access to indices 2 <= i < 8 of the array my_array, but the indices
   // are shifted so that sub_range[i] is my_array[i+2].
   template <typename SizeType>
-  PORTABLE_FUNCTION constexpr span(T *ptr, SizeType const &count)
+  PORTABLE_FUNCTION constexpr span(T *ptr, SizeType const count)
       : ptr_{ptr}, size_(count) {
     assert(count >= 0);
   }
