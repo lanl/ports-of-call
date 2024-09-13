@@ -32,7 +32,7 @@ class span {
   using reverse_iterator = std::reverse_iterator<iterator>;
 
   // Construct an empty span
-  PORTABLE_FUNCTION constexpr span() = default;
+  constexpr span() noexcept = default;
 
   // Construct a span from a pointer, along with offsets.
   // -- ptr   : Pointer to the beginning of the array
