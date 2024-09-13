@@ -45,7 +45,7 @@ class span {
   // object provides access to indices 2 <= i < 8 of the array my_array, but the indices
   // are shifted so that sub_range[i] is my_array[i+2].
   template <typename SizeType>
-  PORTABLE_FUNCTION constexpr span(T *ptr, SizeType const count)
+  PORTABLE_FUNCTION constexpr span(T *ptr, const SizeType count)
       : ptr_{ptr}, size_(count) {
     assert(count >= 0);
   }
@@ -57,23 +57,23 @@ class span {
   PORTABLE_FUNCTION constexpr T *begin() { return ptr_; }
 
   // Iterator (really a pointer) to the beginning of the range, providing constant access.
-  PORTABLE_FUNCTION constexpr T const *begin() const { return ptr_; }
+  PORTABLE_FUNCTION constexpr const T *begin() const { return ptr_; }
 
   // Iterator (really a pointer) to the beginning of the range, providing constant access.
-  PORTABLE_FUNCTION constexpr T const *cbegin() const { return ptr_; }
+  PORTABLE_FUNCTION constexpr const T *cbegin() const { return ptr_; }
 
   // Iterator (really a pointer) to the end of the range, providing mutable access.
   PORTABLE_FUNCTION constexpr T *end() { return ptr_ + size_; }
 
   // Iterator (really a pointer) to the beginning of the range, providing constant access.
-  PORTABLE_FUNCTION constexpr T const *end() const { return ptr_ + size_; }
+  PORTABLE_FUNCTION constexpr const T *end() const { return ptr_ + size_; }
 
   // Iterator (really a pointer) to the beginning of the range, providing constant access.
-  PORTABLE_FUNCTION constexpr T const *cend() const { return ptr_ + size_; }
+  PORTABLE_FUNCTION constexpr const T *cend() const { return ptr_ + size_; }
 
   // Index operator to obtain mutable access to an element of the range.
   template <typename Index>
-  PORTABLE_FUNCTION constexpr T &operator[](Index const &index) {
+  PORTABLE_FUNCTION constexpr T &operator[](const Index &index) {
     assert(index >= 0);
     assert(static_cast<std::size_t>(index) < size_);
     return *(ptr_ + index);
@@ -81,7 +81,7 @@ class span {
 
   // Index operator to obtain constant access to an element of the range.
   template <typename Index>
-  PORTABLE_FUNCTION constexpr T const &operator[](Index const &index) const {
+  PORTABLE_FUNCTION constexpr const T &operator[](const Index index) const {
     assert(index >= static_cast<Index>(0));
     assert(index < static_cast<Index>(size_));
     return *(ptr_ + index);
@@ -92,7 +92,7 @@ class span {
 
 template <typename T, typename SizeType>
 PORTABLE_FUNCTION constexpr auto make_span(T *const pointer,
-                                           SizeType const count) {
+                                           const SizeType count) {
   return span<T>(pointer, count);
 }
 
