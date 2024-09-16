@@ -1,0 +1,49 @@
+stages:
+  - build_n_test
+
+default:
+  interruptible: true
+
+variables:
+  ENABLED_CLUSTERS: "darwin"
+  GIT_SUBMODULE_STRATEGY: normal
+
+.ascgit_job:
+  id_tokens:
+    SITE_ID_TOKEN:
+      aud: https://asc-git.lanl.gov
+
+.darwin_job:
+  rules:
+    - if: $ENABLED_CLUSTERS =~ /darwin/
+  variables:
+    CLUSTER: darwin
+    SCHEDULER_PARAMETERS: "-N 1 --qos=debug -p general,skylake-gold,skylake-platinum --constraint=\"(cpu_family:skylake)&ib:edr\""
+  tags:
+    - darwin-slurm-shared
+
+.build_and_test:
+  stage: build_n_test
+  script:
+    - source .gitlab/build_and_test.sh ${CLUSTER} ${SPACK_ENV_NAME}
+  artifacts:
+    expire_in: 2 weeks
+    paths:
+      - ${CI_PROJECT_DIR}/build/tests.xml
+    reports:
+      junit: ${CI_PROJECT_DIR}/build/tests.xml
+
+########
+# Jobs #
+########
+
+openmpi_gcc:
+  extends: [.ascgit_job, .darwin_job, .build_and_test]
+  variables:
+    SPACK_ENV_NAME: openmpi-gcc
+
+openmpi_cuda_gcc_ampere:
+  extends: [.ascgit_job, .darwin_job, .build_and_test]
+  variables:
+    SPACK_ENV_NAME: openmpi-cuda-gcc-ampere
+    SCHEDULER_PARAMETERS: "-N 1 --qos=debug -p shared-gpu-ampere"
