@@ -359,18 +359,6 @@ class static_vector {
     count_ = 0;
   }
 
-  // insert
-  // -------------------------------------------------------------------------------------
-  // TODO: In order to simplify, I removed all versions of insert for now.
-
-  // emplace
-  // ------------------------------------------------------------------------------------
-  // TODO: In order to simplify, I removed all versions of emplace for now.
-
-  // erase
-  // --------------------------------------------------------------------------------------
-  // TODO: In order to simplify, I removed all versions of erase for now.
-
   // push_back
   // ----------------------------------------------------------------------------------
   PORTABLE_FUNCTION constexpr void push_back(value_type const &value) {
