@@ -64,4 +64,11 @@ target_link_libraries(test_portsofcall
 include(Catch)
 catch_discover_tests(test_portsofcall)
 
-target_sources(test_portsofcall PRIVATE test_portability.cpp test_array.cpp)
+target_sources(test_portsofcall
+  PRIVATE
+    test_portability.cpp
+    test_array.cpp
+    test_static_vector.cpp
+    test_static_vector_iterator.cpp
+    "$<$<BOOL:${PORTABILITY_STRATEGY_KOKKOS}>:test_static_vector_kokkos.cpp>"
+)
