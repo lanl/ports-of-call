@@ -62,10 +62,68 @@ TEST_CASE("iter, extent construction", "[PortsOfCall::span]") {
 
   int arr[] = {0, 1, 2};
 
-  span<int, 3> s(arr, 3);
-
   SECTION("dynamic") {
     span<int> s{arr, arr + 3};
+    span_require(s, arr);
+  }
+
+  SECTION("fixed") {
+    span<int, 3> s(arr, 3);
+    span_require(s, arr);
+  }
+}
+
+TEST_CASE("Carr construction", "[PortsOfCall::span]") {
+  using int_array_t = int[3];
+  using real_array_t = double[3];
+
+  static_assert(std::is_nothrow_constructible<span<int>, int_array_t &>::value, "");
+  static_assert(!std::is_constructible<span<int>, int_array_t const &>::value, "");
+  static_assert(!std::is_constructible<span<int>, real_array_t>::value, "");
+
+  static_assert(std::is_nothrow_constructible<span<const int>, int_array_t &>::value, "");
+  static_assert(
+      std::is_nothrow_constructible<span<const int>, int_array_t const &>::value, "");
+  static_assert(!std::is_constructible<span<const int>, real_array_t>::value, "");
+
+  static_assert(std::is_nothrow_constructible<span<int, 3>, int_array_t &>::value, "");
+  static_assert(!std::is_constructible<span<int, 3>, int_array_t const &>::value, "");
+  static_assert(!std::is_constructible<span<int, 3>, real_array_t &>::value, "");
+
+  static_assert(std::is_nothrow_constructible<span<const int, 3>, int_array_t &>::value,
+                "");
+  static_assert(
+      std::is_nothrow_constructible<span<const int, 3>, int_array_t const &>::value, "");
+  static_assert(!std::is_constructible<span<const int, 3>, real_array_t>::value, "");
+
+  static_assert(!std::is_constructible<span<int, 42>, int_array_t &>::value, "");
+  static_assert(!std::is_constructible<span<int, 42>, int_array_t const &>::value, "");
+  static_assert(!std::is_constructible<span<int, 42>, real_array_t &>::value, "");
+
+  static_assert(!std::is_constructible<span<const int, 42>, int_array_t &>::value, "");
+  static_assert(!std::is_constructible<span<const int, 42>, int_array_t const &>::value,
+                "");
+  static_assert(!std::is_constructible<span<const int, 42>, real_array_t &>::value, "");
+
+  int arr[] = {0, 1, 2};
+
+  SECTION("dynamic") {
+    span<int> s{arr};
+    span_require(s, arr);
+  }
+
+  SECTION("dynamic const") {
+    span<const int> s{arr};
+    span_require(s, arr);
+  }
+
+  SECTION("fixed") {
+    span<int, 3> s{arr};
+    span_require(s, arr);
+  }
+
+  SECTION("fixed const") {
+    span<const int, 3> s{arr};
     span_require(s, arr);
   }
 }
