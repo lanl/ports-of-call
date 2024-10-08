@@ -141,10 +141,7 @@ class span {
   constexpr span(pointer ptr, size_type count) : storage_(ptr, count) {}
 
   constexpr span(pointer first_elem, pointer last_elem)
-      : storage_(first_elem, last_elem - first_elem) {
-    TCB_SPAN_EXPECT(extent == dynamic_extent ||
-                    last_elem - first_elem == static_cast<std::ptrdiff_t>(extent));
-  }
+      : storage_(first_elem, last_elem - first_elem) {}
 
   template <std::size_t N, std::size_t E = Extent,
             typename std::enable_if<(E == dynamic_extent || N == E) &&
@@ -202,13 +199,11 @@ class span {
   // [span.sub], span subviews
   template <std::size_t Count>
   constexpr span<element_type, Count> first() const {
-    TCB_SPAN_EXPECT(Count <= size());
     return {data(), Count};
   }
 
   template <std::size_t Count>
   constexpr span<element_type, Count> last() const {
-    TCB_SPAN_EXPECT(Count <= size());
     return {data() + (size() - Count), Count};
   }
 
@@ -221,26 +216,24 @@ class span {
 
   template <std::size_t Offset, std::size_t Count = dynamic_extent>
   constexpr subspan_return_t<Offset, Count> subspan() const {
-    TCB_SPAN_EXPECT(Offset <= size() &&
                     (Count == dynamic_extent || Offset + Count <= size()));
-    return {data() + Offset, Count != dynamic_extent ? Count : size() - Offset};
+                    return {data() + Offset,
+                            Count != dynamic_extent ? Count : size() - Offset};
   }
 
   constexpr span<element_type, dynamic_extent> first(size_type count) const {
-    TCB_SPAN_EXPECT(count <= size());
     return {data(), count};
   }
 
   constexpr span<element_type, dynamic_extent> last(size_type count) const {
-    TCB_SPAN_EXPECT(count <= size());
     return {data() + (size() - count), count};
   }
 
   constexpr span<element_type, dynamic_extent>
   subspan(size_type offset, size_type count = dynamic_extent) const {
-    TCB_SPAN_EXPECT(offset <= size() &&
                     (count == dynamic_extent || offset + count <= size()));
-    return {data() + offset, count == dynamic_extent ? size() - offset : count};
+                    return {data() + offset,
+                            count == dynamic_extent ? size() - offset : count};
   }
 
   // [span.obs], span observers
@@ -253,20 +246,11 @@ class span {
   [[nodiscard]] constexpr bool empty() const noexcept { return size() == 0; }
 
   // [span.elem], span element access
-  constexpr reference operator[](size_type idx) const {
-    TCB_SPAN_EXPECT(idx < size());
-    return *(data() + idx);
-  }
+  constexpr reference operator[](size_type idx) const { return *(data() + idx); }
 
-  constexpr reference front() const {
-    TCB_SPAN_EXPECT(!empty());
-    return *data();
-  }
+  constexpr reference front() const { return *data(); }
 
-  constexpr reference back() const {
-    TCB_SPAN_EXPECT(!empty());
-    return *(data() + (size() - 1));
-  }
+  constexpr reference back() const { return *(data() + (size() - 1)); }
 
   constexpr pointer data() const noexcept { return storage_.ptr; }
 
