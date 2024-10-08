@@ -29,15 +29,14 @@
 #include "utility/array_algo.hpp"
 #include "utility/index_algo.hpp"
 #include <algorithm>
-#include <array>
 #include <assert.h>
 #include <cstddef> // size_t
 #include <cstring> // memset()
 #include <functional>
-#include <numeric>
 #include <type_traits>
 #include <utility> // swap()
 
+namespace PortsOfCall {
 // maximum number of dimensions
 constexpr std::size_t MAXDIM = 6;
 
@@ -48,6 +47,8 @@ constexpr std::size_t to_const = V;
 
 } // namespace detail
 
+// if C++20, we can use std::array without worry on device
+// else use a hand-rolled array
 #if __cplusplus == 202002L
 template <class T, auto N>
 using Array = std::array<T, N>;
@@ -59,35 +60,10 @@ using Array = PortsOfCall::array<T, N>;
 template <auto N>
 using IArray = Array<std::size_t, N>;
 
-/*
-#define ENABLE_CRTP(DerivedType) \
-    constexpr DerivedType &base() noexcept { return static_cast<DerivedType &>(*this); } \
-    constexpr const DerivedType &base() const noexcept { return static_cast<const
-DerivedType &>(*this); }
-
-
-
-template <class Derived>
-struct WithStoredStrides
-{
-  ENABLE_CRTP(Derived)
-  using size_type = typename Derived :: size_type;
-  using index_type = typename Derived :: index_type;
-  using strides_type = decltype(Derived::nx_);
-
-  strides_type strides_;
-
-  template<index_type ...Is>
-  constexpr auto operator() noexcept(Is...is)
-  {
-    return util::findex({is...}, base.nxs_, strides_);
-  }
-};
-*/
-
 template <typename T, std::size_t D = MAXDIM>
 class PortableMDArray {
  public:
+  using this_type = PortableMDArray<T, D>;
   using element_type = T;
   using value_type = typename std::remove_cv<T>::type;
   using index_type = std::ptrdiff_t;
@@ -103,7 +79,7 @@ class PortableMDArray {
       : pdata_(data), nxs_(extents), strides_(strides), rank_(rank) {}
 
   // variadic ctor, dispatch to explicit constructor
-  template <typename... NXs, size_type N = sizeof...(NXs)>
+  template <class... NXs, size_type N = sizeof...(NXs)>
   PORTABLE_FUNCTION PortableMDArray(T *p, NXs... nxs) noexcept {
     NewPortableMDArray(p, nxs...);
   } //: PortableMDArray(p, make_nxs_array(nxs...), make_strides_array<N>(), N) {
@@ -117,16 +93,13 @@ class PortableMDArray {
   // copies.
   //  PortableMDArray(const PortableMDArray<T> &t) noexcept;
   //  PortableMDArray<T> &operator=(const PortableMDArray<T> &t) noexcept;
-  PortableMDArray(const PortableMDArray<T, D> &src) noexcept {
-    nxs_ = src.nxs_;
-    rank_ = src.rank_;
-    strides_ = src.strides_;
-    if (src.pdata_) pdata_ = src.pdata_;
-  }
+  PortableMDArray(const this_type &src) noexcept
+      : nxs_(src.nxs_), rank_(src.rank_), strides_(src.strides_),
+        pdata_(src.pdata_ ? src.pdata_ : nullptr) {}
 
-  PortableMDArray<T, D> &operator=(const PortableMDArray<T, D> &src) noexcept {
+  PortableMDArray<T, D> &operator=(const this_type &src) noexcept {
     if (this != &src) {
-      nxs_ = src.nxs;
+      nxs_ = src.nxs_;
       rank_ = src.rank_;
       pdata_ = src.pdata_;
     }
@@ -144,7 +117,7 @@ class PortableMDArray {
   //  (shallow swap)
   // Does not allocate memory for either array
 
-  void SwapPortableMDArray(PortableMDArray<T, D> &array2) {
+  void SwapPortableMDArray(this_type &array2) {
     std::swap(pdata_, array2.pdata_);
     return;
   }
@@ -235,29 +208,29 @@ class PortableMDArray {
   // "non-const variants" called for "PortableMDArray<T>()" provide read/write
   // access via returning by reference, enabling assignment on returned
   // l-value, e.g.: a(3) = 3.0;
-  template <typename... Is>
-  PORTABLE_FORCEINLINE_FUNCTION reference operator()(Is... idxs) noexcept {
+  template <typename... Is> //, class = std::enable_if_t<(sizeof...(Is) > 3)>>
+  PORTABLE_FORCEINLINE_FUNCTION constexpr reference operator()(Is... idxs) noexcept {
     return pdata_[util::fast_findex({static_cast<size_type>(idxs)...}, nxs_, strides_)];
   }
 
-  template <typename... Is>
-  PORTABLE_FORCEINLINE_FUNCTION T &operator()(Is... idxs) const noexcept {
+  template <typename... Is> //, class = std::enable_if_t<(sizeof...(Is) > 3)>>
+  PORTABLE_FORCEINLINE_FUNCTION constexpr T &operator()(Is... idxs) const noexcept {
     return pdata_[util::fast_findex({static_cast<size_type>(idxs)...}, nxs_, strides_)];
   }
 
-  PortableMDArray<T, D> &operator*=(T scale) {
+  this_type &operator*=(T scale) {
     std::transform(pdata_, pdata_ + GetSize(), pdata_,
                    [scale](T val) { return scale * val; });
     return *this;
   }
 
-  PortableMDArray<T, D> &operator+=(const PortableMDArray<T, D> &other) {
+  this_type &operator+=(const this_type &other) {
     assert(GetSize() == other.GetSize());
     std::transform(pdata_, pdata_ + GetSize(), other.pdata_, pdata_, std::plus<T>());
     return *this;
   }
 
-  PortableMDArray<T, D> &operator-=(const PortableMDArray<T, D> &other) {
+  this_type &operator-=(const this_type &other) {
     assert(GetSize() == other.GetSize());
     std::transform(pdata_, pdata_ + GetSize(), other.pdata_, pdata_, std::minus<T>());
     return *this;
@@ -265,11 +238,11 @@ class PortableMDArray {
 
   // Checks that arrays point to same data with same shape
   // note this POINTER equivalence, not data equivalence
-  bool operator==(const PortableMDArray<T, D> &rhs) const {
+  bool operator==(const this_type &rhs) const {
     return (pdata_ == rhs.pdata_ && nxs_ == rhs.nxs_); // NB rank is implied
   }
 
-  bool operator!=(const PortableMDArray<T, D> &other) const { return !(*this == other); }
+  bool operator!=(const this_type &other) const { return !(*this == other); }
 
   //----------------------------------------------------------------------------------------
   //! \fn PortableMDArray::InitWithShallowSlice()
@@ -280,9 +253,8 @@ class PortableMDArray {
   //  entries of the src array for d<dim (cannot access any nx4=2, etc. entries
   //  if dim=3 for example)
 
-  PORTABLE_FUNCTION void InitWithShallowSlice(const PortableMDArray<T, D> &src,
-                                              const int dim, const int indx,
-                                              const int nvar) {
+  PORTABLE_FUNCTION void InitWithShallowSlice(const this_type &src, const int dim,
+                                              const int indx, const int nvar) {
     pdata_ = src.pdata_;
     std::size_t offs = indx;
     nxs_[dim - 1] = nvar;
@@ -319,4 +291,5 @@ class PortableMDArray {
  public:
 };
 
+} // namespace PortsOfCall
 #endif // _PORTABLE_ARRAYS_HPP_

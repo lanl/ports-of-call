@@ -42,7 +42,7 @@ TEST_CASE("PortableMDArrays can be allocated from a pointer", "[PortableMDArray]
   constexpr int N = 2;
   constexpr int M = 3;
   std::vector<int> data(N * M);
-  PortableMDArray<int> a;
+  PortsOfCall::PortableMDArray<int> a;
   int tot = 0;
   for (int i = 0; i < N * M; i++) {
     data[i] = tot;
@@ -66,7 +66,7 @@ TEST_CASE("PortableMDArrays can be allocated from a pointer", "[PortableMDArray]
   }
 
   SECTION("Identical slices of the same data should compare equal") {
-    PortableMDArray<int> aslc1, aslc2;
+    PortsOfCall::PortableMDArray<int> aslc1, aslc2;
     aslc1.InitWithShallowSlice(a, 1, 0, 2);
     aslc2.InitWithShallowSlice(a, 1, 0, 2);
     REQUIRE(aslc1 == aslc2);

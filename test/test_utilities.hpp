@@ -14,10 +14,10 @@
 #ifndef _TEST_TEST_UTILITIES_HPP_
 #define _TEST_TEST_UTILITIES_HPP_
 
-#include <functional>
 #include <ports-of-call/array.hpp>
 #include <ports-of-call/portability.hpp>
 #include <ports-of-call/portable_arrays.hpp>
+#include <type_traits>
 #include <utility>
 
 namespace testing {
@@ -66,27 +66,22 @@ PORTABLE_INLINE_FUNCTION constexpr auto pf_invoke(View v, const Array &ext_par,
 template <class Ptr, class Array, std::size_t... I>
 PORTABLE_FORCEINLINE_FUNCTION constexpr decltype(auto) mdview(Ptr *d, const Array &arr,
                                                               std::index_sequence<I...>) {
-  return PortableMDArray<Real>(d, arr[I]...);
+  return PortsOfCall::PortableMDArray<Real>(d, arr[I]...);
 }
 
-// stand up and strip down a benchmark
-// input is a set of sizes
-template <class T, std::size_t N, typename I1 = std::make_index_sequence<N>,
-          typename I2 = std::make_index_sequence<2 * N>>
-PORTABLE_FUNCTION auto idx_contiguous_bm(const std::array<T, N> &nxa) {
-  auto nc = std::accumulate(std::begin(nxa), std::end(nxa), 1, std::multiplies<T>{});
+// stand up a benchmark
+template <class... Ns, std::size_t N = sizeof...(Ns),
+          typename I1 = std::make_index_sequence<N>,
+          typename I2 = std::make_index_sequence<2 * N>,
+          class = std::enable_if_t<std::conjunction_v<std::is_integral<Ns>...>>>
+PORTABLE_FUNCTION auto alloc_tape(Ns... ns) {
+  const auto nc = (ns * ... * std::size_t{1});
 
   Real *tape_d = (Real *)PORTABLE_MALLOC(nc * sizeof(Real));
 
-  auto view_d = mdview(tape_d, nxa, I1{});
+  auto view_d = mdview(tape_d, std::array{ns...}, I1{});
 
-  pf_invoke(view_d, nxa, I2{});
-
-  PORTABLE_FREE(tape_d);
-
-  // return here is arbitrary, Catch2 recommends this to avoid
-  // optimizing out a call.
-  return 1;
+  return std::tuple(tape_d, view_d);
 }
 
 } // namespace testing
