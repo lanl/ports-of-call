@@ -1,13 +1,26 @@
 #ifndef PORTS_OF_CALL_SPAN_HH_
 #define PORTS_OF_CALL_SPAN_HH_
 
-#include <cstdio>
-#include <stdexcept>
-
 #include <array>
+#include <cassert>
 #include <cstddef>
 #include <cstdint>
+#include <cstdio>
+#include <stdexcept>
 #include <type_traits>
+
+#if defined(__cpp_lib_span) // do we already have std::span?
+
+#include <span>
+namespace PortsOfCall::span {
+
+using std::span;
+
+} // namespace PortsOfCall::span
+
+#else
+
+#define span_EXPECTS(...) assert((__VA_ARGS__))
 
 namespace PortsOfCall::span {
 
@@ -18,7 +31,7 @@ using std::void_t;
 constexpr std::size_t dynamic_extent = SIZE_MAX;
 
 // forward declare
-template <typename ElementType, std::size_t Extent = dynamic_extent>
+template <class ElementType, std::size_t Extent = dynamic_extent>
 class span;
 
 namespace detail {
@@ -27,7 +40,7 @@ using std::data;
 using std::size;
 
 // object to handle storage of span
-template <typename E, std::size_t S>
+template <class E, std::size_t S>
 struct span_storage {
   constexpr span_storage() noexcept = default;
 
@@ -38,7 +51,7 @@ struct span_storage {
 };
 
 // specialization for dynamic_extent
-template <typename E>
+template <class E>
 struct span_storage<E, dynamic_extent> {
   constexpr span_storage() noexcept = default;
 
@@ -81,6 +94,7 @@ struct is_array<T[]> : std::true_type {};
 template <class T, std::size_t N>
 struct is_array<T[N]> : std::true_type {};
 
+// detect C.size() and C.data()
 template <class, class = void>
 struct has_size_and_data : std::false_type {};
 
@@ -89,6 +103,7 @@ struct has_size_and_data<C, std::void_t<decltype(std::size(std::declval<C>())),
                                         decltype(std::data(std::declval<C>()))>>
     : std::true_type {};
 
+// detect if *(C.data()) is compatible with E
 template <class, class, class = void>
 struct is_compatible_element : std::false_type {};
 
@@ -98,16 +113,22 @@ struct is_compatible_element<C, E, std::void_t<decltype(std::data(std::declval<C
                               std::declval<C &>()))>::type (*)[],
                           E (*)[]> {};
 
+// A container C:
+// - is not any of [span, c-array, std::array]
+// - has C.size() and C.data() interface
 template <class C>
 struct is_container
     : std::bool_constant<!is_span<C>::value && !is_array<C>::value &&
                          !is_std_array<C>::value && has_size_and_data<C>::value> {};
 
+// detect if C is a container and is compatible with element E
 template <class C, class E>
 struct is_compatible_container
     : std::bool_constant<is_container<C>::value && is_compatible_element<C, E>::value> {};
 
-template <class, class = size_t>
+// detect if T is a complete type
+// NB: sizeof(T) cannot be used with incomplete types
+template <class, class = std::size_t>
 struct is_complete : std::false_type {};
 
 template <class T>
@@ -158,7 +179,9 @@ class span {
   // - size() == count
   // explicit: extent != dynamic_extent
   // NB: iterator concepts to further restrict overload resolution
-  constexpr span(pointer ptr, size_type count) : storage_(ptr, count) {}
+  constexpr span(pointer ptr, size_type count) : storage_(ptr, count) {
+    span_EXPECTS((ptr == nullptr && count == 0) || (ptr != nullptr && count >= 0));
+  }
 
   // constructs a span that is a view over the range [first, last)
   // - data() == std::to_address(first)
@@ -166,7 +189,9 @@ class span {
   // explicit: extent != dynamic_extent
   // NB: iterator concepts to further restrict overload resolution
   constexpr span(pointer first_elem, pointer last_elem)
-      : storage_(first_elem, last_elem - first_elem) {}
+      : storage_(first_elem, last_elem - first_elem) {
+    span_EXPECTS(last_elem - first_elem >= 0);
+  }
 
   // constructs a span that is a view over arr
   // - data() == std::to_data(arr)
@@ -224,7 +249,9 @@ class span {
                     std::is_convertible<OtherElementType (*)[], ElementType (*)[]>::value,
                 int>::type = 0>
   constexpr span(const span<OtherElementType, OtherExtent> &other) noexcept
-      : storage_(other.data(), other.size()) {}
+      : storage_(other.data(), other.size()) {
+    span_EXPECTS(OtherExtent == dynamic_extent || other.size() == OtherExtent);
+  }
 
   ~span() noexcept = default;
 
@@ -235,10 +262,12 @@ class span {
   // https://en.cppreference.com/w/cpp/container/span/first
   template <std::size_t Count>
   constexpr span<element_type, Count> first() const {
+    span_EXPECTS(Count >= 0 && Count <= size());
     return {data(), Count};
   }
 
   constexpr span<element_type, dynamic_extent> first(size_type count) const {
+    span_EXPECTS(count >= 0 && count <= size());
     return {data(), count};
   }
 
@@ -246,10 +275,12 @@ class span {
   // https://en.cppreference.com/w/cpp/container/span/last
   template <std::size_t Count>
   constexpr span<element_type, Count> last() const {
+    span_EXPECTS(Count >= 0 && Count <= size());
     return {data() + (size() - Count), Count};
   }
 
   constexpr span<element_type, dynamic_extent> last(size_type count) const {
+    span_EXPECTS(count >= 0 && count <= size());
     return {data() + (size() - count), count};
   }
 
@@ -264,11 +295,17 @@ class span {
 
   template <std::size_t Offset, std::size_t Count = dynamic_extent>
   constexpr subspan_return_t<Offset, Count> subspan() const {
+    span_EXPECTS((Offset >= 0 && Offset <= size()) &&
+                 (Count == dynamic_extent || (Count >= 0 && Count + Offset <= size())));
     return {data() + Offset, Count != dynamic_extent ? Count : size() - Offset};
   }
 
   constexpr span<element_type, dynamic_extent>
   subspan(size_type offset, size_type count = dynamic_extent) const {
+    span_EXPECTS((offset >= 0 && offset <= size()) &&
+                 (count == static_cast<size_type>(dynamic_extent) ||
+                  (count >= 0 && count + offset <= size())));
+
     return {data() + offset, count == dynamic_extent ? size() - offset : count};
   }
   // --[span.subviews]
@@ -289,11 +326,20 @@ class span {
   // --[span.observers]
 
   // [span.element_access]--
-  constexpr reference operator[](size_type idx) const { return *(data() + idx); }
+  constexpr reference operator[](size_type idx) const {
+    span_EXPECTS(idx >= 0 && idx < size());
+    return *(data() + idx);
+  }
 
-  constexpr reference front() const { return *data(); }
+  constexpr reference front() const {
+    span_EXPECTS(!empty());
+    return *data();
+  }
 
-  constexpr reference back() const { return *(data() + (size() - 1)); }
+  constexpr reference back() const {
+    span_EXPECTS(!empty());
+    return *(data() + (size() - 1));
+  }
 
   constexpr pointer data() const noexcept { return storage_.ptr; }
   // --[span.element_access]
@@ -406,4 +452,5 @@ class tuple_element<I, PortsOfCall::span::span<ElementType, Extent>> {
 
 } // end namespace std
 
-#endif
+#endif // __cpp_lib_span
+#endif // PORTS_OF_CALL_SPAN_HH_

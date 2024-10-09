@@ -1,4 +1,4 @@
-#include "ports-of-call/span.hh"
+#include "ports-of-call/span.hpp"
 #include <type_traits>
 
 #ifndef CATCH_CONFIG_FAST_COMPILE
@@ -70,49 +70,55 @@ constexpr bool contains(span<T, N> s, span<T, M> sub) {
 
 } // namespace detail
 
+//
+// span testing
+//
+// The following tests for the correct construction of span and the expected
+// results.
+//
+
 TEST_CASE("span default construction", "[PortsOfCall::span]") {
 
   static_assert(std::is_nothrow_default_constructible<span<int>>::value,
-                "span<int> is not nothrow default constructible");
+                "Error: span<int> is not nothrow default constructible");
   static_assert(std::is_nothrow_constructible<span<int, 0>>::value,
-                "span<int, 0> is not nothrow constructible");
-
+                "Error: span<int, 0> is not nothrow constructible");
+  // span<int, Extent > 0> should not be noexecpt
   static_assert(!std::is_nothrow_constructible<span<int, 10>>::value,
-                "span<int, 10> is nothrow construcible");
+                "Error: span<int, 10> is nothrow construcible");
 
-  SECTION("dynamic size") {
-    constexpr span<int, 0> static_span;
-    static_assert(nullptr == static_span.data(), "");
-    static_assert(0u == static_span.size(), "");
+  constexpr span<int> dynamic_span;
+  static_assert(nullptr == dynamic_span.data(),
+                "Error: default constructed dynamic size span has data != nullptr");
+  static_assert(0u == dynamic_span.size(),
+                "Error: default constructed dynamic size span has size != 0");
 
-    static_assert(static_span.begin() == static_span.end(),
-                  "default constructed dynamic size span has begin != end");
-  }
+  static_assert(dynamic_span.begin() == dynamic_span.end(),
+                "Error: default constructed dynamic size span has begin != end");
 
-  SECTION("fixed size") {
-    constexpr span<int, 0> s{};
-    static_assert(s.size() == 0, "default constructed fixed size span has size != 0");
-    static_assert(s.data() == 0,
-                  "default constructed fixed size span has data != nullptr");
-    static_assert(s.begin() == s.end(),
-                  "default constructed fixed size span has begin != end");
-  }
+  constexpr span<int, 0> s{};
+  static_assert(s.size() == 0u,
+                "Error: default constructed fixed size span has size != 0");
+  static_assert(s.data() == nullptr,
+                "Error: default constructed fixed size span has data != nullptr");
+  static_assert(s.begin() == s.end(),
+                "Error: default constructed fixed size span has begin != end");
 }
 
-TEST_CASE("span iter, extent construction", "[PortsOfCall::span]") {
+TEST_CASE("span (iter, extent) construction", "[PortsOfCall::span]") {
   static_assert(std::is_constructible<span<int>, int *, int>::value,
-                "span<int>(int*, int) is not constructible");
+                "Error: span<int>(int*, int) should be constructible");
   static_assert(std::is_constructible<span<const int>, int *, int>::value,
-                "span<const int>(int*, int) is not constructible");
+                "Error: span<const int>(int*, int) is should be constructible");
   static_assert(std::is_constructible<span<const int>, const int *, int>::value,
-                "span<const int>(const int*, int) is not constructible");
+                "Error: span<const int>(const int*, int) should be constructible");
 
   static_assert(std::is_constructible<span<int, 10>, int *, int>::value,
-                "span<int, 10>(int*, int) is not constructible");
+                "Error: span<int, 10>(int*, int) should be constructible");
   static_assert(std::is_constructible<span<const int, 10>, int *, int>::value,
-                "span<const int, 10>(int*, int) is not constructible");
+                "Error: span<const int, 10>(int*, int) should be constructible");
   static_assert(std::is_constructible<span<const int, 10>, const int *, int>::value,
-                "span<const int, 10>(const int*, int) is not constructible");
+                "Error: span<const int, 10>(const int*, int) should be constructible");
 
   int arr[] = {0, 1, 2};
 
@@ -133,8 +139,9 @@ TEST_CASE("span iter, extent construction", "[PortsOfCall::span]") {
   }
 }
 
-TEST_CASE("span Carr construction", "[PortsOfCall::span]") {
-  using int_carr_t = int[3];
+TEST_CASE("span c-array construction", "[PortsOfCall::span]") {
+  using int_carr_t = int[3]; // for l-value int[3]
+
   static_assert(std::is_nothrow_constructible<span<int>, int_carr_t &>::value, "");
   static_assert(!std::is_constructible<span<int>, const int_carr_t &>::value, "");
   static_assert(std::is_nothrow_constructible<span<const int>, int_carr_t &>::value, "");
@@ -175,23 +182,23 @@ TEST_CASE("span Carr construction", "[PortsOfCall::span]") {
   }
 
   SECTION("constexpr c-array") {
-    static constexpr int kArray[] = {5, 4, 3, 2, 1};
-    constexpr span<const int> dynamic_span(kArray);
-    static_assert(kArray == dynamic_span.data(), "");
-    static_assert(std::size(kArray) == dynamic_span.size(), "");
-    static_assert(kArray[0] == dynamic_span[0], "");
-    static_assert(kArray[1] == dynamic_span[1], "");
-    static_assert(kArray[2] == dynamic_span[2], "");
-    static_assert(kArray[3] == dynamic_span[3], "");
-    static_assert(kArray[4] == dynamic_span[4], "");
-    constexpr span<const int, std::size(kArray)> static_span(kArray);
-    static_assert(kArray == static_span.data(), "");
-    static_assert(std::size(kArray) == static_span.size(), "");
-    static_assert(kArray[0] == static_span[0], "");
-    static_assert(kArray[1] == static_span[1], "");
-    static_assert(kArray[2] == static_span[2], "");
-    static_assert(kArray[3] == static_span[3], "");
-    static_assert(kArray[4] == static_span[4], "");
+    static constexpr int arr[] = {5, 4, 3, 2, 1};
+    constexpr span<const int> dynamic_span(arr);
+    static_assert(arr == dynamic_span.data(), "");
+    static_assert(std::size(arr) == dynamic_span.size(), "");
+    static_assert(arr[0] == dynamic_span[0], "");
+    static_assert(arr[1] == dynamic_span[1], "");
+    static_assert(arr[2] == dynamic_span[2], "");
+    static_assert(arr[3] == dynamic_span[3], "");
+    static_assert(arr[4] == dynamic_span[4], "");
+    constexpr span<const int, std::size(arr)> static_span(arr);
+    static_assert(arr == static_span.data(), "");
+    static_assert(std::size(arr) == static_span.size(), "");
+    static_assert(arr[0] == static_span[0], "");
+    static_assert(arr[1] == static_span[1], "");
+    static_assert(arr[2] == static_span[2], "");
+    static_assert(arr[3] == static_span[3], "");
+    static_assert(arr[4] == static_span[4], "");
   }
 }
 
@@ -200,7 +207,7 @@ TEST_CASE("span std::array construction", "[PortsOfCall::span]") {
   // for non-void types is equivalent to checking whether the following
   // expression is well-formed:
   //
-  // T obj = std::declval<From>();
+  // To obj = std::declval<From>();
   //
   // In particular we are checking whether From is implicitly convertible to To,
   // which also implies that To is explicitly constructible from From.
@@ -301,23 +308,18 @@ TEST_CASE("span container construction", "[PortsOfCall::span]") {
   static_assert(!std::is_constructible<span<const int, 3>, vec_t &>::value, "");
   static_assert(!std::is_constructible<span<const int, 3>, const vec_t &>::value, "");
 
-  vec_t varr = {1, 2, 3};
+  vec_t array = {1, 2, 3};
 
-  SECTION("dynamic") {
-    span<int> s{varr};
-    REQUIRE(s.size() == 3);
-    REQUIRE(s.data() == varr.data());
-    REQUIRE(s.begin() == varr.data());
-    REQUIRE(s.end() == varr.data() + 3);
-  }
-
-  SECTION("dynamic const") {
-    span<const int> s{varr};
-    REQUIRE(s.size() == 3);
-    REQUIRE(s.data() == varr.data());
-    REQUIRE(s.begin() == varr.data());
-    REQUIRE(s.end() == varr.data() + 3);
-  }
+  span<const int> const_span(array);
+  REQUIRE(array.data() == const_span.data());
+  REQUIRE(array.size() == const_span.size());
+  for (size_t i = 0; i < const_span.size(); ++i)
+    REQUIRE(array[i] == const_span[i]);
+  span<int> dynamic_span(array);
+  REQUIRE(array.data() == dynamic_span.data());
+  REQUIRE(array.size() == dynamic_span.size());
+  for (size_t i = 0; i < dynamic_span.size(); ++i)
+    REQUIRE(array[i] == dynamic_span[i]);
   // NB: fixed/fixed const is equivilant to std::array construction
 }
 
@@ -332,16 +334,32 @@ TEST_CASE("span different size span construction", "PortsOfCall::span") {
   using dynamic_const_span = span<const int>;
 
   //
-  static_assert(std::is_trivially_copyable<zero_span>::value, "");
-  static_assert(std::is_trivially_move_constructible<zero_span>::value, "");
+  static_assert(std::is_trivially_copyable<zero_span>::value,
+                "Error: span<int> with zero extent should be "
+                "trivially copayable");
+  static_assert(std::is_trivially_move_constructible<zero_span>::value,
+                "Error: span<int> with zero extent should be "
+                "trivially move constructible");
 
-  static_assert(!std::is_constructible<zero_span, big_span>::value, "");
+  static_assert(!std::is_constructible<zero_span, big_span>::value,
+                "Error: span<int> with zero extent should not be "
+                "constructible from span<int> with extent > 0");
 
-  static_assert(!std::is_constructible<zero_span, zero_const_span>::value, "");
-  static_assert(!std::is_constructible<zero_span, big_const_span>::value, "");
-  static_assert(!std::is_constructible<zero_span, dynamic_const_span>::value, "");
+  static_assert(!std::is_constructible<zero_span, zero_const_span>::value,
+                "Error: span<int> with zero extent should not be "
+                "constructible from span<const int>");
+  static_assert(!std::is_constructible<zero_span, big_const_span>::value,
+                "Error: span<int> with zero extent should not be "
+                "constructible from span<const int> with extent > 0");
 
-  static_assert(std::is_nothrow_constructible<zero_span, dynamic_span>::value, "");
+  static_assert(!std::is_constructible<zero_span, dynamic_const_span>::value,
+                "Error: span<int> with zero extent should not be "
+                "constructible from span<const int> with dynamic extent");
+
+  static_assert(std::is_nothrow_constructible<zero_span, dynamic_span>::value,
+                "Error: span<int> with zero extent should be nothrow "
+                "constructible from span<int> with dynamic extent");
+
   //
   static_assert(std::is_trivially_copyable<big_span>::value, "");
   static_assert(std::is_trivially_move_constructible<big_span>::value, "");
@@ -397,10 +415,11 @@ TEST_CASE("span different size span construction", "PortsOfCall::span") {
                 "");
   static_assert(std::is_nothrow_constructible<dynamic_const_span, dynamic_span>::value,
                 "");
+
   constexpr zero_const_span s0{};
   constexpr dynamic_const_span d{s0};
 
-  static_assert(d.size() == 0, "");
+  static_assert(d.size() == 0u, "");
   static_assert(d.data() == nullptr, "");
   static_assert(d.begin() == d.end(), "");
 }
@@ -473,12 +492,18 @@ TEST_CASE("span member subview operations", "[PortsOfCall::span]") {
 
 TEST_CASE("span observers", "[PortsOfCall::span]") {
   constexpr span<int, 0> empty{};
-  static_assert(empty.size() == 0, "");
-  static_assert(empty.empty(), "");
+  static_assert(
+      empty.size() == 0u,
+      "Error: span.size() should be constexpr zero for zero-sized constexpr span");
+  static_assert(
+      empty.empty(),
+      "Error: span.empty() should be constexpr true for zero-sized constexpr span");
 
   constexpr int arr[] = {1, 2, 3};
-  static_assert(span<const int>{arr}.size() == 3, "");
-  static_assert(!span<const int>{arr}.empty(), "");
+  static_assert(span<const int>{arr}.size() == 3,
+                "Error: span<const int>.size() should be constepxr 3");
+  static_assert(!span<const int>{arr}.empty(),
+                "Error: span<const int>.empty() should be constexpr false");
 }
 
 TEST_CASE("span element access", "[PortsOfCall::span]") {
@@ -491,6 +516,8 @@ TEST_CASE("span element access", "[PortsOfCall::span]") {
 }
 
 // adopted from https://en.cppreference.com/w/cpp/container/span
+// a test that exercises various capabilities of span, both in
+// constexpr contexts and at runtime.
 TEST_CASE("span typical", "[PortsOfCall::span]") {
   constexpr int a[]{0, 1, 2, 3, 4, 5, 6, 7, 8};
   constexpr int b[]{8, 7, 6};
