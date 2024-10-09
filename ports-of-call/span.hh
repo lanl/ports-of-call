@@ -144,15 +144,33 @@ class span {
   static constexpr size_type extent = Extent;
 
   // [span.cons], span constructors, copy, assignment, and destructor
+  //
+
+  // constructs an empty span
+  // - data() == nullptr
+  // - size() == 0
   template <std::size_t E = Extent,
             typename std::enable_if<(E == dynamic_extent || E <= 0), int>::type = 0>
   constexpr span() noexcept {}
 
+  // constructs a span that is a view over the range [first, first+count)
+  // - data() == std::to_address(first)
+  // - size() == count
+  // explicit: extent != dynamic_extent
+  // NB: iterator concepts to further restrict overload resolution
   constexpr span(pointer ptr, size_type count) : storage_(ptr, count) {}
 
+  // constructs a span that is a view over the range [first, last)
+  // - data() == std::to_address(first)
+  // - size() == last - first
+  // explicit: extent != dynamic_extent
+  // NB: iterator concepts to further restrict overload resolution
   constexpr span(pointer first_elem, pointer last_elem)
       : storage_(first_elem, last_elem - first_elem) {}
 
+  // constructs a span that is a view over arr
+  // - data() == std::to_data(arr)
+  // - size() == N
   template <std::size_t N, std::size_t E = Extent,
             typename std::enable_if<(E == dynamic_extent || N == E) &&
                                         detail::is_compatible_container<
@@ -174,6 +192,12 @@ class span {
                                     int>::type = 0>
   constexpr span(const std::array<T, N> &arr) noexcept : storage_(arr.data(), N) {}
 
+  // constructs a span that is a view of cont
+  // - data() == std::data(cont)
+  // - size() == std::size(cont)
+  // NB: C++20 replaces Container concept with Range concept.
+  // NB: CompatibleContainer(or future Range) concept is exclusive with C-array,
+  // std::array, and span
   template <class Container, std::size_t E = Extent,
             typename std::enable_if<
                 E == dynamic_extent && detail::is_container<Container>::value &&
@@ -206,17 +230,31 @@ class span {
 
   constexpr span &operator=(const span &other) noexcept = default;
 
-  // [span.sub], span subviews
+  // [span.subviews]--
+  // obtains a span that is a view over the first Count elements of this span
+  // https://en.cppreference.com/w/cpp/container/span/first
   template <std::size_t Count>
   constexpr span<element_type, Count> first() const {
     return {data(), Count};
   }
 
+  constexpr span<element_type, dynamic_extent> first(size_type count) const {
+    return {data(), count};
+  }
+
+  // obtains a span that is a view over the last Count elements of this span
+  // https://en.cppreference.com/w/cpp/container/span/last
   template <std::size_t Count>
   constexpr span<element_type, Count> last() const {
     return {data() + (size() - Count), Count};
   }
 
+  constexpr span<element_type, dynamic_extent> last(size_type count) const {
+    return {data() + (size() - count), count};
+  }
+
+  // obtains a span that is a view over Count elements of this span starting at Offset
+  // https://en.cppreference.com/w/cpp/container/span/subspan
   template <std::size_t Offset, std::size_t Count = dynamic_extent>
   using subspan_return_t =
       span<ElementType,
@@ -229,29 +267,28 @@ class span {
     return {data() + Offset, Count != dynamic_extent ? Count : size() - Offset};
   }
 
-  constexpr span<element_type, dynamic_extent> first(size_type count) const {
-    return {data(), count};
-  }
-
-  constexpr span<element_type, dynamic_extent> last(size_type count) const {
-    return {data() + (size() - count), count};
-  }
-
   constexpr span<element_type, dynamic_extent>
   subspan(size_type offset, size_type count = dynamic_extent) const {
     return {data() + offset, count == dynamic_extent ? size() - offset : count};
   }
+  // --[span.subviews]
 
-  // [span.obs], span observers
+  // [span.observers]--
+
+  // returns the number of elements in the span
   constexpr size_type size() const noexcept { return storage_.size; }
 
+  // returns the size of sequence in bytes
   constexpr size_type size_bytes() const noexcept {
     return size() * sizeof(element_type);
   }
 
+  // checks if sequence is empty()
   [[nodiscard]] constexpr bool empty() const noexcept { return size() == 0; }
 
-  // [span.elem], span element access
+  // --[span.observers]
+
+  // [span.element_access]--
   constexpr reference operator[](size_type idx) const { return *(data() + idx); }
 
   constexpr reference front() const { return *data(); }
@@ -259,8 +296,9 @@ class span {
   constexpr reference back() const { return *(data() + (size() - 1)); }
 
   constexpr pointer data() const noexcept { return storage_.ptr; }
+  // --[span.element_access]
 
-  // [span.iterators], span iterator support
+  // [span.iterators]--
   constexpr iterator begin() const noexcept { return data(); }
 
   constexpr iterator end() const noexcept { return data() + size(); }
@@ -268,11 +306,14 @@ class span {
   constexpr reverse_iterator rbegin() const noexcept { return reverse_iterator(end()); }
 
   constexpr reverse_iterator rend() const noexcept { return reverse_iterator(begin()); }
+  // --[span.iterators]
 
  private:
   storage_type storage_{};
 };
 
+// deduction guides
+// https://en.cppreference.com/w/cpp/container/span/deduction_guides
 template <class T, size_t N>
 span(T (&)[N]) -> span<T, N>;
 
@@ -321,6 +362,9 @@ constexpr span<const typename Container::value_type> make_span(const Container &
   return {cont};
 }
 
+// as_bytes, as_writable_bytes
+// obtains a view to the elements of span s
+// https://en.cppreference.com/w/cpp/container/span/as_bytes
 template <class ElementType, std::size_t Extent>
 span<const byte,
      ((Extent == dynamic_extent) ? dynamic_extent : sizeof(ElementType) * Extent)>
