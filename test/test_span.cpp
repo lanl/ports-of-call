@@ -8,8 +8,6 @@
 
 #include <iostream>
 
-#define FIXED 10
-
 namespace test {
 
 using namespace PortsOfCall::span;
@@ -72,29 +70,22 @@ constexpr bool contains(span<T, N> s, span<T, M> sub) {
 
 } // namespace detail
 
-template <class S, class I, auto N = 3>
-auto span_require(S &&s, I &&i) {
-  REQUIRE(s.size() == N);
-  REQUIRE(s.data() == i);
-  REQUIRE(s.begin() == i);
-  REQUIRE(s.end() == i + N);
-}
-
 TEST_CASE("span default construction", "[PortsOfCall::span]") {
+
   static_assert(std::is_nothrow_default_constructible<span<int>>::value,
                 "span<int> is not nothrow default constructible");
   static_assert(std::is_nothrow_constructible<span<int, 0>>::value,
                 "span<int, 0> is not nothrow constructible");
 
-  static_assert(!std::is_nothrow_constructible<span<int, FIXED>>::value,
-                "span<int, FIXED> is nothrow construcible");
+  static_assert(!std::is_nothrow_constructible<span<int, 10>>::value,
+                "span<int, 10> is nothrow construcible");
 
   SECTION("dynamic size") {
-    constexpr span<int> s{};
-    static_assert(s.size() == 0, "default constructed dynamic size span has size != 0");
-    static_assert(s.data() == 0,
-                  "default constructed dynamic size span has data != nullptr");
-    static_assert(s.begin() == s.end(),
+    constexpr span<int, 0> static_span;
+    static_assert(nullptr == static_span.data(), "");
+    static_assert(0u == static_span.size(), "");
+
+    static_assert(static_span.begin() == static_span.end(),
                   "default constructed dynamic size span has begin != end");
   }
 
@@ -116,144 +107,216 @@ TEST_CASE("span iter, extent construction", "[PortsOfCall::span]") {
   static_assert(std::is_constructible<span<const int>, const int *, int>::value,
                 "span<const int>(const int*, int) is not constructible");
 
-  static_assert(std::is_constructible<span<int, FIXED>, int *, int>::value,
-                "span<int, FIXED>(int*, int) is not constructible");
-  static_assert(std::is_constructible<span<const int, FIXED>, int *, int>::value,
-                "span<const int, FIXED>(int*, int) is not constructible");
-  static_assert(std::is_constructible<span<const int, FIXED>, const int *, int>::value,
-                "span<const int, FIXED>(const int*, int) is not constructible");
+  static_assert(std::is_constructible<span<int, 10>, int *, int>::value,
+                "span<int, 10>(int*, int) is not constructible");
+  static_assert(std::is_constructible<span<const int, 10>, int *, int>::value,
+                "span<const int, 10>(int*, int) is not constructible");
+  static_assert(std::is_constructible<span<const int, 10>, const int *, int>::value,
+                "span<const int, 10>(const int*, int) is not constructible");
 
   int arr[] = {0, 1, 2};
 
   SECTION("dynamic") {
     span<int> s{arr, arr + 3};
-    span_require(s, arr);
+    REQUIRE(s.size() == 3);
+    REQUIRE(s.data() == arr);
+    REQUIRE(s.begin() == arr);
+    REQUIRE(s.end() == arr + 3);
   }
 
   SECTION("fixed") {
     span<int, 3> s(arr, 3);
-    span_require(s, arr);
+    REQUIRE(s.size() == 3);
+    REQUIRE(s.data() == arr);
+    REQUIRE(s.begin() == arr);
+    REQUIRE(s.end() == arr + 3);
   }
-}
-
-template <class C, class E, std::size_t N = 3>
-constexpr auto array_construcible_correct() {
-  static_assert(std::is_nothrow_constructible<span<E>, C &>::value, "");
-  static_assert(!std::is_constructible<span<E>, const C &>::value, "");
-  static_assert(std::is_nothrow_constructible<span<const E>, C &>::value, "");
-  static_assert(std::is_nothrow_constructible<span<const E>, const C &>::value, "");
-
-  static_assert(std::is_nothrow_constructible<span<E, N>, C &>::value, "");
-  static_assert(!std::is_constructible<span<E, N>, const C &>::value, "");
-  static_assert(std::is_nothrow_constructible<span<const E, N>, C &>::value, "");
-  static_assert(std::is_nothrow_constructible<span<const E, N>, const C &>::value, "");
-}
-
-template <class E, class C, std::size_t N = 3>
-constexpr auto array_construcible_correct_oversized() {
-  constexpr auto M = N + 1;
-  static_assert(!std::is_constructible<span<int, M>, C &>::value, "");
-  static_assert(!std::is_constructible<span<int, M>, const C &>::value, "");
-
-  static_assert(!std::is_constructible<span<const int, M>, C &>::value, "");
-  static_assert(!std::is_constructible<span<const int, M>, const C &>::value, "");
 }
 
 TEST_CASE("span Carr construction", "[PortsOfCall::span]") {
-  using int_array_t = int[3];
-  using real_array_t = double[3];
+  using int_carr_t = int[3];
+  static_assert(std::is_nothrow_constructible<span<int>, int_carr_t &>::value, "");
+  static_assert(!std::is_constructible<span<int>, const int_carr_t &>::value, "");
+  static_assert(std::is_nothrow_constructible<span<const int>, int_carr_t &>::value, "");
+  static_assert(std::is_nothrow_constructible<span<const int>, const int_carr_t &>::value,
+                "");
 
-  array_construcible_correct<int_array_t, int>();
-  array_construcible_correct<real_array_t, double>();
+  static_assert(std::is_nothrow_constructible<span<int, 3>, int_carr_t &>::value, "");
+  static_assert(!std::is_constructible<span<int, 3>, const int_carr_t &>::value, "");
+  static_assert(std::is_nothrow_constructible<span<const int, 3>, int_carr_t &>::value,
+                "");
+  static_assert(
+      std::is_nothrow_constructible<span<const int, 3>, const int_carr_t &>::value, "");
 
-  array_construcible_correct_oversized<int_array_t, int>();
+  static_assert(!std::is_constructible<span<int, 10>, int_carr_t &>::value, "");
+  static_assert(!std::is_constructible<span<int, 10>, const int_carr_t &>::value, "");
 
-  int_array_t arr = {0, 1, 2};
+  static_assert(!std::is_constructible<span<const int, 10>, int_carr_t &>::value, "");
+  static_assert(!std::is_constructible<span<const int, 10>, const int_carr_t &>::value,
+                "");
 
-  SECTION("dynamic") {
-    span<int> s{arr};
-    span_require(s, arr);
+  SECTION("regular c-array") {
+    int arr[] = {0, 1, 2};
+    span<const int> const_span(arr);
+    REQUIRE(arr == const_span.data());
+    REQUIRE(std::size(arr) == const_span.size());
+    for (size_t i = 0; i < const_span.size(); ++i)
+      REQUIRE(arr[i] == const_span[i]);
+    span<int> dynamic_span(arr);
+    REQUIRE(arr == dynamic_span.data());
+    REQUIRE(std::size(arr) == dynamic_span.size());
+    for (size_t i = 0; i < dynamic_span.size(); ++i)
+      REQUIRE(arr[i] == dynamic_span[i]);
+    span<int, std::size(arr)> static_span(arr);
+    REQUIRE(arr == static_span.data());
+    REQUIRE(std::size(arr) == static_span.size());
+    for (size_t i = 0; i < static_span.size(); ++i)
+      REQUIRE(arr[i] == static_span[i]);
   }
 
-  SECTION("dynamic const") {
-    span<const int> s{arr};
-    span_require(s, arr);
-  }
-
-  SECTION("fixed") {
-    span<int, 3> s{arr};
-    span_require(s, arr);
-  }
-
-  SECTION("fixed const") {
-    span<const int, 3> s{arr};
-    span_require(s, arr);
+  SECTION("constexpr c-array") {
+    static constexpr int kArray[] = {5, 4, 3, 2, 1};
+    constexpr span<const int> dynamic_span(kArray);
+    static_assert(kArray == dynamic_span.data(), "");
+    static_assert(std::size(kArray) == dynamic_span.size(), "");
+    static_assert(kArray[0] == dynamic_span[0], "");
+    static_assert(kArray[1] == dynamic_span[1], "");
+    static_assert(kArray[2] == dynamic_span[2], "");
+    static_assert(kArray[3] == dynamic_span[3], "");
+    static_assert(kArray[4] == dynamic_span[4], "");
+    constexpr span<const int, std::size(kArray)> static_span(kArray);
+    static_assert(kArray == static_span.data(), "");
+    static_assert(std::size(kArray) == static_span.size(), "");
+    static_assert(kArray[0] == static_span[0], "");
+    static_assert(kArray[1] == static_span[1], "");
+    static_assert(kArray[2] == static_span[2], "");
+    static_assert(kArray[3] == static_span[3], "");
+    static_assert(kArray[4] == static_span[4], "");
   }
 }
 
 TEST_CASE("span std::array construction", "[PortsOfCall::span]") {
-  using int_array_t = std::array<int, 3>;
-  using real_array_t = std::array<double, 3>;
-  using zero_array_t = std::array<int, 0>;
+  // In the following assertions we use std::is_convertible_v<From, To>, which
+  // for non-void types is equivalent to checking whether the following
+  // expression is well-formed:
+  //
+  // T obj = std::declval<From>();
+  //
+  // In particular we are checking whether From is implicitly convertible to To,
+  // which also implies that To is explicitly constructible from From.
 
-  array_construcible_correct<int_array_t, int>();
-  array_construcible_correct<real_array_t, double>();
-  array_construcible_correct<zero_array_t, int, 0>();
+  static_assert(std::is_convertible<std::array<int, 3> &, span<int>>::value,
+                "Error: l-value reference to std::array<int> should be convertible to "
+                "span<int> with dynamic extent.");
+  static_assert(std::is_convertible<std::array<int, 3> &, span<int, 3>>::value,
+                "Error: l-value reference to std::array<int> should be convertible to "
+                "span<int> with the same static extent.");
+  static_assert(std::is_convertible<std::array<int, 3> &, span<const int>>::value,
+                "Error: l-value reference to std::array<int> should be convertible to "
+                "span<const int> with dynamic extent.");
+  static_assert(std::is_convertible<std::array<int, 3> &, span<const int, 3>>::value,
+                "Error: l-value reference to std::array<int> should be convertible to "
+                "span<const int> with the same static extent.");
+  static_assert(std::is_convertible<const std::array<int, 3> &, span<const int>>::value,
+                "Error: const l-value reference to std::array<int> should be "
+                "convertible to span<const int> with dynamic extent.");
+  static_assert(
+      std::is_convertible<const std::array<int, 3> &, span<const int, 3>>::value,
+      "Error: const l-value reference to std::array<int> should be convertible "
+      "to span<const int> with the same static extent.");
+  static_assert(std::is_convertible<std::array<const int, 3> &, span<const int>>::value,
+                "Error: l-value reference to std::array<const int> should be "
+                "convertible to span<const int> with dynamic extent.");
+  static_assert(
+      std::is_convertible<std::array<const int, 3> &, span<const int, 3>>::value,
+      "Error: l-value reference to std::array<const int> should be convertible "
+      "to span<const int> with the same static extent.");
+  static_assert(
+      std::is_convertible<const std::array<const int, 3> &, span<const int>>::value,
+      "Error: const l-value reference to std::array<const int> should be "
+      "convertible to span<const int> with dynamic extent.");
+  static_assert(
+      std::is_convertible<const std::array<const int, 3> &, span<const int, 3>>::value,
+      "Error: const l-value reference to std::array<const int> should be "
+      "convertible to span<const int> with the same static extent.");
 
-  array_construcible_correct_oversized<int_array_t, int>();
-  array_construcible_correct_oversized<real_array_t, int>();
+  // In the following assertions we use !std::is_constructible_v<T, Args>, which
+  // is equivalent to checking whether the following expression is malformed:
+  //
+  // T obj(std::declval<Args>()...);
+  //
+  // In particular we are checking that T is not explicitly constructible from
+  // Args, which also implies that T is not implicitly constructible from Args
+  // as well.
+  static_assert(!std::is_constructible<span<int>, const std::array<int, 3> &>::value,
+                "Error: span<int> with dynamic extent should not be "
+                "constructible from const l-value reference to std::array<int>");
+  static_assert(!std::is_constructible<span<int>, std::array<const int, 3> &>::value,
+                "Error: span<int> with dynamic extent should not be constructible "
+                "from l-value reference to std::array<const int>");
+  static_assert(
+      !std::is_constructible<span<int>, const std::array<const int, 3> &>::value,
+      "Error: span<int> with dynamic extent should not be constructible "
+      "const from l-value reference to std::array<const int>");
+  static_assert(!std::is_constructible<span<int, 2>, std::array<int, 3> &>::value,
+                "Error: span<int> with static extent should not be constructible "
+                "from l-value reference to std::array<int> with different extent");
+  static_assert(!std::is_constructible<span<int, 4>, std::array<int, 3> &>::value,
+                "Error: span<int> with dynamic extent should not be constructible "
+                "from l-value reference to std::array<int> with different extent");
+  static_assert(!std::is_constructible<span<int>, std::array<bool, 3> &>::value,
+                "Error: span<int> with dynamic extent should not be constructible "
+                "from l-value reference to std::array<bool>");
 
-  int_array_t arr = {0, 1, 2};
-
-  SECTION("dynamic") {
-    span<int> s{arr};
-    span_require(s, arr.data());
-  }
-
-  SECTION("dynamic const") {
-    span<const int> s{arr};
-    span_require(s, arr.data());
-  }
-
-  SECTION("fixed") {
-    span<int, 3> s{arr};
-    span_require(s, arr.data());
-  }
-
-  SECTION("fixed const") {
-    span<const int, 3> s{arr};
-    span_require(s, arr.data());
-  }
-}
-
-template <class C, std::size_t N = 3>
-constexpr auto container_construcible_correct() {
-  using E = typename C::value_type;
-  static_assert(std::is_nothrow_constructible<span<E>, C &>::value, "");
-  static_assert(!std::is_constructible<span<E>, const C &>::value, "");
-  static_assert(std::is_nothrow_constructible<span<const E>, C &>::value, "");
-  static_assert(std::is_nothrow_constructible<span<const E>, const C &>::value, "");
-
-  static_assert(!std::is_constructible<span<E, N>, C &>::value, "");
-  static_assert(!std::is_constructible<span<E, N>, const C &>::value, "");
-  static_assert(!std::is_constructible<span<const E, N>, C &>::value, "");
-  static_assert(!std::is_constructible<span<const E, N>, const C &>::value, "");
+  // Note: Constructing a constexpr span from a constexpr std::array does not
+  // work prior to C++17 due to non-constexpr std::array::data.
+  std::array<int, 5> array = {{5, 4, 3, 2, 1}};
+  span<const int> const_span(array);
+  REQUIRE(array.data() == const_span.data());
+  REQUIRE(array.size() == const_span.size());
+  for (size_t i = 0; i < const_span.size(); ++i)
+    REQUIRE(array[i] == const_span[i]);
+  span<int> dynamic_span(array);
+  REQUIRE(array.data() == dynamic_span.data());
+  REQUIRE(array.size() == dynamic_span.size());
+  for (size_t i = 0; i < dynamic_span.size(); ++i)
+    REQUIRE(array[i] == dynamic_span[i]);
+  span<int, std::size(array)> static_span(array);
+  REQUIRE(array.data() == static_span.data());
+  REQUIRE(array.size() == static_span.size());
+  for (size_t i = 0; i < static_span.size(); ++i)
+    REQUIRE(array[i] == static_span[i]);
 }
 
 TEST_CASE("span container construction", "[PortsOfCall::span]") {
   using vec_t = std::vector<int>;
 
-  container_construcible_correct<vec_t>();
+  static_assert(std::is_nothrow_constructible<span<int>, vec_t &>::value, "");
+  static_assert(!std::is_constructible<span<int>, const vec_t &>::value, "");
+  static_assert(std::is_nothrow_constructible<span<const int>, vec_t &>::value, "");
+  static_assert(std::is_nothrow_constructible<span<const int>, const vec_t &>::value, "");
+
+  static_assert(!std::is_constructible<span<int, 3>, vec_t &>::value, "");
+  static_assert(!std::is_constructible<span<int, 3>, const vec_t &>::value, "");
+  static_assert(!std::is_constructible<span<const int, 3>, vec_t &>::value, "");
+  static_assert(!std::is_constructible<span<const int, 3>, const vec_t &>::value, "");
+
   vec_t varr = {1, 2, 3};
 
   SECTION("dynamic") {
     span<int> s{varr};
-    span_require(s, varr.data());
+    REQUIRE(s.size() == 3);
+    REQUIRE(s.data() == varr.data());
+    REQUIRE(s.begin() == varr.data());
+    REQUIRE(s.end() == varr.data() + 3);
   }
 
   SECTION("dynamic const") {
     span<const int> s{varr};
-    span_require(s, varr.data());
+    REQUIRE(s.size() == 3);
+    REQUIRE(s.data() == varr.data());
+    REQUIRE(s.begin() == varr.data());
+    REQUIRE(s.end() == varr.data() + 3);
   }
   // NB: fixed/fixed const is equivilant to std::array construction
 }
@@ -351,7 +414,10 @@ TEST_CASE("span member subview operations", "[PortsOfCall::span]") {
     auto f = s.first<3>();
 
     static_assert(std::is_same<decltype(f), span<int, 3>>::value, "");
-    span_require(f, arr);
+    REQUIRE(f.size() == 3);
+    REQUIRE(f.data() == arr);
+    REQUIRE(f.begin() == arr);
+    REQUIRE(f.end() == arr + 3);
   }
 
   SECTION("last<N>") {
@@ -378,7 +444,10 @@ TEST_CASE("span member subview operations", "[PortsOfCall::span]") {
     auto f = s.first(3);
 
     static_assert(std::is_same<decltype(f), span<int>>::value, "");
-    span_require(f, arr);
+    REQUIRE(f.size() == 3);
+    REQUIRE(f.data() == arr);
+    REQUIRE(f.begin() == arr);
+    REQUIRE(f.end() == arr + 3);
   }
 
   SECTION("last(n)") {
