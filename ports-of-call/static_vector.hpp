@@ -318,11 +318,11 @@ class static_vector {
 
   // begin
   // --------------------------------------------------------------------------------------
-  PORTABLE_FUNCTION constexpr iterator begin() { return {ptr()}; }
+  PORTABLE_FUNCTION constexpr iterator begin() { return ptr(); }
 
-  PORTABLE_FUNCTION constexpr const_iterator begin() const { return {ptr()}; }
+  PORTABLE_FUNCTION constexpr const_iterator begin() const { return ptr(); }
 
-  PORTABLE_FUNCTION constexpr const_iterator cbegin() const { return {ptr()}; }
+  PORTABLE_FUNCTION constexpr const_iterator cbegin() const { return ptr(); }
 
   // end
   // ----------------------------------------------------------------------------------------
