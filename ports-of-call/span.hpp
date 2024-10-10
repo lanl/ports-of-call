@@ -1,12 +1,26 @@
 #ifndef PORTS_OF_CALL_SPAN_HH_
 #define PORTS_OF_CALL_SPAN_HH_
 
+// ========================================================================================
+// © (or copyright) 2019-2024. Triad National Security, LLC. All rights
+// reserved.  This program was produced under U.S. Government contract
+// 89233218CNA000001 for Los Alamos National Laboratory (LANL), which is
+// operated by Triad National Security, LLC for the U.S.  Department of
+// Energy/National Nuclear Security Administration. All rights in the
+// program are reserved by Triad National Security, LLC, and the
+// U.S. Department of Energy/National Nuclear Security
+// Administration. The Government is granted for itself and others acting
+// on its behalf a nonexclusive, paid-up, irrevocable worldwide license
+// in this material to reproduce, prepare derivative works, distribute
+// copies to the public, perform publicly and display publicly, and to
+// permit others to do so.
+// ========================================================================================
+
 #include <array>
 #include <cassert>
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
-#include <stdexcept>
 #include <type_traits>
 
 #if defined(__cpp_lib_span) // do we already have std::span?
@@ -19,6 +33,8 @@ using std::span;
 } // namespace PortsOfCall::span
 
 #else
+
+#define span_REQUIRES(...) typename std::enable_if<((__VA_ARGS__)), int>::type = 0
 
 #define span_EXPECTS(...) assert((__VA_ARGS__))
 
@@ -171,6 +187,7 @@ class span {
   // - data() == nullptr
   // - size() == 0
   template <std::size_t E = Extent,
+            // span_REQUIRES(E == dynamic_extent || E <= 0 ) >
             typename std::enable_if<(E == dynamic_extent || E <= 0), int>::type = 0>
   constexpr span() noexcept {}
 
@@ -197,24 +214,34 @@ class span {
   // - data() == std::to_data(arr)
   // - size() == N
   template <std::size_t N, std::size_t E = Extent,
-            typename std::enable_if<(E == dynamic_extent || N == E) &&
-                                        detail::is_compatible_container<
-                                            element_type (&)[N], ElementType>::value,
-                                    int>::type = 0>
+            span_REQUIRES(
+                (E == dynamic_extent || N == E) &&
+                detail::is_compatible_container<element_type (&)[N], ElementType>::value)>
+  // typename std::enable_if<(E == dynamic_extent || N == E) &&
+  //                             detail::is_compatible_container<
+  //                                 element_type (&)[N], ElementType>::value,
+  //                         int>::type = 0>
   constexpr span(element_type (&arr)[N]) noexcept : storage_(arr, N) {}
 
   template <class T, std::size_t N, std::size_t E = Extent,
-            typename std::enable_if<(E == dynamic_extent || N == E) &&
-                                        detail::is_compatible_container<
-                                            std::array<T, N> &, ElementType>::value,
-                                    int>::type = 0>
+            span_REQUIRES(
+                (E == dynamic_extent || N == E) &&
+                detail::is_compatible_container<std::array<T, N> &, ElementType>::value)>
+
+  // typename std::enable_if<(E == dynamic_extent || N == E) &&
+  //                             detail::is_compatible_container<
+  //                                 std::array<T, N> &, ElementType>::value,
+  //                         int>::type = 0>
   constexpr span(std::array<T, N> &arr) noexcept : storage_(arr.data(), N) {}
 
   template <class T, std::size_t N, std::size_t E = Extent,
-            typename std::enable_if<(E == dynamic_extent || N == E) &&
-                                        detail::is_compatible_container<
-                                            const std::array<T, N> &, ElementType>::value,
-                                    int>::type = 0>
+            span_REQUIRES((E == dynamic_extent || N == E) &&
+                          detail::is_compatible_container<const std::array<T, N> &,
+                                                          ElementType>::value)>
+  // typename std::enable_if<(E == dynamic_extent || N == E) &&
+  //                             detail::is_compatible_container<
+  //                                 const std::array<T, N> &, ElementType>::value,
+  //                         int>::type = 0>
   constexpr span(const std::array<T, N> &arr) noexcept : storage_(arr.data(), N) {}
 
   // constructs a span that is a view of cont
@@ -223,31 +250,40 @@ class span {
   // NB: C++20 replaces Container concept with Range concept.
   // NB: CompatibleContainer(or future Range) concept is exclusive with C-array,
   // std::array, and span
-  template <class Container, std::size_t E = Extent,
-            typename std::enable_if<
-                E == dynamic_extent && detail::is_container<Container>::value &&
-                    detail::is_compatible_container<Container &, ElementType>::value,
-                int>::type = 0>
+  template <
+      class Container, std::size_t E = Extent,
+      span_REQUIRES(E == dynamic_extent && detail::is_container<Container>::value &&
+                    detail::is_compatible_container<Container &, ElementType>::value)>
+  // typename std::enable_if<
+  //     E == dynamic_extent && detail::is_container<Container>::value &&
+  //         detail::is_compatible_container<Container &, ElementType>::value,
+  //     int>::type = 0>
   constexpr span(Container &cont) noexcept
       : storage_(detail::data(cont), detail::size(cont)) {}
 
-  template <
-      class Container, std::size_t E = Extent,
-      typename std::enable_if<
-          E == dynamic_extent && detail::is_container<Container>::value &&
-              detail::is_compatible_container<const Container &, ElementType>::value,
-          int>::type = 0>
+  template <class Container, std::size_t E = Extent,
+            span_REQUIRES(
+                E == dynamic_extent && detail::is_container<Container>::value &&
+                detail::is_compatible_container<const Container &, ElementType>::value)>
+  // typename std::enable_if<
+  //     E == dynamic_extent && detail::is_container<Container>::value &&
+  //         detail::is_compatible_container<const Container &, ElementType>::value,
+  //     int>::type = 0>
   constexpr span(const Container &cont) noexcept
       : storage_(detail::data(cont), detail::size(cont)) {}
 
   constexpr span(const span &other) noexcept = default;
 
   template <class OtherElementType, std::size_t OtherExtent,
-            typename std::enable_if<
+            span_REQUIRES(
                 (Extent == dynamic_extent || OtherExtent == dynamic_extent ||
                  Extent == OtherExtent) &&
-                    std::is_convertible<OtherElementType (*)[], ElementType (*)[]>::value,
-                int>::type = 0>
+                std::is_convertible<OtherElementType (*)[], ElementType (*)[]>::value)>
+  // typename std::enable_if<
+  //     (Extent == dynamic_extent || OtherExtent == dynamic_extent ||
+  //      Extent == OtherExtent) &&
+  //         std::is_convertible<OtherElementType (*)[], ElementType (*)[]>::value,
+  //     int>::type = 0>
   constexpr span(const span<OtherElementType, OtherExtent> &other) noexcept
       : storage_(other.data(), other.size()) {
     span_EXPECTS(OtherExtent == dynamic_extent || other.size() == OtherExtent);
@@ -419,7 +455,8 @@ as_bytes(span<ElementType, Extent> s) noexcept {
 }
 
 template <class ElementType, size_t Extent,
-          typename std::enable_if<!std::is_const<ElementType>::value, int>::type = 0>
+          span_REQUIRES(!std::is_const<ElementType>::value)>
+//          typename std::enable_if<!std::is_const<ElementType>::value, int>::type = 0>
 span<byte, ((Extent == dynamic_extent) ? dynamic_extent : sizeof(ElementType) * Extent)>
 as_writable_bytes(span<ElementType, Extent> s) noexcept {
   return {reinterpret_cast<byte *>(s.data()), s.size_bytes()};
