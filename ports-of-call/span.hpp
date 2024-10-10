@@ -186,9 +186,7 @@ class span {
   // constructs an empty span
   // - data() == nullptr
   // - size() == 0
-  template <std::size_t E = Extent,
-            // span_REQUIRES(E == dynamic_extent || E <= 0 ) >
-            typename std::enable_if<(E == dynamic_extent || E <= 0), int>::type = 0>
+  template <std::size_t E = Extent, span_REQUIRES(E == dynamic_extent || E <= 0)>
   constexpr span() noexcept {}
 
   // constructs a span that is a view over the range [first, first+count)
