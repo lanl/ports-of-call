@@ -144,3 +144,28 @@ export(
   FILE "${CMAKE_CURRENT_BINARY_DIR}/${POCLIB}Targets.cmake")
 
 
+# Configuration summary ---------------------------------------------------------------------------
+
+include(config_summary)
+
+config_summary_header("Ports-of-Call" "ports-of-call" 30) # 30 characters seems wide enough
+
+config_summary_block("CMake Options")
+config_summary_variable("CMAKE_BUILD_TYPE")
+config_summary_variable("CMAKE_C_COMPILER") # Does PoC use C or only C++?
+config_summary_variable("CMAKE_C_COMPILER_VERSION")
+config_summary_variable("CMAKE_C_FLAGS")
+config_summary_variable("CMAKE_CXX_COMPILER")
+config_summary_variable("CMAKE_CXX_COMPILER_VERSION")
+config_summary_variable("CMAKE_CXX_FLAGS")
+
+config_summary_block("Dependencies")
+config_summary_dependency("Kokkos" "Kokkos") # Should this always be listed?
+
+config_summary_block("User Options") # Are these the right user options?
+config_summary_option("PORTS_OF_CALL_BUILD_TESTING")
+config_summary_option("PORTABILITY_STRATEGY_CUDA")
+config_summary_option("PORTABILITY_STRATEGY_KOKKOS")
+config_summary_option("PORTABILITY_STRATEGY_NONE")
+
+config_summary_print()
