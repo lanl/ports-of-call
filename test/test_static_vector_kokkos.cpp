@@ -1,3 +1,5 @@
+#ifdef PORTABILITY_STRATEGY_KOKKOS
+
 #include "ports-of-call/portability.hpp"
 #include "ports-of-call/static_vector.hpp"
 
@@ -111,3 +113,5 @@ TEST_CASE("static vector GPU", "[reaction_network]") {
 }
 
 // ================================================================================================
+
+#endif //PORTABILITY_STRATEGY_KOKKOS
