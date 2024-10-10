@@ -217,31 +217,18 @@ class span {
             span_REQUIRES(
                 (E == dynamic_extent || N == E) &&
                 detail::is_compatible_container<element_type (&)[N], ElementType>::value)>
-  // typename std::enable_if<(E == dynamic_extent || N == E) &&
-  //                             detail::is_compatible_container<
-  //                                 element_type (&)[N], ElementType>::value,
-  //                         int>::type = 0>
   constexpr span(element_type (&arr)[N]) noexcept : storage_(arr, N) {}
 
   template <class T, std::size_t N, std::size_t E = Extent,
             span_REQUIRES(
                 (E == dynamic_extent || N == E) &&
                 detail::is_compatible_container<std::array<T, N> &, ElementType>::value)>
-
-  // typename std::enable_if<(E == dynamic_extent || N == E) &&
-  //                             detail::is_compatible_container<
-  //                                 std::array<T, N> &, ElementType>::value,
-  //                         int>::type = 0>
   constexpr span(std::array<T, N> &arr) noexcept : storage_(arr.data(), N) {}
 
   template <class T, std::size_t N, std::size_t E = Extent,
             span_REQUIRES((E == dynamic_extent || N == E) &&
                           detail::is_compatible_container<const std::array<T, N> &,
                                                           ElementType>::value)>
-  // typename std::enable_if<(E == dynamic_extent || N == E) &&
-  //                             detail::is_compatible_container<
-  //                                 const std::array<T, N> &, ElementType>::value,
-  //                         int>::type = 0>
   constexpr span(const std::array<T, N> &arr) noexcept : storage_(arr.data(), N) {}
 
   // constructs a span that is a view of cont
@@ -254,10 +241,6 @@ class span {
       class Container, std::size_t E = Extent,
       span_REQUIRES(E == dynamic_extent && detail::is_container<Container>::value &&
                     detail::is_compatible_container<Container &, ElementType>::value)>
-  // typename std::enable_if<
-  //     E == dynamic_extent && detail::is_container<Container>::value &&
-  //         detail::is_compatible_container<Container &, ElementType>::value,
-  //     int>::type = 0>
   constexpr span(Container &cont) noexcept
       : storage_(detail::data(cont), detail::size(cont)) {}
 
@@ -265,10 +248,6 @@ class span {
             span_REQUIRES(
                 E == dynamic_extent && detail::is_container<Container>::value &&
                 detail::is_compatible_container<const Container &, ElementType>::value)>
-  // typename std::enable_if<
-  //     E == dynamic_extent && detail::is_container<Container>::value &&
-  //         detail::is_compatible_container<const Container &, ElementType>::value,
-  //     int>::type = 0>
   constexpr span(const Container &cont) noexcept
       : storage_(detail::data(cont), detail::size(cont)) {}
 
@@ -279,11 +258,6 @@ class span {
                 (Extent == dynamic_extent || OtherExtent == dynamic_extent ||
                  Extent == OtherExtent) &&
                 std::is_convertible<OtherElementType (*)[], ElementType (*)[]>::value)>
-  // typename std::enable_if<
-  //     (Extent == dynamic_extent || OtherExtent == dynamic_extent ||
-  //      Extent == OtherExtent) &&
-  //         std::is_convertible<OtherElementType (*)[], ElementType (*)[]>::value,
-  //     int>::type = 0>
   constexpr span(const span<OtherElementType, OtherExtent> &other) noexcept
       : storage_(other.data(), other.size()) {
     span_EXPECTS(OtherExtent == dynamic_extent || other.size() == OtherExtent);
@@ -456,7 +430,6 @@ as_bytes(span<ElementType, Extent> s) noexcept {
 
 template <class ElementType, size_t Extent,
           span_REQUIRES(!std::is_const<ElementType>::value)>
-//          typename std::enable_if<!std::is_const<ElementType>::value, int>::type = 0>
 span<byte, ((Extent == dynamic_extent) ? dynamic_extent : sizeof(ElementType) * Extent)>
 as_writable_bytes(span<ElementType, Extent> s) noexcept {
   return {reinterpret_cast<byte *>(s.data()), s.size_bytes()};
