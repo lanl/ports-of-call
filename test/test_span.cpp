@@ -1,5 +1,7 @@
 #include "ports-of-call/span.hpp"
+#include "ports-of-call/portability.hpp"
 #include <type_traits>
+#include <cmath>
 
 // ========================================================================================
 // © (or copyright) 2019-2024. Triad National Security, LLC. All rights
@@ -553,6 +555,44 @@ TEST_CASE("span typical", "[PortsOfCall::span]") {
                 !detail::ends_with(span{a}, span{a + 6, 2}) &&
                 detail::contains(span{a}, span{a + 1, 4}) &&
                 !detail::contains(span{a, 8}, span{a, 9}));
+}
+
+// test span in portability context
+TEST_CASE("span portability", "[PortsOfCall::span]") {
+  // extent
+  constexpr const std::size_t N = 1024;
+  constexpr const std::size_t Nb = N * sizeof(Real);
+  constexpr const Real tol = 1.0E-8;
+
+  constexpr const Real pi = std::acos(-1);
+
+  constexpr Real d_gp = 2. * pi / static_cast<Real>(N);
+
+  std::vector<Real> h_gp(N);
+  for(auto i = 0; i < N; ++i)
+  {
+    h_gp[i] = -pi + static_cast<Real>(i) * d_gp;
+  }
+
+
+  Real *p_a = (Real*) PORTABLE_MALLOC(Nb);
+  
+  // device span, host span
+  span d_s(p_a, N);
+  span h_s(h_gp);
+
+  // copy using spans
+  portableCopyToDevice(d_s.data(), h_s.data(), h_s.size_bytes());
+
+  // integrate cos x dx over [-pi,pi]
+  Real res_sum{0.0};
+  portableReduce( "integrate", 0, N, PORTABLE_LAMBDA(const int i, Real& rsum){ rsum += (std::cos(d_s[i])*d_gp) ;}, res_sum);
+
+  // require sum < tol
+  REQUIRE(std::abs(res_sum) < tol); 
+
+
+  PORTABLE_FREE(p_a);
 }
 
 } // namespace test
