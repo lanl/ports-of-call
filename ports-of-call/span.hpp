@@ -238,16 +238,18 @@ class span {
   template <
       class Container, std::size_t E = Extent,
       span_REQUIRES(E == dynamic_extent && detail::is_container<Container>::value &&
-                    detail::is_compatible_container<Container &, ElementType>::value)>
-  constexpr span(Container &cont) noexcept
+                    detail::is_compatible_container<Container &, ElementType>::value &&
+                    !std::is_rvalue_reference<Container &&>::value)>
+  constexpr span(Container &&cont) noexcept
       : storage_(detail::data(cont), detail::size(cont)) {}
 
-  template <class Container, std::size_t E = Extent,
-            span_REQUIRES(
-                E == dynamic_extent && detail::is_container<Container>::value &&
-                detail::is_compatible_container<const Container &, ElementType>::value)>
-  constexpr span(const Container &cont) noexcept
-      : storage_(detail::data(cont), detail::size(cont)) {}
+  // template <class Container, std::size_t E = Extent,
+  //           span_REQUIRES(
+  //               E == dynamic_extent && detail::is_container<Container>::value &&
+  //               detail::is_compatible_container<const Container &,
+  //               ElementType>::value)>
+  // constexpr span(const Container &cont) noexcept
+  //     : storage_(detail::data(cont), detail::size(cont)) {}
 
   constexpr span(const span &other) noexcept = default;
 
