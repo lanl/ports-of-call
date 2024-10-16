@@ -230,6 +230,28 @@ not yet ``constexpr``, so even with the "relaxed ``constexpr``" compilation mode
 not feature-complete on GPUs.  This will change when those member functions become ``constexpr`` in
 C++20.
 
+
+span.hpp
+
+
+``PortsOfCall::span`` is implements ``std::span`` for C++17 (uses native implmentation in C++20) 
+as a view over contiguous data. ``span`` may have compile-time static extent, or a dynamic extent. 
+``span`` provides iterator functions similar to containers.
+
+.. code-block:: cpp
+  
+ int arr[] = {1, 2, 3};
+ auto s = span{arr};
+ for(auto & i : s)
+ {
+   i -= 1;
+ }
+
+``span::subspan`` returns a span over a subrange. Element access uses ``span::operator[]``. For 
+more information, see `C++ reference page <https://en.cppreference.com/w/cpp/container/span>`_.
+
+
+
 static_vector.hpp
 ^^^^^^^^^^^^^^^^^
 
