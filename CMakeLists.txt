@@ -148,7 +148,7 @@ export(
 
 include(config_summary)
 
-config_summary_header("Ports-of-Call" "ports-of-call" 30) # 30 characters seems wide enough
+config_summary_header("Ports-of-Call" "ports-of-call" 48)
 
 config_summary_block("CMake Options")
 config_summary_variable("CMAKE_BUILD_TYPE")
@@ -167,8 +167,6 @@ endif()
 
 config_summary_block("User Options") # Are these the right user options?
 config_summary_option("PORTS_OF_CALL_BUILD_TESTING")
-config_summary_option("PORTABILITY_STRATEGY_CUDA")
-config_summary_option("PORTABILITY_STRATEGY_KOKKOS")
-config_summary_option("PORTABILITY_STRATEGY_NONE")
+config_summary_variable("PORTS_OF_CALL_TEST_PORTABILITY_STRATEGY")
 
 config_summary_print()
