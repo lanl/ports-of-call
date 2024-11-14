@@ -564,7 +564,7 @@ TEST_CASE("span portability", "[PortsOfCall::span]") {
   constexpr const std::size_t Nb = N * sizeof(Real);
   constexpr const Real tol = 1.0E-8;
 
-  constexpr const Real pi = 3.141592653589793238462643383279502884;
+  constexpr const Real pi = M_PI;
 
   constexpr Real d_gp = 2. * pi / static_cast<Real>(N);
 
