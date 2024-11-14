@@ -23,6 +23,7 @@ if(NOT TARGET Catch2::Catch2)
     FetchContent_MakeAvailable(Catch2)
     list(APPEND CMAKE_MODULE_PATH ${Catch2_SOURCE_DIR}/contrib)
   endif()
+  set(Catch2_VERSION "${Catch2_VERSION}" PARENT_SCOPE)
 endif()
 
 # this interface target is to collect
@@ -42,6 +43,7 @@ if (PORTS_OF_CALL_TEST_PORTABILITY_STRATEGY STREQUAL "Kokkos")
         GIT_TAG 4.3.01)
       FetchContent_MakeAvailable(Kokkos)
     endif()
+    set(Kokkos_VERSION "${Kokkos_VERSION}" PARENT_SCOPE)
   endif()
 
   target_link_libraries(portsofcall_iface INTERFACE Kokkos::kokkos)
