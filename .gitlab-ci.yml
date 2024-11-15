@@ -1,5 +1,4 @@
 stages:
-  - static_analysis
   - build_n_test
 
 variables:
@@ -38,18 +37,21 @@ openmpi_gcc:
   extends: [.ascgit_job, .darwin_job, .darwin_regular_job, .build_and_test]
   variables:
     SPACK_ENV_NAME: openmpi-gcc
+    SUBMIT_TO_CDASH: "${ENABLE_CDASH}"
 
 openmpi_cuda_gcc_volta:
   extends: [.ascgit_job, .darwin_job, .darwin_regular_job, .build_and_test]
   variables:
     SPACK_ENV_NAME: openmpi-cuda-gcc-volta
     SCHEDULER_PARAMETERS: "-N 1 --qos=debug -p volta-x86 -C cpu_family:haswell --time=02:00:00"
+    SUBMIT_TO_CDASH: "${ENABLE_CDASH}"
 
 openmpi_cuda_gcc_ampere:
   extends: [.ascgit_job, .darwin_job, .darwin_regular_job, .build_and_test]
   variables:
     SPACK_ENV_NAME: openmpi-cuda-gcc-ampere
     SCHEDULER_PARAMETERS: "-N 1 --qos=debug -p shared-gpu-ampere"
+    SUBMIT_TO_CDASH: "${ENABLE_CDASH}"
 
 rzansel_spectrummpi_cuda_volta_gcc:
   extends: [.ascgit_job, .rzansel_job, .rzansel_regular_job, .build_and_test]
