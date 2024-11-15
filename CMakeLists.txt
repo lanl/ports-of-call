@@ -31,7 +31,14 @@ if(${CMAKE_SOURCE_DIR} STREQUAL ${CMAKE_BINARY_DIR})
     "Please make a build subdirectory. Feel free to remove CMakeCache.txt and CMakeFiles.")
 endif()
 
-option (PORTS_OF_CALL_BUILD_TESTING "Test the current installation")
+option (PORTS_OF_CALL_BUILD_TESTING "Test the current installation" OFF)
+# off by default but possible to turn on
+if (PORTS_OF_CALL_BUILD_TESTING)
+  set(PORTS_OF_CALL_TEST_PORTABILITY_STRATEGY "None" CACHE STRING
+    "Portability strategy used by tests")
+  set_property(CACHE PORTS_OF_CALL_TEST_PORTABILITY_STRATEGY
+    PROPERTY STRINGS None Cuda Kokkos)
+endif()
 
 # CONFIGURATION LOGIC
 # ----------------------------------------
@@ -77,7 +84,7 @@ $<${with_cxx}:$<${ps_kokkos}:--expt-relaxed-constexpr>>)
 # ----------------------------------------
 if(PORTS_OF_CALL_BUILD_TESTING)
   message(STATUS "Configuring tests")
-  enable_testing()
+  include(CTest)
   add_subdirectory(test)
 endif()
 
@@ -145,3 +152,29 @@ export(
   FILE "${CMAKE_CURRENT_BINARY_DIR}/${POCLIB}Targets.cmake")
 
 
+# Configuration summary ---------------------------------------------------------------------------
+
+include(config_summary)
+
+config_summary_header("Ports-of-Call" "ports-of-call" 48)
+
+config_summary_block("CMake Options")
+config_summary_variable("CMAKE_BUILD_TYPE")
+config_summary_variable("CMAKE_C_COMPILER") # Does PoC use C or only C++?
+config_summary_variable("CMAKE_C_COMPILER_VERSION")
+config_summary_variable("CMAKE_C_FLAGS")
+config_summary_variable("CMAKE_CXX_COMPILER")
+config_summary_variable("CMAKE_CXX_COMPILER_VERSION")
+config_summary_variable("CMAKE_CXX_FLAGS")
+
+if(PORTS_OF_CALL_BUILD_TESTING)
+  config_summary_block("Dependencies")
+  config_summary_dependency("Kokkos" "Kokkos")
+  config_summary_dependency("Catch2" "Catch2")
+endif()
+
+config_summary_block("User Options") # Are these the right user options?
+config_summary_option("PORTS_OF_CALL_BUILD_TESTING")
+config_summary_variable("PORTS_OF_CALL_TEST_PORTABILITY_STRATEGY")
+
+config_summary_print()

@@ -13,7 +13,6 @@ if(NOT TARGET Catch2::Catch2)
   find_package(Catch2 QUIET)
   if(NOT Catch2_FOUND)
     message(STATUS "Fetching Catch2 as needed")
-    # idiomatic FetchContent
     include(FetchContent)
     FetchContent_Declare(
       Catch2
@@ -23,19 +22,34 @@ if(NOT TARGET Catch2::Catch2)
     FetchContent_MakeAvailable(Catch2)
     list(APPEND CMAKE_MODULE_PATH ${Catch2_SOURCE_DIR}/contrib)
   endif()
+  set(Catch2_VERSION "${Catch2_VERSION}" PARENT_SCOPE)
 endif()
 
 # this interface target is to collect compile/link options for the test
 add_library(portsofcall_iface INTERFACE)
-if(PORTABILITY_STRATEGY_KOKKOS)
+if (PORTS_OF_CALL_TEST_PORTABILITY_STRATEGY STREQUAL "Kokkos")
   if(NOT TARGET Kokkos::kokkos)
-    find_package(Kokkos REQUIRED)
+    find_package(Kokkos QUIET)
+    if(NOT Kokkos_FOUND)
+      message(STATUS "Fetching Kokkos as needed")
+      include(FetchContent)
+      FetchContent_Declare(
+        Kokkos
+        GIT_REPOSITORY https://github.com/kokkos/kokkos.git
+        # This is most recent but any version that supports C++17 is
+        # fine
+        GIT_TAG 4.3.01)
+      FetchContent_MakeAvailable(Kokkos)
+    endif()
+    set(Kokkos_VERSION "${Kokkos_VERSION}" PARENT_SCOPE)
   endif()
 
   target_link_libraries(portsofcall_iface INTERFACE Kokkos::kokkos)
   # this comes with ports-of-call target
-  target_compile_definitions(portsofcall_iface
-                             INTERFACE PORTABILITY_STRATEGY_KOKKOS)
+  target_compile_definitions(portsofcall_iface INTERFACE PORTABILITY_STRATEGY_KOKKOS)
+elseif (PORTS_OF_CALL_TEST_PORTABILITY_STRATEGY STREQUAL "Cuda")
+  message(FATAL_ERROR "Cuda tests not yet fully supported")
+  target_compile_definitions(portsofcall_iface INTERFACE PORTABILITY_STRATEGY_CUDA)
 endif()
 
 target_link_libraries(portsofcall_iface INTERFACE Catch2::Catch2)
@@ -47,5 +61,12 @@ target_link_libraries(test_portsofcall PRIVATE ports-of-call::ports-of-call
 include(Catch)
 catch_discover_tests(test_portsofcall)
 
-target_sources(test_portsofcall PRIVATE test_portability.cpp test_array.cpp
-                                        test_mdidx.cpp)
+target_sources(test_portsofcall
+  PRIVATE
+    test_portability.cpp
+    test_array.cpp
+    test_span.cpp
+    test_static_vector.cpp
+    test_static_vector_iterator.cpp
+    "$<$<BOOL:${PORTABILITY_STRATEGY_KOKKOS}>:test_static_vector_kokkos.cpp>"
+)

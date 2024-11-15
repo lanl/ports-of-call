@@ -230,3 +230,36 @@ not yet ``constexpr``, so even with the "relaxed ``constexpr``" compilation mode
 not feature-complete on GPUs.  This will change when those member functions become ``constexpr`` in
 C++20.
 
+
+span.hpp
+
+
+``PortsOfCall::span`` is implements ``std::span`` for C++17 (uses native implmentation in C++20) 
+as a view over contiguous data. ``span`` may have compile-time static extent, or a dynamic extent. 
+``span`` provides iterator functions similar to containers.
+
+.. code-block:: cpp
+  
+ int arr[] = {1, 2, 3};
+ auto s = span{arr};
+ for(auto & i : s)
+ {
+   i -= 1;
+ }
+
+``span::subspan`` returns a span over a subrange. Element access uses ``span::operator[]``. For 
+more information, see `C++ reference page <https://en.cppreference.com/w/cpp/container/span>`_.
+
+
+
+static_vector.hpp
+^^^^^^^^^^^^^^^^^
+
+``PortsOfCall::static_vector`` is a GPU-compatible data structure that provides a
+``std::vector``-like interface, but uses ``std::array``-like backing storage.  That means that the
+size is variable, but the capacity is fixed at runtime.  This allows the creation of a data
+structure of non-default-constructible objects like with a ``std::vector``.  This also allows the
+type to be self-contained: no pointers, so a ``PortsOfCall::static_vector`` can be memcopied
+between CPU and GPU.  It is related to a `proposed data structure
+https://www.open-std.org/jtc1/sc22/wg21/docs/papers/2023/p0843r8.html`_ that may be included in a
+future C++ standard.
