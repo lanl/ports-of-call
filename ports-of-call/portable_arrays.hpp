@@ -26,6 +26,7 @@
 
 #include "array.hpp"
 #include "portability.hpp"
+#include "span.hpp"
 #include "utility/array_algo.hpp"
 #include "utility/index_algo.hpp"
 #include <algorithm>
@@ -283,12 +284,10 @@ class PortableMDArray {
     strides_ = util::make_underfilled_array<D, 0>(util::get_strides(nxs_));
   }
 
-  T *pdata_;
+  span<T> pdata_;
   IArray<D> nxs_;
   IArray<D> strides_;
   int rank_;
-
- public:
 };
 
 } // namespace PortsOfCall
