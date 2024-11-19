@@ -284,7 +284,7 @@ class PortableMDArray {
     strides_ = util::make_underfilled_array<D, 0>(util::get_strides(nxs_));
   }
 
-  span<T> pdata_;
+  T *pdata_;
   IArray<D> nxs_;
   IArray<D> strides_;
   int rank_;
