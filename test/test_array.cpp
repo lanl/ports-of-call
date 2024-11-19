@@ -208,7 +208,7 @@ TEST_CASE("array sizes", "[array]") {
 TEST_CASE("array fill (GPU)", "[array][GPU]") {
   constexpr std::size_t N = 42;
   std::size_t count = 0;
-  auto func = PORTABLE_LAMBDA(const int i, std::size_t &count) {
+  auto func = PORTABLE_LAMBDA(const int /*i*/, std::size_t &count) {
     constexpr double value = 3.14;
     array<double, N> arr;
     arr.fill(value);

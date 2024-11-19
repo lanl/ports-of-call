@@ -70,8 +70,8 @@ TEST_CASE("static_vector", "[util][static_vector]") {
       CHECK(not really_const<decltype(*b)>);
       CHECK(not really_const<decltype(*e)>);
 
-      auto cb = cbegin(data);
-      auto ce = cend(data);
+      [[maybe_unused]] auto cb = cbegin(data);
+      [[maybe_unused]] auto ce = cend(data);
 
       CHECK(really_const<decltype(*cb)>);
       CHECK(really_const<decltype(*ce)>);
