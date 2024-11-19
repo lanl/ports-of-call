@@ -130,28 +130,28 @@ class PortableMDArray {
   }
 
   // legacy API, TODO: deprecate
-  [[deprecated("Use GetDim<N> instead.")]]
-  PORTABLE_FORCEINLINE_FUNCTION int GetDim1() const {
+  [[deprecated("Use GetDim<N> instead.")]] PORTABLE_FORCEINLINE_FUNCTION int
+  GetDim1() const {
     return GetDim<1>();
   }
-  [[deprecated("Use GetDim<N> instead.")]]
-  PORTABLE_FORCEINLINE_FUNCTION int GetDim2() const {
+  [[deprecated("Use GetDim<N> instead.")]] PORTABLE_FORCEINLINE_FUNCTION int
+  GetDim2() const {
     return GetDim<2>();
   }
-  [[deprecated("Use GetDim<N> instead.")]]
-  PORTABLE_FORCEINLINE_FUNCTION int GetDim3() const {
+  [[deprecated("Use GetDim<N> instead.")]] PORTABLE_FORCEINLINE_FUNCTION int
+  GetDim3() const {
     return GetDim<3>();
   }
-  [[deprecated("Use GetDim<N> instead.")]]
-  PORTABLE_FORCEINLINE_FUNCTION int GetDim4() const {
+  [[deprecated("Use GetDim<N> instead.")]] PORTABLE_FORCEINLINE_FUNCTION int
+  GetDim4() const {
     return GetDim<4>();
   }
-  [[deprecated("Use GetDim<N> instead.")]]
-  PORTABLE_FORCEINLINE_FUNCTION int GetDim5() const {
+  [[deprecated("Use GetDim<N> instead.")]] PORTABLE_FORCEINLINE_FUNCTION int
+  GetDim5() const {
     return GetDim<5>();
   }
-  [[deprecated("Use GetDim<N> instead.")]]
-  PORTABLE_FORCEINLINE_FUNCTION int GetDim6() const {
+  [[deprecated("Use GetDim<N> instead.")]] PORTABLE_FORCEINLINE_FUNCTION int
+  GetDim6() const {
     return GetDim<6>();
   }
   PORTABLE_INLINE_FUNCTION int GetDim(size_t i) const {
@@ -280,8 +280,12 @@ class PortableMDArray {
   PORTABLE_INLINE_FUNCTION constexpr auto update_layout(NXs... nxs) noexcept {
 
     rank_ = N;
-    nxs_ = util::make_underfilled_array<D>(util::wrap_vars<IArray<N>>(nxs...));
-    strides_ = util::make_underfilled_array<D, 0>(util::get_strides(nxs_));
+    // NB: the functions here have trouble with template argument deduction
+    // on some compilers, so they are hand-written.
+    auto szs = util::wrap_vars<IArray<N>>(nxs...);
+    nxs_ = util::make_underfilled_array<D, 1, Array, size_type, N>(szs);
+    auto sds = util::get_strides(nxs_);
+    strides_ = util::make_underfilled_array<D, 0, Array, size_type, D>(sds);
   }
 
   T *pdata_;

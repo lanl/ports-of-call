@@ -55,7 +55,7 @@ PORTABLE_FORCEINLINE_FUNCTION constexpr auto array_fix(const std::array<T, N> &a
 // this was written ad-hoc, and could be more general
 // (e.g. pass label, functor in lambda)
 template <class View, class Array, std::size_t... J>
-PORTABLE_INLINE_FUNCTION constexpr auto pf_invoke(View v, const Array &ext_par,
+PORTABLE_INLINE_FUNCTION constexpr void pf_invoke(View v, const Array &ext_par,
                                                   std::index_sequence<J...>) {
 
   auto stud_arr = array_fix(ext_par);
