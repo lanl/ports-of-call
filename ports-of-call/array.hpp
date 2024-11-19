@@ -194,9 +194,13 @@ struct array {
 
   //! swap the array contents with another
   PORTABLE_FUNCTION constexpr void swap(array &other) {
-    using std::swap;
     for (size_type i = 0; i < N; ++i) {
-      swap(arr[i], other.arr[i]);
+      // C++20 makes std::swap constexpr, so this should probably be replaced
+      // at that point.  For now, this is required if a user wants to call swap
+      // on a GPU.
+      T t = arr[i];
+      arr[i] = other.arr[i];
+      other.arr[i] = t;
     }
   }
 };
