@@ -153,7 +153,7 @@ void portableCopyToHost(T *const to, T const *const from, size_t const size_byte
 }
 
 template <typename Function>
-void portableFor(const char *name, int start, int stop, Function function) {
+void portableFor([[maybe_unused]] const char *name, int start, int stop, Function function) {
 #ifdef PORTABILITY_STRATEGY_KOKKOS
   using policy = Kokkos::RangePolicy<>;
   Kokkos::parallel_for(name, policy(start, stop), function);
@@ -165,7 +165,7 @@ void portableFor(const char *name, int start, int stop, Function function) {
 }
 
 template <typename Function>
-void portableFor(const char *name, int starty, int stopy, int startx, int stopx,
+void portableFor([[maybe_unused]] const char *name, int starty, int stopy, int startx, int stopx,
                  Function function) {
 #ifdef PORTABILITY_STRATEGY_KOKKOS
   using Policy2D = Kokkos::MDRangePolicy<Kokkos::Rank<2>>;
@@ -180,7 +180,7 @@ void portableFor(const char *name, int starty, int stopy, int startx, int stopx,
 }
 
 template <typename Function>
-void portableFor(const char *name, int startz, int stopz, int starty, int stopy,
+void portableFor([[maybe_unused]] const char *name, int startz, int stopz, int starty, int stopy,
                  int startx, int stopx, Function function) {
 #ifdef PORTABILITY_STRATEGY_KOKKOS
   using Policy3D = Kokkos::MDRangePolicy<Kokkos::Rank<3>>;
@@ -198,7 +198,7 @@ void portableFor(const char *name, int startz, int stopz, int starty, int stopy,
 }
 
 template <typename Function>
-void portableFor(const char *name, int starta, int stopa, int startz, int stopz,
+void portableFor([[maybe_unused]] const char *name, int starta, int stopa, int startz, int stopz,
                  int starty, int stopy, int startx, int stopx, Function function) {
 #ifdef PORTABILITY_STRATEGY_KOKKOS
   using Policy4D = Kokkos::MDRangePolicy<Kokkos::Rank<4>>;
@@ -219,7 +219,7 @@ void portableFor(const char *name, int starta, int stopa, int startz, int stopz,
 }
 
 template <typename Function>
-void portableFor(const char *name, int startb, int stopb, int starta, int stopa,
+void portableFor([[maybe_unused]] const char *name, int startb, int stopb, int starta, int stopa,
                  int startz, int stopz, int starty, int stopy, int startx, int stopx,
                  Function function) {
 #ifdef PORTABILITY_STRATEGY_KOKKOS
@@ -244,7 +244,7 @@ void portableFor(const char *name, int startb, int stopb, int starta, int stopa,
 }
 
 template <typename Function, typename T>
-void portableReduce(const char *name, int start, int stop, Function function,
+void portableReduce([[maybe_unused]] const char *name, int start, int stop, Function function,
                     T &reduced) {
 #ifdef PORTABILITY_STRATEGY_KOKKOS
   using Policy = Kokkos::RangePolicy<>;
@@ -257,7 +257,7 @@ void portableReduce(const char *name, int start, int stop, Function function,
 }
 
 template <typename Function, typename T>
-void portableReduce(const char *name, int starty, int stopy, int startx, int stopx,
+void portableReduce([[maybe_unused]] const char *name, int starty, int stopy, int startx, int stopx,
                     Function function, T &reduced) {
 #ifdef PORTABILITY_STRATEGY_KOKKOS
   using Policy2D = Kokkos::MDRangePolicy<Kokkos::Rank<2>>;
@@ -273,7 +273,7 @@ void portableReduce(const char *name, int starty, int stopy, int startx, int sto
 }
 
 template <typename Function, typename T>
-void portableReduce(const char *name, int startz, int stopz, int starty, int stopy,
+void portableReduce([[maybe_unused]] const char *name, int startz, int stopz, int starty, int stopy,
                     int startx, int stopx, Function function, T &reduced) {
 #ifdef PORTABILITY_STRATEGY_KOKKOS
   using Policy3D = Kokkos::MDRangePolicy<Kokkos::Rank<3>>;
@@ -291,7 +291,7 @@ void portableReduce(const char *name, int startz, int stopz, int starty, int sto
 }
 
 template <typename Function, typename T>
-void portableReduce(const char *name, int starta, int stopa, int startz, int stopz,
+void portableReduce([[maybe_unused]] const char *name, int starta, int stopa, int startz, int stopz,
                     int starty, int stopy, int startx, int stopx, Function function,
                     T &reduced) {
 #ifdef PORTABILITY_STRATEGY_KOKKOS
@@ -313,7 +313,7 @@ void portableReduce(const char *name, int starta, int stopa, int startz, int sto
 }
 
 template <typename Function, typename T>
-void portableReduce(const char *name, int startb, int stopb, int starta, int stopa,
+void portableReduce([[maybe_unused]] const char *name, int startb, int stopb, int starta, int stopa,
                     int startz, int stopz, int starty, int stopy, int startx, int stopx,
                     Function function, T &reduced) {
 #ifdef PORTABILITY_STRATEGY_KOKKOS
