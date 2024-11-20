@@ -17,34 +17,25 @@ constexpr static bool really_const = std::is_const<std::remove_reference_t<T>>::
 // This doesn't do anything interesting.  It just needs to be non-trivial to
 // test that static_vector works for non-trivial types.
 struct NonTrivialType {
-    int n;
-    int * p;
-    PORTABLE_FUNCTION NonTrivialType(int nn)
-    : n{nn}
-    , p{&n}
-    {}
-    PORTABLE_FUNCTION NonTrivialType(const NonTrivialType & other)
-    : n{other.n}
-    , p{&n}
-    {}
-    PORTABLE_FUNCTION NonTrivialType(NonTrivialType && other)
-    : n{other.n}
-    , p{&n}
-    {}
-    PORTABLE_FUNCTION NonTrivialType& operator=(const NonTrivialType & other) {
-        n = other.n;
-        p = &n;
-        return *this;
-    }
-    PORTABLE_FUNCTION NonTrivialType& operator=(NonTrivialType && other) {
-        n = other.n;
-        p = &n;
-        return *this;
-    }
-    PORTABLE_FUNCTION ~NonTrivialType() {}
+  int n;
+  int *p;
+  PORTABLE_FUNCTION NonTrivialType(int nn) : n{nn}, p{&n} {}
+  PORTABLE_FUNCTION NonTrivialType(const NonTrivialType &other) : n{other.n}, p{&n} {}
+  PORTABLE_FUNCTION NonTrivialType(NonTrivialType &&other) : n{other.n}, p{&n} {}
+  PORTABLE_FUNCTION NonTrivialType &operator=(const NonTrivialType &other) {
+    n = other.n;
+    p = &n;
+    return *this;
+  }
+  PORTABLE_FUNCTION NonTrivialType &operator=(NonTrivialType &&other) {
+    n = other.n;
+    p = &n;
+    return *this;
+  }
+  PORTABLE_FUNCTION ~NonTrivialType() {}
 };
 
-}
+} // namespace static_vector_test
 
 static_assert(!std::is_trivial<static_vector_test::NonTrivialType>::value);
 
@@ -54,8 +45,8 @@ TEST_CASE("static_vector", "[util][static_vector]") {
   using std::cend;
   using std::end;
 
-  using static_vector_test::really_const;
   using static_vector_test::NonTrivialType;
+  using static_vector_test::really_const;
 
   SECTION("begin/end iteration") {
     SECTION("with non-zero size") {
@@ -226,13 +217,12 @@ TEST_CASE("static_vector", "[util][static_vector]") {
 
     SECTION("with non-trivial type") {
       using test_t = PortsOfCall::static_vector<NonTrivialType, 5>;
-      test_t data = {NonTrivialType(1), NonTrivialType(2),
-                     NonTrivialType(3), NonTrivialType(4),
-                     NonTrivialType(5)};
+      test_t data = {NonTrivialType(1), NonTrivialType(2), NonTrivialType(3),
+                     NonTrivialType(4), NonTrivialType(5)};
 
       data.pop_back();
-      test_t const expected = {NonTrivialType(1), NonTrivialType(2),
-                               NonTrivialType(3), NonTrivialType(4)};
+      test_t const expected = {NonTrivialType(1), NonTrivialType(2), NonTrivialType(3),
+                               NonTrivialType(4)};
 
       auto size_check =
           std::equal(begin(data), end(data), begin(expected), end(expected),

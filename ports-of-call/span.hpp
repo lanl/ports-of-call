@@ -56,17 +56,13 @@ using std::data;
 using std::size;
 
 // type-safe check against 0 (prevents warnings about comparing an unsigned against 0)
-template <typename T,
-     std::enable_if_t<std::is_unsigned<T>::value, bool> = true>
-PORTABLE_FUNCTION constexpr bool check_nonnegative(const T)
-{
+template <typename T, std::enable_if_t<std::is_unsigned<T>::value, bool> = true>
+PORTABLE_FUNCTION constexpr bool check_nonnegative(const T) {
   return true;
 }
-template <typename T,
-     std::enable_if_t<!std::is_unsigned<T>::value, bool> = true>
-PORTABLE_FUNCTION constexpr bool check_nonnegative(const T t)
-{
-    return t >= 0;
+template <typename T, std::enable_if_t<!std::is_unsigned<T>::value, bool> = true>
+PORTABLE_FUNCTION constexpr bool check_nonnegative(const T t) {
+  return t >= 0;
 }
 
 // object to handle storage of span
@@ -210,7 +206,7 @@ class span {
   // NB: iterator concepts to further restrict overload resolution
   constexpr span(pointer ptr, size_type count) : storage_(ptr, count) {
     span_EXPECTS((ptr == nullptr && count == 0) ||
-            (ptr != nullptr && detail::check_nonnegative(count)));
+                 (ptr != nullptr && detail::check_nonnegative(count)));
   }
 
   // constructs a span that is a view over the range [first, last)
@@ -321,7 +317,8 @@ class span {
   template <std::size_t Offset, std::size_t Count = dynamic_extent>
   constexpr subspan_return_t<Offset, Count> subspan() const {
     span_EXPECTS((detail::check_nonnegative(Offset) && Offset <= size()) &&
-                 (Count == dynamic_extent || (detail::check_nonnegative(Count) && Count + Offset <= size())));
+                 (Count == dynamic_extent ||
+                  (detail::check_nonnegative(Count) && Count + Offset <= size())));
     return {data() + Offset, Count != dynamic_extent ? Count : size() - Offset};
   }
 
@@ -396,7 +393,7 @@ span(const std::array<T, N> &) -> span<const T, N>;
 
 template <class Container>
 span(Container &) -> span<typename std::remove_reference<
-                      decltype(*detail::data(std::declval<Container &>()))>::type>;
+    decltype(*detail::data(std::declval<Container &>()))>::type>;
 
 template <class Container>
 span(const Container &) -> span<const typename Container::value_type>;

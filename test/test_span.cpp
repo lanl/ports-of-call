@@ -61,8 +61,7 @@ constexpr void generate(ForwardIt first, ForwardIt last, Generator g) {
 }
 
 template <class T, std::size_t N>
-[[nodiscard]]
-constexpr auto slide(span<T, N> s, std::size_t offset, std::size_t width) {
+[[nodiscard]] constexpr auto slide(span<T, N> s, std::size_t offset, std::size_t width) {
   return s.subspan(offset, offset + width <= s.size() ? width : 0U);
 }
 

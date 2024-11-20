@@ -114,4 +114,4 @@ TEST_CASE("static vector GPU", "[reaction_network]") {
 
 // ================================================================================================
 
-#endif //PORTABILITY_STRATEGY_KOKKOS
+#endif // PORTABILITY_STRATEGY_KOKKOS

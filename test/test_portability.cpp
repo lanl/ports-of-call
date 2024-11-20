@@ -102,7 +102,7 @@ TEST_CASE("portableCopy works with all portability strategies", "[portableCopy]"
   int sum{0};
   portableReduce(
       "check portableCopy", 0, N, 0, 0, 0, 0,
-      PORTABLE_LAMBDA(const int &i, const int &/*j*/, const int &/*k*/, int &isum) {
+      PORTABLE_LAMBDA(const int &i, const int & /*j*/, const int & /*k*/, int &isum) {
         if (a[i] != index_func(i)) {
           isum += 1;
         }
