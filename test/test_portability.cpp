@@ -102,7 +102,7 @@ TEST_CASE("portableCopy works with all portability strategies", "[portableCopy]"
   int sum{0};
   portableReduce(
       "check portableCopy", 0, N, 0, 0, 0, 0,
-      PORTABLE_LAMBDA(const int &i, const int &j, const int &k, int &isum) {
+      PORTABLE_LAMBDA(const int &i, const int & /*j*/, const int & /*k*/, int &isum) {
         if (a[i] != index_func(i)) {
           isum += 1;
         }
@@ -121,7 +121,7 @@ TEST_CASE("portableCopy works with all portability strategies", "[portableCopy]"
 
   // count elements that don't match reference
   sum = 0;
-  for (int i = 0; i < N; ++i) {
+  for (size_t i = 0; i < N; ++i) {
     if (b[i] != index_func(i)) {
       sum += 1;
     }

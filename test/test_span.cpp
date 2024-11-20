@@ -61,8 +61,7 @@ constexpr void generate(ForwardIt first, ForwardIt last, Generator g) {
 }
 
 template <class T, std::size_t N>
-[[nodiscard]]
-constexpr auto slide(span<T, N> s, std::size_t offset, std::size_t width) {
+[[nodiscard]] constexpr auto slide(span<T, N> s, std::size_t offset, std::size_t width) {
   return s.subspan(offset, offset + width <= s.size() ? width : 0U);
 }
 
@@ -569,7 +568,7 @@ TEST_CASE("span portability", "[PortsOfCall::span]") {
   constexpr Real d_gp = 2. * pi / static_cast<Real>(N);
 
   std::vector<Real> h_gp(N);
-  for (auto i = 0; i < N; ++i) {
+  for (std::size_t i = 0; i < N; ++i) {
     h_gp[i] = -pi + static_cast<Real>(i) * d_gp;
   }
 
