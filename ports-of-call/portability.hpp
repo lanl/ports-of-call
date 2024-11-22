@@ -104,6 +104,7 @@ constexpr bool EXECUTION_IS_HOST{false};
 constexpr bool EXECUTION_IS_HOST{true};
 #endif
 // portable printf
+#define PORTABLE_MAX_NUM_CHAR (2048)
 template <typename... Ts>
 PORTABLE_INLINE_FUNCTION void printf(char const *const format, Ts... ts) {
   // disable for hip
@@ -111,6 +112,17 @@ PORTABLE_INLINE_FUNCTION void printf(char const *const format, Ts... ts) {
   std::printf(format, ts...);
 #endif // __HIPCC__
   return;
+}
+template <typename... Ts>
+PORTABLE_INLINE_FUNCTION void snprintf(char *target, std::size_t size, char const *const format, Ts... ts) {
+#ifndef __HIPCC__
+  std::snprintf(target, size, format, ts...);
+#endif // __HIPCC__
+  return;
+}
+template <typename... Ts>
+PORTABLE_INLINE_FUNCTION void sprintf(char *target, char const *const format, Ts... ts) {
+  PortsOfCall::snprintf(target, PORTABLE_MAX_NUM_CHAR, format, ts...);
 }
 } // namespace PortsOfCall
 

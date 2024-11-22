@@ -184,9 +184,10 @@ inline void warn(std::string const &message, const char *const filename,
 PORTABLE_INLINE_FUNCTION
 void error_msg(const char *const input_message, const char *const filename,
                int const linenumber, char *output_message) {
-  std::sprintf(output_message,
-               "### ERROR\n  Message:     %s\n  File:        %s\n  Line number: %i\n",
-               input_message, filename, linenumber);
+  PortsOfCall::sprintf(
+      output_message,
+      "### ERROR\n  Message:     %s\n  File:        %s\n  Line number: %i\n",
+      input_message, filename, linenumber);
 }
 inline void error_msg(std::stringstream const &input_message, const char *const filename,
                       int const linenumber, char *output_message) {
