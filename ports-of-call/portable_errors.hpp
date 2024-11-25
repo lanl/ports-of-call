@@ -49,10 +49,9 @@
   PortsOfCall::ErrorChecking::warn(message, __FILE__, __LINE__)
 
 // Fills a char* array output with an error message
-// with file name and line number. Note there is no bounds checking
-// so make sure you allocate enough memory.
-#define PORTABLE_ERROR_MESSAGE(message, output)                                          \
-  PortsOfCall::ErrorChecking::error_msg(message, __FILE__, __LINE__, output)
+// with file name and line number.
+#define PORTABLE_ERROR_MESSAGE(message, output, maxsize)                                 \
+  PortsOfCall::ErrorChecking::error_msg(message, maxsize, __FILE__, __LINE__, output)
 
 // Aborts the program with an error message with file and line number.
 // if PORTABILITY_STRATEGY_NONE is enabled, then this throws a C++
@@ -180,21 +179,24 @@ inline void warn(std::string const &message, const char *const filename,
 }
 
 // Fills the output_message char* array with an error message with
-// filename and line number. Beware! No bounds checking!
+// filename and line number.
 PORTABLE_INLINE_FUNCTION
-void error_msg(const char *const input_message, const char *const filename,
-               int const linenumber, char *output_message) {
-  std::sprintf(output_message,
-               "### ERROR\n  Message:     %s\n  File:        %s\n  Line number: %i\n",
-               input_message, filename, linenumber);
+void error_msg(const char *const input_message, const std::size_t maxsize,
+               const char *const filename, int const linenumber, char *output_message) {
+  PortsOfCall::snprintf(
+      output_message, maxsize,
+      "### ERROR\n  Message:     %s\n  File:        %s\n  Line number: %i\n",
+      input_message, filename, linenumber);
 }
-inline void error_msg(std::stringstream const &input_message, const char *const filename,
-                      int const linenumber, char *output_message) {
-  error_msg(input_message.str().c_str(), filename, linenumber, output_message);
+inline void error_msg(std::stringstream const &input_message, const std::size_t maxsize,
+                      const char *const filename, int const linenumber,
+                      char *output_message) {
+  error_msg(input_message.str().c_str(), maxsize, filename, linenumber, output_message);
 }
-inline void error_msg(std::string const &input_message, const char *const filename,
-                      int const linenumber, char *output_message) {
-  error_msg(input_message.c_str(), filename, linenumber, output_message);
+inline void error_msg(std::string const &input_message, const std::size_t maxsize,
+                      const char *const filename, int const linenumber,
+                      char *output_message) {
+  error_msg(input_message.c_str(), maxsize, filename, linenumber, output_message);
 }
 
 } // namespace ErrorChecking

@@ -17,6 +17,8 @@
 // ========================================================================================
 
 #include <string>
+#include <string_view>
+#include <type_traits>
 
 #ifdef PORTABILITY_STRATEGY_KOKKOS
 #ifdef PORTABILITY_STRATEGY_CUDA
@@ -104,11 +106,20 @@ constexpr bool EXECUTION_IS_HOST{false};
 constexpr bool EXECUTION_IS_HOST{true};
 #endif
 // portable printf
+#define PORTABLE_MAX_NUM_CHAR (2048)
 template <typename... Ts>
 PORTABLE_INLINE_FUNCTION void printf(char const *const format, Ts... ts) {
   // disable for hip
 #ifndef __HIPCC__
   std::printf(format, ts...);
+#endif // __HIPCC__
+  return;
+}
+template <typename... Ts>
+PORTABLE_INLINE_FUNCTION void snprintf(char *target, std::size_t size,
+                                       char const *const format, Ts... ts) {
+#ifndef __HIPCC__
+  std::snprintf(target, size, format, ts...);
 #endif // __HIPCC__
   return;
 }
