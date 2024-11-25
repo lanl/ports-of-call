@@ -180,7 +180,7 @@ inline void warn(std::string const &message, const char *const filename,
 }
 
 // Fills the output_message char* array with an error message with
-// filename and line number. Beware! No bounds checking!
+// filename and line number.
 PORTABLE_INLINE_FUNCTION
 void error_msg(const char *const input_message, const char *const filename,
                int const linenumber, char *output_message) {

@@ -113,16 +113,37 @@ PORTABLE_INLINE_FUNCTION void printf(char const *const format, Ts... ts) {
 #endif // __HIPCC__
   return;
 }
+// Variadic strlen
 template <typename... Ts>
-PORTABLE_INLINE_FUNCTION void snprintf(char *target, std::size_t size, char const *const format, Ts... ts) {
+inline std::size_t strlen(char const *const str, Ts... ts) {
+  constexpr size_t MAX_I = 4096;
+  std::size_t i;
+  for (i = 0; i < MAX_I; ++i) {
+    if (str[i] == '\0') {
+      break;
+    }
+  }
+  if constexpr (sizeof...(Ts) > 0) {
+    i += mystrlen(ts...);
+  }
+  return i;
+}
+template <typename... Ts>
+PORTABLE_INLINE_FUNCTION void snprintf(char *target, std::size_t size,
+                                       char const *const format, Ts... ts) {
 #ifndef __HIPCC__
   std::snprintf(target, size, format, ts...);
 #endif // __HIPCC__
   return;
 }
 template <typename... Ts>
-PORTABLE_INLINE_FUNCTION void sprintf(char *target, char const *const format, Ts... ts) {
-  PortsOfCall::snprintf(target, PORTABLE_MAX_NUM_CHAR, format, ts...);
+PORTABLE_INLINE_FUNCTION void sprintf(char *target, std::size_t size,
+                                      char const *const format, Ts... ts) {
+#ifndef __HIPCC__
+  std::size_t size = PortsOfCall::strlen(format, ts...);
+  std::snprintf(target, size, format, ts...);
+#endif // __HIPCC__
+  return;
 }
 } // namespace PortsOfCall
 
