@@ -118,9 +118,11 @@ PORTABLE_INLINE_FUNCTION void printf(char const *const format, Ts... ts) {
 // Variadic strlen
 template <typename Head, typename... Tail>
 inline std::size_t strlen(Head h, Tail... tail) {
-  constexpr size_t MAX_I = 4096;
+  constexpr std::size_t MAX_I = 4096;
   std::size_t i = 0;
   if constexpr (std::is_convertible_v<Head, std::string_view>) {
+    // don't want a non-terminating loop if there's now null
+    // character.
     for (i = 0; i < MAX_I; ++i) {
       if (h[i] == '\0') {
         break;
