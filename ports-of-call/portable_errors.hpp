@@ -49,8 +49,7 @@
   PortsOfCall::ErrorChecking::warn(message, __FILE__, __LINE__)
 
 // Fills a char* array output with an error message
-// with file name and line number. Note there is no bounds checking
-// so make sure you allocate enough memory.
+// with file name and line number.
 #define PORTABLE_ERROR_MESSAGE(message, output, maxsize)                                 \
   PortsOfCall::ErrorChecking::error_msg(message, maxsize, __FILE__, __LINE__, output)
 
