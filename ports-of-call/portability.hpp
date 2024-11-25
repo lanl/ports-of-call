@@ -17,6 +17,8 @@
 // ========================================================================================
 
 #include <string>
+#include <string_view>
+#include <type_traits>
 
 #ifdef PORTABILITY_STRATEGY_KOKKOS
 #ifdef PORTABILITY_STRATEGY_CUDA
@@ -114,17 +116,21 @@ PORTABLE_INLINE_FUNCTION void printf(char const *const format, Ts... ts) {
   return;
 }
 // Variadic strlen
-template <typename... Ts>
-inline std::size_t strlen(char const *const str, Ts... ts) {
+template <typename Head, typename... Tail>
+inline std::size_t strlen(Head h, Tail... tail) {
   constexpr size_t MAX_I = 4096;
-  std::size_t i;
-  for (i = 0; i < MAX_I; ++i) {
-    if (str[i] == '\0') {
-      break;
+  std::size_t i = 0;
+  if constexpr (std::is_convertible_v<Head, std::string_view>) {
+    for (i = 0; i < MAX_I; ++i) {
+      if (h[i] == '\0') {
+        break;
+      }
     }
+  } else {
+    i = 20; // some big number to account for things like %.14e
   }
-  if constexpr (sizeof...(Ts) > 0) {
-    i += mystrlen(ts...);
+  if constexpr (sizeof...(Tail) > 0) {
+    i += strlen(tail...);
   }
   return i;
 }
@@ -137,8 +143,7 @@ PORTABLE_INLINE_FUNCTION void snprintf(char *target, std::size_t size,
   return;
 }
 template <typename... Ts>
-PORTABLE_INLINE_FUNCTION void sprintf(char *target, std::size_t size,
-                                      char const *const format, Ts... ts) {
+PORTABLE_INLINE_FUNCTION void sprintf(char *target, char const *const format, Ts... ts) {
 #ifndef __HIPCC__
   std::size_t size = PortsOfCall::strlen(format, ts...);
   std::snprintf(target, size, format, ts...);
