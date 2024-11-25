@@ -127,7 +127,7 @@ inline std::size_t strlen(Head h, Tail... tail) {
       }
     }
   } else {
-    i = 20; // some big number to account for things like %.14e
+    i = 100; // some big number to account for things like %.14e
   }
   if constexpr (sizeof...(Tail) > 0) {
     i += strlen(tail...);
