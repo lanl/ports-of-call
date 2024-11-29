@@ -111,7 +111,11 @@ template <typename... Ts>
 PORTABLE_INLINE_FUNCTION void printf(char const *const format, Ts... ts) {
   // disable for hip
 #ifndef __HIPCC__
-  std::printf(format, ts...);
+  if constexpr (sizeof...(Ts) > 0) {
+    std::printf(format, ts...);
+  } else {
+    std::printf("%s", format);
+  }
 #endif // __HIPCC__
   return;
 }
