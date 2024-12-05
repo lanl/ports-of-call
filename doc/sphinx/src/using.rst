@@ -162,7 +162,12 @@ The function
   template <typename T>
   PORTABLE_FORCEINLINE_FUNCTION int sgn(const T &val);
 
-returns the sign of a quantity.
+returns the sign of a quantity ``val``.
+
+.. note::
+
+  Note this implementation **never** returns zero. It **always**
+  returns :math:`\pm 1`.
 
 The function
 
