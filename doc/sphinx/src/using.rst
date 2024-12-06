@@ -137,8 +137,8 @@ functionality is contained in the namespace ``PortsOfCall::Robust`` and includes
 
 * ``constexpr auto SMALL<T>()`` returns a small number of type ``T``.
 * ``constexpr auto EPS<T>()`` returns a value of type ``T`` close to machine epsilon.
-* ``constexpr auto min_exp_arg<T>()`` returns the smallest of type ``T`` safe value to pass into an exponent.
-* ``constexpr auto max_exp_exp_arg<T>()`` returns the max value of type ``T`` to pass into an exponent.
+* ``constexpr auto min_exp_arg<T>()`` returns the smallest safe value of type ``T`` to pass into an exponent.
+* ``constexpr auto max_exp_exp_arg<T>()`` returns the max safe value of type ``T`` to pass into an exponent.
 * ``auto make_positive(const T val)`` makes the argument of type ``T`` positive.
 
 where here all functionality is templated on type ``T`` and marked
@@ -153,7 +153,8 @@ The function
   PORTABLE_FORCEINLINE_FUNCTION
   Real make_bounded(const T val, const T vmin, const T vmax);
 
-bounds ``val`` between ``vmin`` and ``vmax``.
+bounds ``val`` between ``vmin`` and ``vmax``, exclusive. Note this is
+slightly different than ``std::clamp``, which uses inclusive bounds.
 
 The function
 
@@ -176,9 +177,10 @@ The function
   template <typename A, typename B>
   PORTABLE_FORCEINLINE_FUNCTION auto ratio(const A &a, const B &b)
 
-computes the ratio :math:`A/B` but in a way robust to divide by zero
-errors. If both :math:`A` and :math:`B` are zero, this function will
-return 0.
+computes the ratio :math:`A/B` but in a way robust to 0/0 errors. If
+both :math:`A` and :math:`B` are zero, this function will return 0. If
+:math:`|A| > 0` and :math:`B=0`, then it will return a very large,
+possibly (but not guaranteed to be) infinite number.
 
 The function
 

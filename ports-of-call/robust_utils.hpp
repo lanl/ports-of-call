@@ -59,6 +59,8 @@ PORTABLE_FORCEINLINE_FUNCTION int sgn(const T &val) {
 
 template <typename A, typename B>
 PORTABLE_FORCEINLINE_FUNCTION auto ratio(const A &a, const B &b) {
+  B mask = static_cast<B>(std::abs(b) < SMALL());
+  B denom = mask * sgn(b) * SMALL<B>() + (1 - mask) * b;
   return a / (b + sgn(b) * SMALL<B>());
 }
 
