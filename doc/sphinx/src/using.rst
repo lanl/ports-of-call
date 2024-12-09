@@ -194,6 +194,35 @@ exceptions. For very large negative inputs, it returns 0. For very
 large positive ones, it returns
 ``std::numeric_limits<T>::infinity()``.
 
+The function
+
+.. code-block:: cpp
+
+  template <typename DataType>
+  PORTABLE_FUNCTION constexpr DataType reldiff(const DataType actual, const DataType expected)
+
+returns the relative difference between the expected value and the actual
+result (:math:`\left|(A-E)/E\right|`).  If the expected and actual values are
+both zero, this is defined to be a relative difference of 0%.  If the expected
+value is zero and the actual value is non-zero, this is defined to be a
+relative difference of 100%.  Unlike ``ratio``, ``reldiff`` is tuned to get
+meaningful results for the use-case of unit tests, rather than for performance.
+
+The function
+
+.. code-block:: cpp
+
+  template <typename T>
+  PORTABLE_FUNCTION constexpr bool check_nonnegative(const T t)
+
+checks if the value is non-negative (:math:`t \geq 0`).  There are two
+versions: one for signed values (performs the check and returns the result) and
+one for unsigned values (simply returns true, since unsigned values can never
+be negative).  This is typically used in generic code where a value must be
+non-negative, but the type is unknown and therefore may be either signed or
+unsigned.  Simply using ``t >= 0`` can cause undesirable warnings about
+unsigned integer comparisons, so ``check_nonnegative`` is provided.
+
 macros_arrays.hpp
 ^^^^^^^^^^^^^^^^^^^
 
