@@ -50,6 +50,23 @@ template <typename base_t, typename exp_t>
   return result;
 }
 
+template <typename Value>
+struct plus {
+  PORTABLE_FUNCTION constexpr Value operator()(Value const accum, Value const current) {
+    return accum + current;
+  }
+};
+
+template <typename IterB, typename IterE, typename Value,
+          typename Op = singe::util::plus<Value>>
+PORTABLE_FUNCTION constexpr Value accumulate(IterB begin, IterE end, Value accum,
+                                             Op &&op = singe::util::plus<Value>{}) {
+  for (auto iter = begin; iter != end; ++iter) {
+    accum = op(accum, *iter);
+  }
+  return accum;
+}
+
 } // namespace Math
 } // namespace PortsOfCall
 

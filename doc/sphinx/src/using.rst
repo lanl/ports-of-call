@@ -242,6 +242,25 @@ For sufficiently large integer powers, ``std::pow`` may be faster, but testing
 indicates ``int_power`` is significantly faster (roughly a factor of two or
 better) up to power of at least 100.
 
+The function
+
+.. code-block:: cpp
+
+  template <
+    typename IterB,
+    typename IterE,
+    typename Value,
+    typename Op = singe::util::plus<Value>>
+  PORTABLE_FUNCTION constexpr Value accumulate(
+    IterB begin,
+    IterE end,
+    Value accum,
+    Op && op = singe::util::plus<Value>{})
+
+is a simple ``constexpr`` implementation of ``std::accumulate`` from the STL.
+Ports-of-Call also provides a ``constexpr`` implementation of ``std::plus``
+(which is the default operator for ``accumulate``).
+
 macros_arrays.hpp
 ^^^^^^^^^^^^^^^^^^^
 
