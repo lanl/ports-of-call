@@ -64,6 +64,23 @@ PORTABLE_FORCEINLINE_FUNCTION auto ratio(const A &a, const B &b) {
   return a / (b + sgn(b) * SMALL<B>());
 }
 
+template <typename DataType>
+PORTABLE_FUNCTION constexpr DataType reldiff(const DataType actual,
+                                             const DataType expected) {
+  if (actual == expected) {
+    return 0;
+  } else if (expected == 0) {
+    // expected 0, got nonzero, define this to be 100% error
+    return 1;
+  } else {
+    // Note: we do not use std::abs to calculate the absolute value because
+    //       it is not constexpr until C++23, therefore it is not portable
+    //       to GPUs (currently using C++17).
+    const auto signed_reldiff = (actual - expected) / expected;
+    return (signed_reldiff >= 0 ? signed_reldiff : -signed_reldiff);
+  }
+}
+
 template <typename T>
 PORTABLE_FORCEINLINE_FUNCTION T safe_arg_exp(const T &x) {
   return x < min_exp_arg<T>()   ? 0.0
