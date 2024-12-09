@@ -223,6 +223,25 @@ non-negative, but the type is unknown and therefore may be either signed or
 unsigned.  Simply using ``t >= 0`` can cause undesirable warnings about
 unsigned integer comparisons, so ``check_nonnegative`` is provided.
 
+math_utils.hpp
+^^^^^^^^^^^^^^^^^^^
+
+``math_utils.hpp`` contains math operations intended to be both performant and
+portable to GPUs.
+
+The function
+
+.. code-block:: cpp
+
+  template <typename base_t, typename exp_t>
+  PORTABLE_FUNCTION constexpr inline base_t int_power(base_t base, exp_t exp)
+
+is equivalent to ``std::pow`` except that the exponent is required to be an
+integer.  For small integer powers, ``int_power`` is faster than ``std::pow``.
+For sufficiently large integer powers, ``std::pow`` may be faster, but testing
+indicates ``int_power`` is significantly faster (roughly a factor of two or
+better) up to power of at least 100.
+
 macros_arrays.hpp
 ^^^^^^^^^^^^^^^^^^^
 
