@@ -198,20 +198,6 @@ The function
 
 .. code-block:: cpp
 
-  template <typename DataType>
-  PORTABLE_FUNCTION constexpr DataType reldiff(const DataType actual, const DataType expected)
-
-returns the relative difference between the expected value and the actual
-result (:math:`\left|(A-E)/E\right|`).  If the expected and actual values are
-both zero, this is defined to be a relative difference of 0%.  If the expected
-value is zero and the actual value is non-zero, this is defined to be a
-relative difference of 100%.  Unlike ``ratio``, ``reldiff`` is tuned to get
-meaningful results for the use-case of unit tests, rather than for performance.
-
-The function
-
-.. code-block:: cpp
-
   template <typename T>
   PORTABLE_FUNCTION constexpr bool check_nonnegative(const T t)
 
