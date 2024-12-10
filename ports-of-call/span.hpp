@@ -23,6 +23,8 @@
 #include <cstdio>
 #include <type_traits>
 
+#include "robust_utils.hpp"
+
 #if defined(__cpp_lib_span) // do we already have std::span?
 
 #include <span>
@@ -54,16 +56,6 @@ namespace detail {
 
 using std::data;
 using std::size;
-
-// type-safe check against 0 (prevents warnings about comparing an unsigned against 0)
-template <typename T, std::enable_if_t<std::is_unsigned<T>::value, bool> = true>
-PORTABLE_FUNCTION constexpr bool check_nonnegative(const T) {
-  return true;
-}
-template <typename T, std::enable_if_t<!std::is_unsigned<T>::value, bool> = true>
-PORTABLE_FUNCTION constexpr bool check_nonnegative(const T t) {
-  return t >= 0;
-}
 
 // object to handle storage of span
 template <class E, std::size_t S>
@@ -206,7 +198,7 @@ class span {
   // NB: iterator concepts to further restrict overload resolution
   constexpr span(pointer ptr, size_type count) : storage_(ptr, count) {
     span_EXPECTS((ptr == nullptr && count == 0) ||
-                 (ptr != nullptr && detail::check_nonnegative(count)));
+                 (ptr != nullptr && Robust::check_nonnegative(count)));
   }
 
   // constructs a span that is a view over the range [first, last)
@@ -216,7 +208,7 @@ class span {
   // NB: iterator concepts to further restrict overload resolution
   constexpr span(pointer first_elem, pointer last_elem)
       : storage_(first_elem, last_elem - first_elem) {
-    span_EXPECTS(detail::check_nonnegative(last_elem - first_elem));
+    span_EXPECTS(Robust::check_nonnegative(last_elem - first_elem));
   }
 
   // constructs a span that is a view over arr
@@ -283,12 +275,12 @@ class span {
   // https://en.cppreference.com/w/cpp/container/span/first
   template <std::size_t Count>
   constexpr span<element_type, Count> first() const {
-    span_EXPECTS(detail::check_nonnegative(Count) && Count <= size());
+    span_EXPECTS(Robust::check_nonnegative(Count) && Count <= size());
     return {data(), Count};
   }
 
   constexpr span<element_type, dynamic_extent> first(size_type count) const {
-    span_EXPECTS(detail::check_nonnegative(count) && count <= size());
+    span_EXPECTS(Robust::check_nonnegative(count) && count <= size());
     return {data(), count};
   }
 
@@ -296,12 +288,12 @@ class span {
   // https://en.cppreference.com/w/cpp/container/span/last
   template <std::size_t Count>
   constexpr span<element_type, Count> last() const {
-    span_EXPECTS(detail::check_nonnegative(Count) && Count <= size());
+    span_EXPECTS(Robust::check_nonnegative(Count) && Count <= size());
     return {data() + (size() - Count), Count};
   }
 
   constexpr span<element_type, dynamic_extent> last(size_type count) const {
-    span_EXPECTS(detail::check_nonnegative(count) && count <= size());
+    span_EXPECTS(Robust::check_nonnegative(count) && count <= size());
     return {data() + (size() - count), count};
   }
 
@@ -316,17 +308,17 @@ class span {
 
   template <std::size_t Offset, std::size_t Count = dynamic_extent>
   constexpr subspan_return_t<Offset, Count> subspan() const {
-    span_EXPECTS((detail::check_nonnegative(Offset) && Offset <= size()) &&
+    span_EXPECTS((Robust::check_nonnegative(Offset) && Offset <= size()) &&
                  (Count == dynamic_extent ||
-                  (detail::check_nonnegative(Count) && Count + Offset <= size())));
+                  (Robust::check_nonnegative(Count) && Count + Offset <= size())));
     return {data() + Offset, Count != dynamic_extent ? Count : size() - Offset};
   }
 
   constexpr span<element_type, dynamic_extent>
   subspan(size_type offset, size_type count = dynamic_extent) const {
-    span_EXPECTS((detail::check_nonnegative(offset) && offset <= size()) &&
+    span_EXPECTS((Robust::check_nonnegative(offset) && offset <= size()) &&
                  (count == static_cast<size_type>(dynamic_extent) ||
-                  (detail::check_nonnegative(count) && count + offset <= size())));
+                  (Robust::check_nonnegative(count) && count + offset <= size())));
 
     return {data() + offset, count == dynamic_extent ? size() - offset : count};
   }
@@ -349,7 +341,7 @@ class span {
 
   // [span.element_access]--
   constexpr reference operator[](size_type idx) const {
-    span_EXPECTS(detail::check_nonnegative(idx) && idx < size());
+    span_EXPECTS(Robust::check_nonnegative(idx) && idx < size());
     return *(data() + idx);
   }
 
