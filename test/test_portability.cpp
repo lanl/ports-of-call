@@ -42,7 +42,7 @@ TEST_CASE("PortableMDArrays can be allocated from a pointer", "[PortableMDArray]
   constexpr int N = 2;
   constexpr int M = 3;
   std::vector<int> data(N * M);
-  PortableMDArray<int> a;
+  PortsOfCall::PortableMDArray<int> a;
   int tot = 0;
   for (int i = 0; i < N * M; i++) {
     data[i] = tot;
@@ -51,8 +51,8 @@ TEST_CASE("PortableMDArrays can be allocated from a pointer", "[PortableMDArray]
   a.NewPortableMDArray(data.data(), M, N);
 
   SECTION("Shape should be NxM") {
-    REQUIRE(a.GetDim1() == N);
-    REQUIRE(a.GetDim2() == M);
+    REQUIRE(a.GetDim<1>() == N);
+    REQUIRE(a.GetDim<2>() == M);
   }
 
   SECTION("Stride is as set by initialized pointer") {
@@ -66,7 +66,7 @@ TEST_CASE("PortableMDArrays can be allocated from a pointer", "[PortableMDArray]
   }
 
   SECTION("Identical slices of the same data should compare equal") {
-    PortableMDArray<int> aslc1, aslc2;
+    PortsOfCall::PortableMDArray<int> aslc1, aslc2;
     aslc1.InitWithShallowSlice(a, 1, 0, 2);
     aslc2.InitWithShallowSlice(a, 1, 0, 2);
     REQUIRE(aslc1 == aslc2);
@@ -87,8 +87,7 @@ TEST_CASE("portableCopy works with all portability strategies", "[portableCopy]"
   Real *a = (Real *)PORTABLE_MALLOC(Nb);
 
   // set device values to 0
-  portableFor(
-      "set to 0", 0, N, PORTABLE_LAMBDA(const int &i) { a[i] = 0.0; });
+  portableFor("set to 0", 0, N, PORTABLE_LAMBDA(const int &i) { a[i] = 0.0; });
 
   // set host values to reference
   for (size_t i = 0; i < N; ++i) {
