@@ -191,7 +191,7 @@ class PortableMDArray {
     if constexpr (sizeof...(Is) == 0) {
       idx = 0;
     } else if constexpr (sizeof...(Is) == 1) {
-      idx = get_first(idxs...);
+      idx = util::get_first(idxs...);
     } else {
       idx = util::fast_findex({static_cast<size_type>(idxs)...}, nxs_, strides_);
     }
@@ -204,7 +204,7 @@ class PortableMDArray {
     if constexpr (sizeof...(Is) == 0) {
       idx = 0;
     } else if constexpr (sizeof...(Is) == 1) {
-      idx = get_first(idxs...);
+      idx = util::get_first(idxs...);
     } else {
       idx = util::fast_findex({static_cast<size_type>(idxs)...}, nxs_, strides_);
     }
