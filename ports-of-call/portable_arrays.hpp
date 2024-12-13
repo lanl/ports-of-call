@@ -130,31 +130,6 @@ class PortableMDArray {
     return nxs_[rank_ - I];
   }
 
-  // legacy API, TODO: deprecate
-  [[deprecated("Use GetDim<N> instead.")]] PORTABLE_FORCEINLINE_FUNCTION int
-  GetDim1() const {
-    return GetDim<1>();
-  }
-  [[deprecated("Use GetDim<N> instead.")]] PORTABLE_FORCEINLINE_FUNCTION int
-  GetDim2() const {
-    return GetDim<2>();
-  }
-  [[deprecated("Use GetDim<N> instead.")]] PORTABLE_FORCEINLINE_FUNCTION int
-  GetDim3() const {
-    return GetDim<3>();
-  }
-  [[deprecated("Use GetDim<N> instead.")]] PORTABLE_FORCEINLINE_FUNCTION int
-  GetDim4() const {
-    return GetDim<4>();
-  }
-  [[deprecated("Use GetDim<N> instead.")]] PORTABLE_FORCEINLINE_FUNCTION int
-  GetDim5() const {
-    return GetDim<5>();
-  }
-  [[deprecated("Use GetDim<N> instead.")]] PORTABLE_FORCEINLINE_FUNCTION int
-  GetDim6() const {
-    return GetDim<6>();
-  }
   PORTABLE_INLINE_FUNCTION int GetDim(size_t i) const {
     // TODO: remove if performance cirtical
     assert(0 < i && i <= 6 && "PortableMDArrays are max 6D");
