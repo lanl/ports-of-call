@@ -50,10 +50,15 @@ PORTABLE_FORCEINLINE_FUNCTION static constexpr auto get_strides(A const &dim) {
   return detail::get_strides_impl(dim, std::make_index_sequence<get_size(A{})>{});
 }
 
+template <typename I, typename... Is>
+PORTABLE_FORCEINLINE_FUNCTION static constexpr auto get_first(I head, Is... tail) {
+  return head;
+}
+
 // returns the flat (1D) index of the md index set {i,j,k}
 // NB: fast because the strides are provided and don't need to be recomputed
 template <class A>
-PORTABLE_FUNCTION static constexpr auto
+PORTABLE_FORCEINLINE_FUNCTION static constexpr auto
 fast_findex(A const &ijk, [[maybe_unused]] A const &dim, A const &stride) {
   // TODO: assert ijk in bounds
   constexpr auto N = get_size(A{});

@@ -187,12 +187,28 @@ class PortableMDArray {
   // l-value, e.g.: a(3) = 3.0;
   template <typename... Is> //, class = std::enable_if_t<(sizeof...(Is) > 3)>>
   PORTABLE_FORCEINLINE_FUNCTION constexpr reference operator()(Is... idxs) noexcept {
-    return pdata_[util::fast_findex({static_cast<size_type>(idxs)...}, nxs_, strides_)];
+    index_type idx;
+    if constexpr (sizeof...(Is) == 0) {
+      idx = 0;
+    } else if constexpr (sizeof...(Is) == 1) {
+      idx = get_first(idxs...);
+    } else {
+      idx = util::fast_findex({static_cast<size_type>(idxs)...}, nxs_, strides_);
+    }
+    return pdata_[idx];
   }
 
   template <typename... Is> //, class = std::enable_if_t<(sizeof...(Is) > 3)>>
   PORTABLE_FORCEINLINE_FUNCTION constexpr T &operator()(Is... idxs) const noexcept {
-    return pdata_[util::fast_findex({static_cast<size_type>(idxs)...}, nxs_, strides_)];
+    index_type idx;
+    if constexpr (sizeof...(Is) == 0) {
+      idx = 0;
+    } else if constexpr (sizeof...(Is) == 1) {
+      idx = get_first(idxs...);
+    } else {
+      idx = util::fast_findex({static_cast<size_type>(idxs)...}, nxs_, strides_);
+    }
+    return pdata_[idx];
   }
 
   this_type &operator*=(T scale) {
