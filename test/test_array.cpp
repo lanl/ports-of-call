@@ -132,7 +132,7 @@ TEST_CASE("array begins and ends", "[array]") {
   using std::end;
 
   SECTION("with non-const array") {
-    array<int, 3> arr{{1, 2, 3}};
+    [[maybe_unused]] array<int, 3> arr{{1, 2, 3}};
 
     CHECK(std::is_same<int *, decltype(begin(arr))>::value);
     CHECK(std::is_same<int const *, decltype(cbegin(arr))>::value);
@@ -142,7 +142,7 @@ TEST_CASE("array begins and ends", "[array]") {
   }
 
   SECTION("with const array") {
-    array<int, 3> const arr{{1, 2, 3}};
+    [[maybe_unused]] array<int, 3> const arr{{1, 2, 3}};
 
     CHECK(std::is_same<int const *, decltype(begin(arr))>::value);
     CHECK(std::is_same<int const *, decltype(cbegin(arr))>::value);
@@ -152,13 +152,13 @@ TEST_CASE("array begins and ends", "[array]") {
   }
 
   SECTION("with non-const zero-sized array") {
-    array<int, 0> arr;
+    [[maybe_unused]] array<int, 0> arr;
 
     CHECK(begin(arr) == end(arr));
   }
 
   SECTION("with const zero-sized array") {
-    array<int, 0> const arr{};
+    [[maybe_unused]] array<int, 0> const arr{};
 
     CHECK(begin(arr) == end(arr));
   }
@@ -221,7 +221,7 @@ TEST_CASE("array sizes", "[array]") {
 TEST_CASE("array fill (GPU)", "[array][GPU]") {
   constexpr std::size_t N = 42;
   std::size_t count = 0;
-  auto func = PORTABLE_LAMBDA(const int i, std::size_t &count) {
+  auto func = PORTABLE_LAMBDA(const int /*i*/, std::size_t &count) {
     constexpr double value = 3.14;
     array<double, N> arr;
     arr.fill(value);
@@ -273,7 +273,7 @@ TEST_CASE("array swap", "[array]") {
 }
 
 TEST_CASE("array tuple_size", "[array]") {
-  array<double, 5> arr;
+  [[maybe_unused]] array<double, 5> arr;
 
   CHECK(std::tuple_size<decltype(arr)>::value == 5);
 }
@@ -281,13 +281,13 @@ TEST_CASE("array tuple_size", "[array]") {
 TEST_CASE("array tuple_element", "[array]") {
   struct Foo {};
 
-  array<Foo, 3> foos;
+  [[maybe_unused]] array<Foo, 3> foos;
 
   CHECK(std::is_same<Foo, std::tuple_element<1, decltype(foos)>::type>::value);
 }
 
 TEST_CASE("make_array function", "[array]") {
-  auto arr = make_array(1.0, 2.0, 3.0);
+  [[maybe_unused]] auto arr = make_array(1.0, 2.0, 3.0);
 
   CHECK(std::is_same<decltype(arr), array<double, 3>>::value);
 }

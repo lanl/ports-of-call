@@ -128,6 +128,72 @@ Please note that none of these functions are thread or MPI aware. In a parallel 
 
 as appropriate.
 
+robust_utils.hpp
+^^^^^^^^^^^^^^^^^^^
+
+``robust_utils.hpp`` contains small utility functions for numerical
+robustness, especially around floating point numbers. The available
+functionality is contained in the namespace ``PortsOfCall::Robust`` and includes:
+
+* ``constexpr auto SMALL<T>()`` returns a small number of type ``T``.
+* ``constexpr auto EPS<T>()`` returns a value of type ``T`` close to machine epsilon.
+* ``constexpr auto min_exp_arg<T>()`` returns the smallest safe value of type ``T`` to pass into an exponent.
+* ``constexpr auto max_exp_exp_arg<T>()`` returns the max safe value of type ``T`` to pass into an exponent.
+* ``auto make_positive(const T val)`` makes the argument of type ``T`` positive.
+
+where here all functionality is templated on type ``T`` and marked
+with ``PORTABLE_INLINE_FUNCTION``. The default type ``T`` is always
+``Real``.
+
+The function
+
+.. code-block:: cpp
+
+  template <typename T>
+  PORTABLE_FORCEINLINE_FUNCTION
+  Real make_bounded(const T val, const T vmin, const T vmax);
+
+bounds ``val`` between ``vmin`` and ``vmax``, exclusive. Note this is
+slightly different than ``std::clamp``, which uses inclusive bounds.
+
+The function
+
+.. code-block:: cpp
+
+  template <typename T>
+  PORTABLE_FORCEINLINE_FUNCTION int sgn(const T &val);
+
+returns the sign of a quantity ``val``.
+
+.. note::
+
+  Note this implementation **never** returns zero. It **always**
+  returns :math:`\pm 1`.
+
+The function
+
+.. code-block:: cpp
+
+  template <typename A, typename B>
+  PORTABLE_FORCEINLINE_FUNCTION auto ratio(const A &a, const B &b)
+
+computes the ratio :math:`A/B` but in a way robust to 0/0 errors. If
+both :math:`A` and :math:`B` are zero, this function will return 0. If
+:math:`|A| > 0` and :math:`B=0`, then it will return a very large,
+possibly (but not guaranteed to be) infinite number.
+
+The function
+
+.. code-block:: cpp
+
+  template <typename T>
+  PORTABLE_FORCEINLINE_FUNCTION T safe_arg_exp(const T &x)
+
+returns exponentiation in such a way that avoids floating point
+exceptions. For very large negative inputs, it returns 0. For very
+large positive ones, it returns
+``std::numeric_limits<T>::infinity()``.
+
 macros_arrays.hpp
 ^^^^^^^^^^^^^^^^^^^
 

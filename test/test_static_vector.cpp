@@ -13,7 +13,31 @@ namespace static_vector_test {
 
 template <typename T>
 constexpr static bool really_const = std::is_const<std::remove_reference_t<T>>::value;
-}
+
+// This doesn't do anything interesting.  It just needs to be non-trivial to
+// test that static_vector works for non-trivial types.
+struct NonTrivialType {
+  int n;
+  int *p;
+  PORTABLE_FUNCTION NonTrivialType(int nn) : n{nn}, p{&n} {}
+  PORTABLE_FUNCTION NonTrivialType(const NonTrivialType &other) : n{other.n}, p{&n} {}
+  PORTABLE_FUNCTION NonTrivialType(NonTrivialType &&other) : n{other.n}, p{&n} {}
+  PORTABLE_FUNCTION NonTrivialType &operator=(const NonTrivialType &other) {
+    n = other.n;
+    p = &n;
+    return *this;
+  }
+  PORTABLE_FUNCTION NonTrivialType &operator=(NonTrivialType &&other) {
+    n = other.n;
+    p = &n;
+    return *this;
+  }
+  PORTABLE_FUNCTION ~NonTrivialType() {}
+};
+
+} // namespace static_vector_test
+
+static_assert(!std::is_trivial<static_vector_test::NonTrivialType>::value);
 
 TEST_CASE("static_vector", "[util][static_vector]") {
   using std::begin;
@@ -21,6 +45,7 @@ TEST_CASE("static_vector", "[util][static_vector]") {
   using std::cend;
   using std::end;
 
+  using static_vector_test::NonTrivialType;
   using static_vector_test::really_const;
 
   SECTION("begin/end iteration") {
@@ -36,8 +61,8 @@ TEST_CASE("static_vector", "[util][static_vector]") {
       CHECK(not really_const<decltype(*b)>);
       CHECK(not really_const<decltype(*e)>);
 
-      auto cb = cbegin(data);
-      auto ce = cend(data);
+      [[maybe_unused]] auto cb = cbegin(data);
+      [[maybe_unused]] auto ce = cend(data);
 
       CHECK(really_const<decltype(*cb)>);
       CHECK(really_const<decltype(*ce)>);
@@ -139,10 +164,9 @@ TEST_CASE("static_vector", "[util][static_vector]") {
     }
 
     SECTION("with non-trivial type") {
-      using test_t = PortsOfCall::static_vector<std::vector<double>, 5>;
+      using test_t = PortsOfCall::static_vector<NonTrivialType, 5>;
 
-      test_t data = {std::vector<double>(2), std::vector<double>(4),
-                     std::vector<double>(6)};
+      test_t data = {NonTrivialType(2), NonTrivialType(4), NonTrivialType(6)};
       CHECK(data.size() == 3);
       data.clear();
       CHECK(data.size() == 0);
@@ -150,35 +174,34 @@ TEST_CASE("static_vector", "[util][static_vector]") {
   }
 
   SECTION("push_back/emplace_back") {
-    using test_t = PortsOfCall::static_vector<std::vector<double>, 5>;
+    using test_t = PortsOfCall::static_vector<NonTrivialType, 5>;
 
     test_t data;
 
-    auto insert = std::vector<double>(1);
+    auto insert = NonTrivialType(1);
     data.push_back(insert);
 
     // Note: Some compilers struggle to parse the Catch2 macros, and will generate errors
     // if you declare a lambda inside a CHECK macro.  Therefore we move the line with the
     // lambda outside of the CHECK.
-    auto expected1 = {std::vector<double>(1)};
+    auto expected1 = {NonTrivialType(1)};
     auto size_check1 =
         std::equal(begin(data), end(data), begin(expected1), end(expected1),
-                   [](auto const &l, auto const &r) { return l.size() == r.size(); });
+                   [](auto const &l, auto const &r) { return l.n == r.n; });
     CHECK(size_check1);
 
-    data.push_back(std::vector<double>(2));
-    auto expected2 = {std::vector<double>(1), std::vector<double>(2)};
+    data.push_back(NonTrivialType(2));
+    auto expected2 = {NonTrivialType(1), NonTrivialType(2)};
     auto size_check2 =
         std::equal(begin(data), end(data), begin(expected2), end(expected2),
-                   [](auto const &l, auto const &r) { return l.size() == r.size(); });
+                   [](auto const &l, auto const &r) { return l.n == r.n; });
     CHECK(size_check2);
 
     data.emplace_back(3);
-    auto expected3 = {std::vector<double>(1), std::vector<double>(2),
-                      std::vector<double>(3)};
+    auto expected3 = {NonTrivialType(1), NonTrivialType(2), NonTrivialType(3)};
     auto size_check3 =
         std::equal(begin(data), end(data), begin(expected3), end(expected3),
-                   [](auto const &l, auto const &r) { return l.size() == r.size(); });
+                   [](auto const &l, auto const &r) { return l.n == r.n; });
     CHECK(size_check3);
   }
 
@@ -193,18 +216,17 @@ TEST_CASE("static_vector", "[util][static_vector]") {
     }
 
     SECTION("with non-trivial type") {
-      using test_t = PortsOfCall::static_vector<std::vector<double>, 5>;
-      test_t data = {std::vector<double>(1), std::vector<double>(2),
-                     std::vector<double>(3), std::vector<double>(4),
-                     std::vector<double>(5)};
+      using test_t = PortsOfCall::static_vector<NonTrivialType, 5>;
+      test_t data = {NonTrivialType(1), NonTrivialType(2), NonTrivialType(3),
+                     NonTrivialType(4), NonTrivialType(5)};
 
       data.pop_back();
-      test_t const expected = {std::vector<double>(1), std::vector<double>(2),
-                               std::vector<double>(3), std::vector<double>(4)};
+      test_t const expected = {NonTrivialType(1), NonTrivialType(2), NonTrivialType(3),
+                               NonTrivialType(4)};
 
       auto size_check =
           std::equal(begin(data), end(data), begin(expected), end(expected),
-                     [](auto const &l, auto const &r) { return l.size() == r.size(); });
+                     [](auto const &l, auto const &r) { return l.n == r.n; });
       CHECK(size_check);
     }
   }

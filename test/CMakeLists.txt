@@ -11,6 +11,7 @@
 
 if(NOT TARGET Catch2::Catch2)
   find_package(Catch2 QUIET)
+  set(Catch2_VERSION ${Catch2_VERSION} PARENT_SCOPE)
   if(NOT Catch2_FOUND)
     message(STATUS "Fetching Catch2 as needed")
     include(FetchContent)
@@ -30,6 +31,7 @@ add_library(portsofcall_iface INTERFACE)
 if (PORTS_OF_CALL_TEST_PORTABILITY_STRATEGY STREQUAL "Kokkos")
   if(NOT TARGET Kokkos::kokkos)
     find_package(Kokkos QUIET)
+    set(Kokkos_VERSION ${Kokkos_VERSION} PARENT_SCOPE)
     if(NOT Kokkos_FOUND)
       message(STATUS "Fetching Kokkos as needed")
       include(FetchContent)
@@ -51,6 +53,41 @@ elseif (PORTS_OF_CALL_TEST_PORTABILITY_STRATEGY STREQUAL "Cuda")
   message(FATAL_ERROR "Cuda tests not yet fully supported")
   target_compile_definitions(portsofcall_iface INTERFACE PORTABILITY_STRATEGY_CUDA)
 endif()
+
+if(NOT PORTS_OF_CALL_SILENCE_WARNINGS)
+    # turn on strict warnings and error
+    # NOTE: The ROCm 6.2.1 installation on some machines (RZAdams and RZVernal at least) will
+    #       inject a `--gcc-toolchain` command-line argument into Clang, which is a deprecated
+    #       option.  Clang will warn about unused command-line arguments, so you get multiple
+    #       instances of that warning.  Then `-Werror` promotes those to errors.  We can turn these
+    #       back to non-fatal warnings with `-Wno-error=unused-command-line-argument` or we can
+    #       turn off that particular warning with `-Wno-unused-command-line-argument`.
+    # TODO: find comiler flags for non-GNU compatible compilers
+    target_compile_options(portsofcall_iface INTERFACE
+        $<$<IN_LIST:${CMAKE_CXX_COMPILER_ID},GNU>:-Werror;-Wall;-pedantic-errors;-Wunused-parameter>
+        $<$<IN_LIST:${CMAKE_CXX_COMPILER_ID},AppleClang>:-Werror;-Wall;-Wunused-parameter>
+        $<$<NOT:$<BOOL:${WIN32}>>:$<$<IN_LIST:${CMAKE_CXX_COMPILER_ID},Clang>:-Werror;-Wall;-Wno-unused-command-line-argument>>
+        $<$<BOOL:${WIN32}>:$<$<IN_LIST:${CMAKE_CXX_COMPILER_ID},Clang>:-Wall;-Wno-c++98-compat;-Wno-c++98-compat-pedantic>>
+        $<$<IN_LIST:${CMAKE_CXX_COMPILER_ID},Intel>:-Werror;-w2;-Wunused-variable;-Wunused-parameter;-diag-disable=remark>
+        $<$<IN_LIST:${CMAKE_CXX_COMPILER_ID},PGI>:>
+        $<$<IN_LIST:${CMAKE_CXX_COMPILER_ID},MSVC>:/permissive->
+        $<$<IN_LIST:${CMAKE_CXX_COMPILER_ID},XL>:>
+    )
+else()
+    # turn off warnings
+    # TODO: find comiler flags for non-GNU compatible compilers
+    target_compile_options(portsofcall_iface INTERFACE
+        $<$<IN_LIST:${CMAKE_CXX_COMPILER_ID},GNU>:-w>
+        $<$<IN_LIST:${CMAKE_CXX_COMPILER_ID},AppleClang>:>
+        $<$<NOT:$<BOOL:${WIN32}>>:$<$<IN_LIST:${CMAKE_CXX_COMPILER_ID},Clang>:>>
+        $<$<BOOL:${WIN32}>:$<$<IN_LIST:${CMAKE_CXX_COMPILER_ID},Clang>:>>
+        $<$<IN_LIST:${CMAKE_CXX_COMPILER_ID},Intel>:>
+        $<$<IN_LIST:${CMAKE_CXX_COMPILER_ID},PGI>:>
+        $<$<IN_LIST:${CMAKE_CXX_COMPILER_ID},MSVC>:>
+        $<$<IN_LIST:${CMAKE_CXX_COMPILER_ID},XL>:>
+    )
+endif()
+
 
 target_link_libraries(portsofcall_iface INTERFACE Catch2::Catch2)
 
