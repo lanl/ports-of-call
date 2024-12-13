@@ -186,10 +186,11 @@ PORTABLE_FORCEINLINE_FUNCTION constexpr T array_reduce(A x, T initial_value, Op 
 template <auto P, auto Fill = 1, template <class, auto> class A, class T, auto O>
 PORTABLE_FORCEINLINE_FUNCTION constexpr decltype(auto)
 make_underfilled_array(const A<T, O> &in) {
+  using i_t = typename A<T, 0>::size_type;
   A<T, P> out;
-  for (auto i = 0; i < in.size(); ++i)
+  for (i_t i = 0; i < in.size(); ++i)
     out[i] = in[i];
-  for (auto i = in.size(); i < out.size(); ++i)
+  for (i_t i = in.size(); i < out.size(); ++i)
     out[i] = Fill;
   return out;
 }
@@ -201,10 +202,11 @@ make_underfilled_array(const A<T, O> &in) {
 template <auto P, auto Fill = 1, template <class, auto> class A, class T, auto O>
 PORTABLE_FORCEINLINE_FUNCTION constexpr decltype(auto)
 make_underfilled_reversed_array(const A<T, O> &in) {
+  using i_t = typename A<T, 0>::size_type;
   A<T, P> out;
-  for (auto i = in.size() - 1; i >= 0; i--)
+  for (i_t i = in.size() - 1; i >= 0; i--)
     out[i] = in[i];
-  for (auto i = in.size(); i < out.size(); ++i)
+  for (i_t i = in.size(); i < out.size(); ++i)
     out[i] = Fill;
   return out;
 }

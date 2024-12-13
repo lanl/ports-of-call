@@ -28,6 +28,7 @@
 #endif
 
 using namespace PortsOfCall;
+constexpr const std::size_t MAXDIM = DEFAULT_MAXDIM;
 
 TEST_CASE("PortableMDArrays Sizes are sane", "[PortableMDArray]") {
   using tape_t = std::vector<int>;
@@ -38,7 +39,7 @@ TEST_CASE("PortableMDArrays Sizes are sane", "[PortableMDArray]") {
   std::vector<tape_t> dats;
 
   std::partial_sum(nxs.cbegin(), nxs.cend(), subsz.begin(), std::multiplies<int>());
-  for (auto i = 0; i < MAXDIM; ++i) {
+  for (std::size_t i = 0; i < MAXDIM; ++i) {
     dats.push_back(std::vector<int>(subsz[i], nxs[i]));
   }
 
@@ -70,7 +71,7 @@ TEST_CASE("Correct portable indexing", "[PortableMDArray]") {
   // vector length N on host of Real
   std::vector<Real> tape_ref(NC), tape_buf(NC);
 
-  for (auto n = 0; n < NC; ++n) {
+  for (std::size_t n = 0; n < NC; ++n) {
     tape_ref[n] = scale * static_cast<Real>(n);
   }
 
@@ -85,11 +86,11 @@ TEST_CASE("Correct portable indexing", "[PortableMDArray]") {
       });
 
   portableCopyToHost(tape_buf.data(), tape_d, NCb);
-  for (auto n = 0; n < NC; ++n) {
+  for (std::size_t n = 0; n < NC; ++n) {
     std::cout << "REF=" << tape_ref[n] << " BUF=" << tape_buf[n] << " n=" << n << "\n";
   }
 
-  for (auto n = 0; n < NC; ++n) {
+  for (std::size_t n = 0; n < NC; ++n) {
     INFO("REF=" << tape_ref[n] << " BUF=" << tape_buf[n] << " n=" << n);
     REQUIRE_THAT(tape_buf[n], Catch::Matchers::WithinRel(tape_ref[n]));
   }

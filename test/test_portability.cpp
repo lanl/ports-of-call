@@ -87,7 +87,8 @@ TEST_CASE("portableCopy works with all portability strategies", "[portableCopy]"
   Real *a = (Real *)PORTABLE_MALLOC(Nb);
 
   // set device values to 0
-  portableFor("set to 0", 0, N, PORTABLE_LAMBDA(const int &i) { a[i] = 0.0; });
+  portableFor(
+      "set to 0", 0, N, PORTABLE_LAMBDA(const int &i) { a[i] = 0.0; });
 
   // set host values to reference
   for (size_t i = 0; i < N; ++i) {

@@ -39,7 +39,7 @@
 
 namespace PortsOfCall {
 // maximum number of dimensions
-constexpr std::size_t MAXDIM = 6;
+constexpr std::size_t DEFAULT_MAXDIM = 6;
 
 namespace detail {
 // convert `index_sequence` values to constant
@@ -61,9 +61,10 @@ using Array = PortsOfCall::array<T, N>;
 template <auto N>
 using IArray = Array<std::size_t, N>;
 
-template <typename T, std::size_t D = MAXDIM>
+template <typename T, std::size_t D = DEFAULT_MAXDIM>
 class PortableMDArray {
  public:
+  static constexpr const std::size_t MAXDIM = D;
   using this_type = PortableMDArray<T, D>;
   using element_type = T;
   using value_type = typename std::remove_cv<T>::type;
@@ -89,14 +90,14 @@ class PortableMDArray {
   // ctors
   // default ctor: simply set null PortableMDArray
   PORTABLE_FUNCTION
-  PortableMDArray() noexcept : pdata_(nullptr), nxs_{{0}}, rank_{0} {}
+  PortableMDArray() noexcept : pdata_(nullptr), nxs_{{0}}, strides_{{0}}, rank_{0} {}
   // define copy constructor and overload assignment operator so both do deep
   // copies.
   //  PortableMDArray(const PortableMDArray<T> &t) noexcept;
   //  PortableMDArray<T> &operator=(const PortableMDArray<T> &t) noexcept;
   PortableMDArray(const this_type &src) noexcept
-      : nxs_(src.nxs_), rank_(src.rank_), strides_(src.strides_),
-        pdata_(src.pdata_ ? src.pdata_ : nullptr) {}
+      : pdata_(src.pdata_ ? src.pdata_ : nullptr), nxs_(src.nxs_), strides_(src.strides_),
+        rank_(src.rank_) {}
 
   PortableMDArray<T, D> &operator=(const this_type &src) noexcept {
     if (this != &src) {
@@ -254,17 +255,18 @@ class PortableMDArray {
   //  entries of the src array for d<dim (cannot access any nx4=2, etc. entries
   //  if dim=3 for example)
 
-  PORTABLE_FUNCTION void InitWithShallowSlice(const this_type &src, const int dim,
+  PORTABLE_FUNCTION void InitWithShallowSlice(const this_type &src, const size_t dim,
                                               const int indx, const int nvar) {
     pdata_ = src.pdata_;
     std::size_t offs = indx;
     nxs_[dim - 1] = nvar;
 
-    for (std::size_t i = 0; i < dim - 1; ++i) {
+    // this one needs to be an int because compared to input int
+    for (size_t i = 0; i < dim - 1; ++i) {
       nxs_[i] = src.nxs_[i];
       offs *= nxs_[i];
     }
-    for (std::size_t i = dim; i < MAXDIM; ++i) {
+    for (size_t i = dim; i < MAXDIM; ++i) {
       nxs_[i] = 1;
     }
     pdata_ += offs;
