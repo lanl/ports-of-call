@@ -62,7 +62,9 @@ PORTABLE_FORCEINLINE_FUNCTION static constexpr auto
 fast_findex(A const &ijk, [[maybe_unused]] A const &dim, A const &stride) {
   // TODO: assert ijk in bounds
   constexpr auto N = get_size(A{});
-  if constexpr (N == 1) {
+  if constexpr (N == 0) {
+    return 0;
+  } else if constexpr (N == 1) {
     return ijk[0];
   } else if constexpr (N == 2) {
     return ijk[1] + ijk[0] * stride[0];
