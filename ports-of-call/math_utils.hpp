@@ -18,36 +18,62 @@
 #include <cmath>
 #include <limits>
 #include <ports-of-call/portability.hpp>
+#include <ports-of-call/robust_utils.hpp>
 
 namespace PortsOfCall {
 namespace Math {
 
-// For small integer powers, int_power is faster than std::pow.  For sufficiently large
-// integer powers std::pow may be faster, but testing indicates int_power is significantly
-// faster (roughly a factor of two or better) up to powers of at least 100.
-template <typename base_t, typename exp_t>
-[[gnu::always_inline]] PORTABLE_FUNCTION constexpr inline base_t int_power(base_t base,
-                                                                           exp_t exp) {
-  static_assert(std::is_arithmetic<base_t>::value,
-                "base value must be an arithmetic type");
-  static_assert(std::is_integral<exp_t>::value, "exponent must be an integer type");
-  assert_nonnegative(exp);
-  base_t result{1};
-  for (;;) {
-    // Multiply if the current position in the exponent is true
-    if (exp & 1) {
-      result *= base;
-    }
-    // Shift the exponent to the next position
-    exp >>= 1;
-    // If the exponent is now empty, we're done
-    if (!exp) {
-      break;
-    }
-    // We halved the exponent (see the shift operation), so square the base
-    base *= base;
+// Faster implementation of std::pow for arithmetic bases and non-negative integer
+// exponents.  For sufficiently large integer powers std::pow may be faster, but testing
+// indicates that the following implementation is significantly faster (roughly a factor
+// of two or better) up to powers of at least 100.
+template <typename BaseT, typename ExponentT,
+          typename std::enable_if<std::is_arithmetic_v<std::decay_t<BaseT>> &&
+                                  std::is_integral_v<std::decay_t<ExponentT>>>::type * =
+              nullptr>
+[[gnu::always_inline]] PORTABLE_INLINE_FUNCTION constexpr auto power(BaseT base,
+                                                                     ExponentT exponent) {
+  using std::pow;
+  using PowT = decltype(pow(base, exponent));
+  if (!Robust::check_nonnegative(exponent) || exponent > ExponentT{100}) {
+    return pow(base, exponent);
+  }
+  PowT result = PowT{1};
+  while (true) {
+    if (exponent & 1) result *= base; // Multiply if the remaining exponent is odd
+    exponent >>= 1;                   // Right-shift the exponent (divide by 2)
+    if (!exponent) break;             // If the remaining exponent is zero, we are done
+    base *= base;                     // We halved the exponent, so square the base
   }
   return result;
+}
+// Faster implementation of std::pow() for non-negative arithmetic bases and
+// floating-point exponents
+template <typename BaseT, typename ExponentT,
+          typename std::enable_if<std::is_arithmetic_v<std::decay_t<BaseT>> &&
+                                  std::is_floating_point_v<std::decay_t<ExponentT>>>::type
+              * = nullptr>
+[[gnu::always_inline]] PORTABLE_INLINE_FUNCTION constexpr auto
+power(BaseT const &base, ExponentT const &exponent) {
+  using std::exp;
+  using std::log;
+  using std::pow;
+  if (!Robust::check_nonnegative(base)) {
+    return pow(base, exponent);
+  }
+  return exponent == ExponentT{0} ? BaseT{1} // Enforcing base^0=1 (including 0^0=1)
+         : base == BaseT{0}       ? BaseT{0}
+                                  : exp(exponent * log(base));
+}
+// Overload for non-arithmetic bases or exponents
+template <typename BaseT, typename ExponentT,
+          typename std::enable_if<not std::is_arithmetic_v<std::decay_t<BaseT>> ||
+                                  not std::is_arithmetic_v<std::decay_t<ExponentT>>>::type
+              * = nullptr>
+[[gnu::always_inline]] PORTABLE_INLINE_FUNCTION constexpr auto
+power(BaseT const &base, ExponentT const &exponent) {
+  using std::pow;
+  return pow(base, exponent);
 }
 
 template <typename Value>
@@ -58,9 +84,9 @@ struct plus {
 };
 
 template <typename IterB, typename IterE, typename Value,
-          typename Op = singe::util::plus<Value>>
+          typename Op = PortsOfCall::Math::plus<Value>>
 PORTABLE_FUNCTION constexpr Value accumulate(IterB begin, IterE end, Value accum,
-                                             Op &&op = singe::util::plus<Value>{}) {
+                                             Op &&op = PortsOfCall::Math::plus<Value>{}) {
   for (auto iter = begin; iter != end; ++iter) {
     accum = op(accum, *iter);
   }
