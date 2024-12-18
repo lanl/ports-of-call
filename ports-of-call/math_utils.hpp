@@ -33,7 +33,7 @@ namespace Math {
   , typename std::enable_if<std::is_arithmetic_v<std::decay_t<BaseT>>
           && std::is_integral_v<std::decay_t<ExponentT>>>::type* = nullptr
   >
-  PORTABLE_INLINE_FUNCTION constexpr auto power(
+  [[gnu::always_inline]] PORTABLE_INLINE_FUNCTION constexpr auto power(
     BaseT base
   , ExponentT exponent
   )
@@ -59,7 +59,7 @@ namespace Math {
   , typename std::enable_if<std::is_arithmetic_v<std::decay_t<BaseT>>
           && std::is_floating_point_v<std::decay_t<ExponentT>>>::type* = nullptr
   >
-  PORTABLE_INLINE_FUNCTION constexpr auto power(
+  [[gnu::always_inline]] PORTABLE_INLINE_FUNCTION constexpr auto power(
     BaseT const& base
   , ExponentT const& exponent
   )
@@ -80,7 +80,7 @@ namespace Math {
   , typename std::enable_if<not std::is_arithmetic_v<std::decay_t<BaseT>>
           || not std::is_arithmetic_v<std::decay_t<ExponentT>>>::Type* = nullptr
   >
-  PORTABLE_INLINE_FUNCTION constexpr auto power(
+  [[gnu::always_inline]] PORTABLE_INLINE_FUNCTION constexpr auto power(
     BaseT const& base
   , ExponentT const& exponent
   )
