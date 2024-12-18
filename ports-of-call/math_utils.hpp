@@ -25,8 +25,6 @@ namespace Math {
 
 namespace detail {
 
-#define REQUIRES(...) typename std::enable_if_t<__VA_ARGS__>* = nullptr
-
 /* Function: power(base, exponent) */
 struct power_fn {
 
@@ -37,8 +35,8 @@ struct power_fn {
   template<
     typename BaseT
   , typename ExponentT
-  , REQUIRES(std::is_arithmetic_v<std::decay_t<BaseT>>
-          && std::is_integral_v<std::decay_t<ExponentT>>)
+  , typename std::enable_if<std::is_arithmetic_v<std::decay_t<BaseT>>
+          && std::is_integral_v<std::decay_t<ExponentT>>>::type* = nullptr
   >
   PORTABLE_INLINE_FUNCTION constexpr auto operator()(
     BaseT base
@@ -63,8 +61,8 @@ struct power_fn {
   template<
     typename BaseT
   , typename ExponentT
-  , REQUIRES(std::is_arithmetic_v<std::decay_t<BaseT>>
-          && std::is_floating_point_v<std::decay_t<ExponentT>>)
+  , typename std::enable_if<std::is_arithmetic_v<std::decay_t<BaseT>>
+          && std::is_floating_point_v<std::decay_t<ExponentT>>>::type* = nullptr
   >
   PORTABLE_INLINE_FUNCTION constexpr auto operator()(
     BaseT const& base
@@ -84,8 +82,8 @@ struct power_fn {
   template<
     typename BaseT
   , typename ExponentT
-  , REQUIRES(not std::is_arithmetic_v<std::decay_t<BaseT>>
-          || not std::is_arithmetic_v<std::decay_t<ExponentT>>)
+  , typename std::enable_if<not std::is_arithmetic_v<std::decay_t<BaseT>>
+          || not std::is_arithmetic_v<std::decay_t<ExponentT>>>::Type* = nullptr
   >
   PORTABLE_INLINE_FUNCTION constexpr auto operator()(
     BaseT const& base
