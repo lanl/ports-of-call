@@ -23,11 +23,6 @@
 namespace PortsOfCall {
 namespace Math {
 
-namespace detail {
-
-/* Function: power(base, exponent) */
-struct power_fn {
-
   /* Faster implementation of std::pow for arithmetic bases and non-negative integer exponents.
      For sufficiently large integer powers std::pow may be faster, but testing indicates that the
      following implementation is significantly faster (roughly a factor of two or better) up to
@@ -38,10 +33,10 @@ struct power_fn {
   , typename std::enable_if<std::is_arithmetic_v<std::decay_t<BaseT>>
           && std::is_integral_v<std::decay_t<ExponentT>>>::type* = nullptr
   >
-  PORTABLE_INLINE_FUNCTION constexpr auto operator()(
+  PORTABLE_INLINE_FUNCTION constexpr auto power(
     BaseT base
   , ExponentT exponent
-  ) const
+  )
   {
     using std::pow;
     using PowT = decltype(pow(base, exponent));
@@ -64,10 +59,10 @@ struct power_fn {
   , typename std::enable_if<std::is_arithmetic_v<std::decay_t<BaseT>>
           && std::is_floating_point_v<std::decay_t<ExponentT>>>::type* = nullptr
   >
-  PORTABLE_INLINE_FUNCTION constexpr auto operator()(
+  PORTABLE_INLINE_FUNCTION constexpr auto power(
     BaseT const& base
   , ExponentT const& exponent
-  ) const
+  )
   {
     using std::pow;
     using std::exp;
@@ -85,20 +80,14 @@ struct power_fn {
   , typename std::enable_if<not std::is_arithmetic_v<std::decay_t<BaseT>>
           || not std::is_arithmetic_v<std::decay_t<ExponentT>>>::Type* = nullptr
   >
-  PORTABLE_INLINE_FUNCTION constexpr auto operator()(
+  PORTABLE_INLINE_FUNCTION constexpr auto power(
     BaseT const& base
   , ExponentT const& exponent
-  ) const
+  )
   {
     using std::pow;
     return pow(base, exponent);
   }
-
-}; // struct power_fn
-
-} // namespace detail
-
-constexpr static auto power = detail::power_fn{};
 
 template <typename Value>
 struct plus {
