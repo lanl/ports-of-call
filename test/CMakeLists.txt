@@ -19,8 +19,8 @@ if(NOT TARGET Catch2::Catch2)
     FetchContent_Declare(
       Catch2
       GIT_REPOSITORY https://github.com/catchorg/Catch2.git
-      # or later is fine too
-      GIT_TAG v3.0.1)
+      # JMM: update to 3.7.1 12/18/24 for Ubuntu 24.04
+      GIT_TAG v3.7.1)
     FetchContent_MakeAvailable(Catch2)
     list(APPEND CMAKE_MODULE_PATH ${Catch2_SOURCE_DIR}/contrib)
   endif()
