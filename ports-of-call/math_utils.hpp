@@ -18,6 +18,7 @@
 #include <cmath>
 #include <limits>
 #include <ports-of-call/portability.hpp>
+#include <ports-of-call/robust_utils.hpp>
 
 namespace PortsOfCall {
 namespace Math {
@@ -46,7 +47,7 @@ struct power_fn {
   {
     using std::pow;
     using PowT = decltype(pow(base, exponent));
-    if (exponent < ExponentT{0} or exponent > ExponentT{100}) return pow(base, exponent);
+    if (!Robust::check_nonnegative(exponent) || exponent > ExponentT{100}) return pow(base, exponent);
     PowT result = PowT{1};
     for (;;) {
       if (exponent & 1) result *= base; // Multiply either if the exponent starts odd or we have bit shifted it to 1
@@ -73,7 +74,7 @@ struct power_fn {
     using std::pow;
     using std::exp;
     using std::log;
-    if (base < BaseT{0}) return pow(base, exponent);
+    if (!Robust::check_nonnegative(base)) return pow(base, exponent);
     return exponent == ExponentT{0} ? BaseT{1} // Enforcing base^0=1 (including 0^0=1)
          : base == BaseT{0} ? BaseT{0}
          : exp(exponent*log(base));
