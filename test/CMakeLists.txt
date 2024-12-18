@@ -107,6 +107,7 @@ target_sources(test_portsofcall
   PRIVATE
     test_portability.cpp
     test_array.cpp
+    test_math_utils.cpp
     test_span.cpp
     test_static_vector.cpp
     test_static_vector_iterator.cpp
