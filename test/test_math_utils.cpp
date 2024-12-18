@@ -1,4 +1,4 @@
-#include "ports-of-call/math_utils.hh"
+#include <ports-of-call/math_utils.hpp>
 
 #ifndef CATCH_CONFIG_FAST_COMPILE
 #define CATCH_CONFIG_FAST_COMPILE
