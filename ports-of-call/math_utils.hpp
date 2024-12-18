@@ -23,10 +23,10 @@
 namespace PortsOfCall {
 namespace Math {
 
-  /* Faster implementation of std::pow for arithmetic bases and non-negative integer exponents.
-     For sufficiently large integer powers std::pow may be faster, but testing indicates that the
-     following implementation is significantly faster (roughly a factor of two or better) up to
-     powers of at least 100. */
+// Faster implementation of std::pow for arithmetic bases and non-negative integer exponents.  For
+// sufficiently large integer powers std::pow may be faster, but testing indicates that the
+// following implementation is significantly faster (roughly a factor of two or better) up to
+// powers of at least 100.
   template<
     typename BaseT
   , typename ExponentT
@@ -40,19 +40,19 @@ namespace Math {
   {
     using std::pow;
     using PowT = decltype(pow(base, exponent));
-    if (!Robust::check_nonnegative(exponent) || exponent > ExponentT{100}) return pow(base, exponent);
+    if (!Robust::check_nonnegative(exponent) || exponent > ExponentT{100}) {
+        return pow(base, exponent);
+    }
     PowT result = PowT{1};
-    for (;;) {
-      if (exponent & 1) result *= base; // Multiply either if the exponent starts odd or we have bit shifted it to 1
-      exponent >>= 1; // Shift the exponent to the next position (i.e. divide it by 2)
-      if (!exponent) break; // If the exponent has been bit shifted to zero, we are done
-      base *= base; // We halved the exponent (see the shift operation), so square the base
+    while (true) {
+      if (exponent & 1) result *= base; // Multiply if the remaining exponent is odd
+      exponent >>= 1; // Right-shift the exponent (divide by 2)
+      if (!exponent) break; // If the remaining exponent is zero, we are done
+      base *= base; // We halved the exponent, so square the base
     }
     return result;
   }
-
-  /* Faster implementation of std::pow() for non-negative arithmetic bases and floating-point
-     exponents */
+  // Faster implementation of std::pow() for non-negative arithmetic bases and floating-point exponents
   template<
     typename BaseT
   , typename ExponentT
@@ -67,13 +67,14 @@ namespace Math {
     using std::pow;
     using std::exp;
     using std::log;
-    if (!Robust::check_nonnegative(base)) return pow(base, exponent);
+    if (!Robust::check_nonnegative(base)) {
+        return pow(base, exponent);
+    }
     return exponent == ExponentT{0} ? BaseT{1} // Enforcing base^0=1 (including 0^0=1)
          : base == BaseT{0} ? BaseT{0}
          : exp(exponent*log(base));
   }
-
-  /* Overload for non-arithmetic bases or exponents */
+  // Overload for non-arithmetic bases or exponents
   template<
     typename BaseT
   , typename ExponentT
