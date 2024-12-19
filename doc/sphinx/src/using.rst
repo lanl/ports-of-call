@@ -194,6 +194,59 @@ exceptions. For very large negative inputs, it returns 0. For very
 large positive ones, it returns
 ``std::numeric_limits<T>::infinity()``.
 
+The function
+
+.. code-block:: cpp
+
+  template <typename T>
+  PORTABLE_FUNCTION constexpr bool check_nonnegative(const T t)
+
+checks if the value is non-negative (:math:`t \geq 0`).  There are two
+versions: one for signed values (performs the check and returns the result) and
+one for unsigned values (simply returns true, since unsigned values can never
+be negative).  This is typically used in generic code where a value must be
+non-negative, but the type is unknown and therefore may be either signed or
+unsigned.  Simply using ``t >= 0`` can cause undesirable warnings about
+unsigned integer comparisons, so ``check_nonnegative`` is provided.
+
+math_utils.hpp
+^^^^^^^^^^^^^^^^^^^
+
+``math_utils.hpp`` contains math operations intended to be both performant and
+portable to GPUs.
+
+The function
+
+.. code-block:: cpp
+
+  template <typename base_t, typename exp_t>
+  PORTABLE_FUNCTION constexpr inline base_t int_power(base_t base, exp_t exp)
+
+is equivalent to ``std::pow`` except that the exponent is required to be an
+integer.  For small integer powers, ``int_power`` is faster than ``std::pow``.
+For sufficiently large integer powers, ``std::pow`` may be faster, but testing
+indicates ``int_power`` is significantly faster (roughly a factor of two or
+better) up to power of at least 100.
+
+The function
+
+.. code-block:: cpp
+
+  template <
+    typename IterB,
+    typename IterE,
+    typename Value,
+    typename Op = singe::util::plus<Value>>
+  PORTABLE_FUNCTION constexpr Value accumulate(
+    IterB begin,
+    IterE end,
+    Value accum,
+    Op && op = singe::util::plus<Value>{})
+
+is a simple ``constexpr`` implementation of ``std::accumulate`` from the STL.
+Ports-of-Call also provides a ``constexpr`` implementation of ``std::plus``
+(which is the default operator for ``accumulate``).
+
 macros_arrays.hpp
 ^^^^^^^^^^^^^^^^^^^
 
