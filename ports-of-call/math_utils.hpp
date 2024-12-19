@@ -84,9 +84,9 @@ struct plus {
 };
 
 template <typename IterB, typename IterE, typename Value,
-          typename Op = singe::util::plus<Value>>
+          typename Op = PortsOfCall::Math::plus<Value>>
 PORTABLE_FUNCTION constexpr Value accumulate(IterB begin, IterE end, Value accum,
-                                             Op &&op = singe::util::plus<Value>{}) {
+                                             Op &&op = PortsOfCall::Math::plus<Value>{}) {
   for (auto iter = begin; iter != end; ++iter) {
     accum = op(accum, *iter);
   }
