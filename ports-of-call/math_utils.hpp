@@ -31,7 +31,7 @@ template <typename BaseT, typename ExponentT,
           typename std::enable_if<std::is_arithmetic_v<std::decay_t<BaseT>> &&
                                   std::is_integral_v<std::decay_t<ExponentT>>>::type * =
               nullptr>
-[[gnu::always_inline]] PORTABLE_INLINE_FUNCTION constexpr auto power(BaseT base,
+PORTABLE_FORCEINLINE_FUNCTION constexpr auto power(BaseT base,
                                                                      ExponentT exponent) {
   using std::pow;
   using PowT = decltype(pow(base, exponent));
@@ -53,7 +53,7 @@ template <typename BaseT, typename ExponentT,
           typename std::enable_if<std::is_arithmetic_v<std::decay_t<BaseT>> &&
                                   std::is_floating_point_v<std::decay_t<ExponentT>>>::type
               * = nullptr>
-[[gnu::always_inline]] PORTABLE_INLINE_FUNCTION constexpr auto
+PORTABLE_FORCEINLINE_FUNCTION constexpr auto
 power(BaseT const &base, ExponentT const &exponent) {
   using std::exp;
   using std::log;
@@ -70,7 +70,7 @@ template <typename BaseT, typename ExponentT,
           typename std::enable_if<not std::is_arithmetic_v<std::decay_t<BaseT>> ||
                                   not std::is_arithmetic_v<std::decay_t<ExponentT>>>::type
               * = nullptr>
-[[gnu::always_inline]] PORTABLE_INLINE_FUNCTION constexpr auto
+PORTABLE_FORCEINLINE_FUNCTION constexpr auto
 power(BaseT const &base, ExponentT const &exponent) {
   using std::pow;
   return pow(base, exponent);
