@@ -33,10 +33,9 @@ template <typename BaseT, typename ExponentT,
               nullptr>
 PORTABLE_FORCEINLINE_FUNCTION constexpr auto power(BaseT base,
                                                                      ExponentT exponent) {
-  using std::pow;
-  using PowT = decltype(pow(base, exponent));
+  using PowT = decltype(std::pow(base, exponent));
   if (!Robust::check_nonnegative(exponent) || exponent > ExponentT{100}) {
-    return pow(base, exponent);
+    return std::pow(base, exponent);
   }
   PowT result = PowT{1};
   while (true) {
@@ -55,15 +54,12 @@ template <typename BaseT, typename ExponentT,
               * = nullptr>
 PORTABLE_FORCEINLINE_FUNCTION constexpr auto
 power(BaseT const &base, ExponentT const &exponent) {
-  using std::exp;
-  using std::log;
-  using std::pow;
   if (!Robust::check_nonnegative(base)) {
-    return pow(base, exponent);
+    return std::pow(base, exponent);
   }
   return exponent == ExponentT{0} ? BaseT{1} // Enforcing base^0=1 (including 0^0=1)
          : base == BaseT{0}       ? BaseT{0}
-                                  : exp(exponent * log(base));
+                                  : std::exp(exponent * std::log(base));
 }
 // Overload for non-arithmetic bases or exponents
 template <typename BaseT, typename ExponentT,
@@ -72,8 +68,7 @@ template <typename BaseT, typename ExponentT,
               * = nullptr>
 PORTABLE_FORCEINLINE_FUNCTION constexpr auto
 power(BaseT const &base, ExponentT const &exponent) {
-  using std::pow;
-  return pow(base, exponent);
+  return std::pow(base, exponent);
 }
 
 template <typename Value>
