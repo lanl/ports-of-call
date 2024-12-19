@@ -71,6 +71,16 @@ PORTABLE_FORCEINLINE_FUNCTION T safe_arg_exp(const T &x) {
                                 : std::exp(x);
 }
 
+// type-safe check against 0
+template <typename T, std::enable_if_t<std::is_unsigned<T>::value, bool> = true>
+PORTABLE_FUNCTION constexpr bool check_nonnegative(const T) {
+  return true;
+}
+template <typename T, std::enable_if_t<!std::is_unsigned<T>::value, bool> = true>
+PORTABLE_FUNCTION constexpr bool check_nonnegative(const T t) {
+  return t >= 0;
+}
+
 } // namespace Robust
 } // namespace PortsOfCall
 
