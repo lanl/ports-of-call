@@ -157,6 +157,14 @@ class PortableMDArray {
   PORTABLE_FORCEINLINE_FUNCTION T *begin() { return pdata_; }
   PORTABLE_FORCEINLINE_FUNCTION T *end() { return pdata_ + GetSize(); }
 
+  // 1D accessors intended for accessing flattened data
+  PORTABLE_FORCEINLINE_FUNCTION T &operator[](const int n) const {
+    return pdata_[n];
+  }
+  PORTABLE_FORCEINLINE_FUNCTION T &operator[](const int n) {
+    return pdata_[n];
+  }
+
   // overload "function call" operator() to access 1d-5d data
   // provides Fortran-like syntax for multidimensional arrays vs. "subscript"
   // operator[]
