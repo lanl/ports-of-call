@@ -233,11 +233,16 @@ You can then set or access an element by reference as:
   // z = 3, y = 2, x = 1
   my_3d_array(3,2,1) = 5.0;
 
-You can always access the "flat" array by simply using the 1D accessor:
+You can always access the "flat" array by simply using the 1D bracket operator:
 
 .. code-block:: cpp
 
-  my_3d_array(6) = 2.0;
+  my_3d_array[6] = 2.0;
+
+.. warning::
+
+  Currently, the 1D parentheses operator currently also accesses the
+  flat array. However, this syntax may eventually be deprecated.
 
 By default ``PortableMDArray`` has reference-semantics. In
 other words, copies are shallow.
