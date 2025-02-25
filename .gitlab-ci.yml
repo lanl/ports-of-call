@@ -120,7 +120,7 @@ rzadams_craympich_rocm_mi300_cce:
 
 # collect job results from RZansel and submit them to CDash
 post_rzansel_results_to_cdash:
-  extends: [.post_results_to_cdash]
+  extends: [.post_results_to_cdash, .darwin_job]
   allow_failure: true
   rules:
     - if: $ENABLE_CDASH == "true" && $ENABLED_CLUSTERS =~ /rzansel/ && $GITLAB_USER_LOGIN =~ $RZANSEL_USERS && $CI_PIPELINE_SOURCE == "merge_request_event"
@@ -137,7 +137,7 @@ post_rzansel_results_to_cdash:
 
 # collect job results from RZvernal and submit them to CDash
 post_rzvernal_results_to_cdash:
-  extends: [.post_results_to_cdash]
+  extends: [.post_results_to_cdash, .darwin_job]
   allow_failure: true
   rules:
     - if: $ENABLE_CDASH == "true" && $ENABLED_CLUSTERS =~ /rzvernal/ && $GITLAB_USER_LOGIN =~ $RZVERNAL_USERS && $CI_PIPELINE_SOURCE == "merge_request_event"
@@ -153,7 +153,7 @@ post_rzvernal_results_to_cdash:
 
 # collect job results from RZadams and submit them to CDash
 post_rzadams_results_to_cdash:
-  extends: [.post_results_to_cdash]
+  extends: [.post_results_to_cdash, .darwin_job]
   allow_failure: true
   rules:
     - if: $ENABLE_CDASH == "true" && $ENABLED_CLUSTERS =~ /rzadams/ && $GITLAB_USER_LOGIN =~ $RZADAMS_USERS && $CI_PIPELINE_SOURCE == "merge_request_event"
