@@ -132,3 +132,56 @@ TEST_CASE("portableCopy works with all portability strategies", "[portableCopy]"
   // free device memory
   PORTABLE_FREE(a);
 }
+
+PORTABLE_FORCEINLINE_FUNCTION void expensive_operation(int iterations) {
+  double sum = 0.0;
+  for (int i = 0; i < iterations; i++) {
+      sum += 1.0 / (i + 1.0);  // Expensive floating-point operation
+  }
+  // Prevent compiler optimization
+  if (sum < 0) {
+      printf("Artificial delay: %f\n", sum);
+  }
+}
+
+TEST_CASE("PORTABLE_FENCE properly synchronizes execution after a portableFor",
+          "[portableFor][PORTABLE_FENCE]") {
+
+  // Create host array
+  constexpr int N = 100;
+  constexpr Real init_val = 2.0;
+  constexpr Real mult_factor = 50.;
+  std::vector<Real> h_data(N); // Zero initialized
+  for (size_t i = 0; i < N; i++) {
+    h_data[i] = init_val;
+  }
+
+  // Copy to device
+  constexpr const size_t bytes = N * sizeof(Real);
+  Real *d_data = (Real *)PORTABLE_MALLOC(bytes);
+  portableCopyToDevice(d_data, h_data.data(), bytes);
+
+  // Use portableFor since it doesn't have an implicit fence
+  portableFor("Expensive loop to test PORTABLE_FENCE", 0, N, PORTABLE_LAMBDA(const int i) {
+    expensive_operation(1e6);
+    d_data[i] *= mult_factor;
+  });
+
+  // Fence before copy
+  PORTABLE_FENCE("After expensive operation");
+
+  // Copy back to host
+  portableCopyToHost(h_data.data(), d_data, bytes);
+
+  // Check the array answer to make sure the operation has happened on all elements
+  int n_wrong = 0;
+  for (size_t i = 0; i < N; i++) {
+    if (h_data[i] != init_val * mult_factor) {
+      n_wrong += 1;
+    }
+  }
+  REQUIRE(n_wrong == 0);
+
+  // free device memory
+  PORTABLE_FREE(d_data);
+}
