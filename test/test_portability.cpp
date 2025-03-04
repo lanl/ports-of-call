@@ -167,19 +167,18 @@ TEST_CASE("PORTABLE_FENCE properly synchronizes execution after a portableFor",
     d_data[i] *= mult_factor;
   });
 
-  // Fence before copy
-  PORTABLE_FENCE("After expensive operation");
+  // Fence before reduction
+  PORTABLE_FENCE("Fence after expensive operation");
 
-  // Copy back to host
-  portableCopyToHost(h_data.data(), d_data, bytes);
-
-  // Check the array answer to make sure the operation has happened on all elements
+  // Use a device operation that would fail if the fence wasn't in place
   int n_wrong = 0;
-  for (size_t i = 0; i < N; i++) {
-    if (h_data[i] != init_val * mult_factor) {
+  portableReduce("Check PORTABLE_FENCE", 0, N, PORTABLE_LAMBDA(const int &i, int &n_wrong) {
+    if (d_data[i] != init_val * mult_factor) {
       n_wrong += 1;
     }
-  }
+  },
+  n_wrong);
+
   REQUIRE(n_wrong == 0);
 
   // free device memory
