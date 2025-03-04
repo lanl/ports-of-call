@@ -136,11 +136,11 @@ TEST_CASE("portableCopy works with all portability strategies", "[portableCopy]"
 PORTABLE_FORCEINLINE_FUNCTION void expensive_operation(int iterations) {
   double sum = 0.0;
   for (int i = 0; i < iterations; i++) {
-      sum += 1.0 / (i + 1.0);  // Expensive floating-point operation
+    sum += 1.0 / (i + 1.0); // Expensive floating-point operation
   }
   // Prevent compiler optimization
   if (sum < 0) {
-      printf("Artificial delay: %f\n", sum);
+    printf("Artificial delay: %f\n", sum);
   }
 }
 
@@ -162,22 +162,25 @@ TEST_CASE("PORTABLE_FENCE properly synchronizes execution after a portableFor",
   portableCopyToDevice(d_data, h_data.data(), bytes);
 
   // Use portableFor since it doesn't have an implicit fence
-  portableFor("Expensive loop to test PORTABLE_FENCE", 0, N, PORTABLE_LAMBDA(const int i) {
-    expensive_operation(1e6);
-    d_data[i] *= mult_factor;
-  });
+  portableFor(
+      "Expensive loop to test PORTABLE_FENCE", 0, N, PORTABLE_LAMBDA(const int i) {
+        expensive_operation(1e6);
+        d_data[i] *= mult_factor;
+      });
 
   // Fence before reduction
   PORTABLE_FENCE("Fence after expensive operation");
 
   // Use a device operation that would fail if the fence wasn't in place
   int n_wrong = 0;
-  portableReduce("Check PORTABLE_FENCE", 0, N, PORTABLE_LAMBDA(const int &i, int &n_wrong) {
-    if (d_data[i] != init_val * mult_factor) {
-      n_wrong += 1;
-    }
-  },
-  n_wrong);
+  portableReduce(
+      "Check PORTABLE_FENCE", 0, N,
+      PORTABLE_LAMBDA(const int &i, int &n_wrong) {
+        if (d_data[i] != init_val * mult_factor) {
+          n_wrong += 1;
+        }
+      },
+      n_wrong);
 
   REQUIRE(n_wrong == 0);
 
