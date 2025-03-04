@@ -22,6 +22,7 @@ To include Ports of Call in your project, simply include the directory
 6. ``_WITH_CUDA_``: Defined when Cuda is enabled
 7. ``Real``: a typedef to double (default) or float (if you define ``SINGLE_PRECISION_ENABLED``)
 8. ``PORTABLE_MALLOC()``, ``PORTABLE_FREE()``: A wrapper for kokkos_malloc or cudaMalloc, or raw malloc and equivalent free.
+9. ``PORTABLE_FENCE()``: A wrapper for kokkos::fence or cudaDeviceSynchronize()
 
 At compile time, you define
 ``PORTABILITY_STRATEGY_{KOKKOS,CUDA,NONE}`` (if you don't define it,
@@ -71,7 +72,9 @@ limited. The syntax is:
     Function function, T &reduced) {
 
 where ``Function`` now takes as many indices are required and
-``reduced`` as arguments.
+``reduced`` as arguments. Note that a ``portableReduce()`` is blocking (i.e. a
+device synchronization step is performed) while `portableFor()` may not be,
+possibly requiring a ``PORTABLE_FENCE`` to avoid any race conditions.
 
 Also provided are host to device and device to host memory transfers of the form:
 
