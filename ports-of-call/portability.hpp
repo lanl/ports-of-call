@@ -53,7 +53,7 @@
 #define PORTABLE_MALLOC(size) Kokkos::kokkos_malloc<>(size)
 #define PORTABLE_FREE(ptr) Kokkos::kokkos_free<>(ptr)
 // Do we want to include additional terms here (for memory spaces, etc.)?
-#define PORTABLE_FENCE(name) Kokkos::fence(name)
+#define PORTABLE_FENCE(...) Kokkos::fence(__VA_ARGS__)
 #else
 #ifdef PORTABILITY_STRATEGY_CUDA
 // currently error out on cuda since its not implemented
