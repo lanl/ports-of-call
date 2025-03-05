@@ -70,7 +70,7 @@ void *PORTABLE_MALLOC(size_t size) {
   return devPtr;
 }
 void PORTABLE_FREE(void *ptr) { cudaError_t e = cudaFree(ptr); }
-#define PORTABLE_FENCE(name) cudaDeviceSynchronize()
+#define PORTABLE_FENCE(...) cudaDeviceSynchronize()
 #define _WITH_CUDA_
 // It is worth noting here that we will not define
 // _WITH_CUDA_ when we are doing KOKKOS (even with the
