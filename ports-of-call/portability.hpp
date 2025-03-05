@@ -82,7 +82,7 @@ void PORTABLE_FREE(void *ptr) { cudaError_t e = cudaFree(ptr); }
 #define PORTABLE_LAMBDA [=]
 #define PORTABLE_MALLOC(size) malloc(size)
 #define PORTABLE_FREE(ptr) free(ptr)
-#define PORTABLE_FENCE(name)
+#define PORTABLE_FENCE(...)
 #endif
 #endif
 
