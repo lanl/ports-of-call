@@ -148,7 +148,7 @@ TEST_CASE("PORTABLE_FENCE properly synchronizes execution after a portableFor",
           "[portableFor][PORTABLE_FENCE]") {
 
   // Create host array
-  constexpr int N = 100;
+  constexpr int N = 10000;
   constexpr Real init_val = 2.0;
   constexpr Real mult_factor = 50.;
   std::vector<Real> h_data(N); // Zero initialized
@@ -171,7 +171,8 @@ TEST_CASE("PORTABLE_FENCE properly synchronizes execution after a portableFor",
   // Fence before reduction
   PORTABLE_FENCE("Fence after expensive operation");
 
-  // Use a device operation that would fail if the fence wasn't in place
+  // JHP: it's not completely clear to us whether this test would fail
+  // without the fence. Are device loops inherently sequential?
   int n_wrong = 0;
   portableReduce(
       "Check PORTABLE_FENCE", 0, N,
