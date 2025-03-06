@@ -53,6 +53,7 @@
 #define PORTABLE_MALLOC(size) Kokkos::kokkos_malloc<>(size)
 #define PORTABLE_FREE(ptr) Kokkos::kokkos_free<>(ptr)
 // Do we want to include additional terms here (for memory spaces, etc.)?
+#define PORTABLE_FENCE(...) Kokkos::fence(__VA_ARGS__)
 #else
 #ifdef PORTABILITY_STRATEGY_CUDA
 // currently error out on cuda since its not implemented
@@ -69,6 +70,7 @@ void *PORTABLE_MALLOC(size_t size) {
   return devPtr;
 }
 void PORTABLE_FREE(void *ptr) { cudaError_t e = cudaFree(ptr); }
+#define PORTABLE_FENCE(...) cudaDeviceSynchronize()
 #define _WITH_CUDA_
 // It is worth noting here that we will not define
 // _WITH_CUDA_ when we are doing KOKKOS (even with the
@@ -80,6 +82,7 @@ void PORTABLE_FREE(void *ptr) { cudaError_t e = cudaFree(ptr); }
 #define PORTABLE_LAMBDA [=]
 #define PORTABLE_MALLOC(size) malloc(size)
 #define PORTABLE_FREE(ptr) free(ptr)
+#define PORTABLE_FENCE(...)
 #endif
 #endif
 
