@@ -17,12 +17,13 @@ To include Ports of Call in your project, simply include the directory
 1. ``PORTABLE_FUNCTION``: decorators necessary for compiling a kernel function
 2. ``PORTABLE_INLINE_FUNCTION``: ditto, but for when functions ought to be inlined
 3. ``PORTABLE_FORCEINLINE_FUNCTION``: forces the compiler to inline
-4. ``PORTABLE_LAMBDA``: Resolves to a ``KOKKOS_LAMBDA`` or to ``[=]`` depending on context
-5. ``_WITH_KOKKOS_``: Defined if Kokkos is enabled.
-6. ``_WITH_CUDA_``: Defined when Cuda is enabled
-7. ``Real``: a typedef to double (default) or float (if you define ``SINGLE_PRECISION_ENABLED``)
-8. ``PORTABLE_MALLOC()``, ``PORTABLE_FREE()``: A wrapper for kokkos_malloc or cudaMalloc, or raw malloc and equivalent free.
-9. ``PORTABLE_FENCE()``: A wrapper for ``kokkos::fence`` or ``cudaDeviceSynchronize()``
+4. ``PORTABLE_LAMBDA``: resolves to a ``KOKKOS_LAMBDA`` or to ``[=]`` depending on context
+5. ``PORTABLE_CLASS_LAMBDA``: is an interesting, slightly unintuitive creature. It resolves to ``KOKKOS_CLASS_LAMBDA``, ``[=,*this]``, or ``[&]``, depending on context. It resolves to a capture by reference if you built your code with only one memory space and captures by value otherwise. The intent here is use within a class method and minimize the number of extraneous copies.
+6. ``_WITH_KOKKOS_``: defined if Kokkos is enabled.
+7. ``_WITH_CUDA_``: defined when Cuda is enabled
+8. ``Real``: a typedef to double (default) or float (if you define ``SINGLE_PRECISION_ENABLED``)
+9. ``PORTABLE_MALLOC()``, ``PORTABLE_FREE()``: A wrapper for kokkos_malloc or cudaMalloc, or raw malloc and equivalent free.
+10. ``PORTABLE_FENCE()``: a wrapper for ``kokkos::fence`` or ``cudaDeviceSynchronize()``
 
 At compile time, you define
 ``PORTABILITY_STRATEGY_{KOKKOS,CUDA,NONE}`` (if you don't define it,

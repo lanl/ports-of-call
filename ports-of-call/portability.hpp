@@ -48,6 +48,11 @@
 #define PORTABLE_INLINE_FUNCTION KOKKOS_INLINE_FUNCTION
 #define PORTABLE_FORCEINLINE_FUNCTION KOKKOS_FORCEINLINE_FUNCTION
 #define PORTABLE_LAMBDA KOKKOS_LAMBDA
+#if !(defined(__CUDACC__) || defined(__HIPCC__))
+#define PORTABLE_CLASS_LAMBDA [&]
+#else
+#define PORTABLE_CLASS_LAMBDA KOKKOS_CLASS_LAMBDA
+#endif // ! __CUDACC__ and ! __HIPCC__
 #define _WITH_KOKKOS_
 // The following is a malloc on default memory space
 #define PORTABLE_MALLOC(size) Kokkos::kokkos_malloc<>(size)
@@ -64,6 +69,7 @@
 #define PORTABLE_FORCEINLINE_FUNCTION                                                    \
   __host__ __device__ inline __attribute__((always_inline))
 #define PORTABLE_LAMBDA [=] __host__ __device__
+#define PORTABLE_CLASS_LAMBDA [=,*this] __host__ __device__
 void *PORTABLE_MALLOC(size_t size) {
   void *devPtr = nullptr;
   cudaError_t e = cudaMalloc(&devPtr, size);
@@ -80,6 +86,7 @@ void PORTABLE_FREE(void *ptr) { cudaError_t e = cudaFree(ptr); }
 #define PORTABLE_INLINE_FUNCTION inline
 #define PORTABLE_FORCEINLINE_FUNCTION inline __attribute__((always_inline))
 #define PORTABLE_LAMBDA [=]
+#define PORTABLE_CLASS_LAMBDA [&]
 #define PORTABLE_MALLOC(size) malloc(size)
 #define PORTABLE_FREE(ptr) free(ptr)
 #define PORTABLE_FENCE(...)
