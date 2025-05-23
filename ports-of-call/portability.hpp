@@ -89,7 +89,7 @@ void PORTABLE_FREE(void *ptr) { cudaError_t e = cudaFree(ptr); }
 // This is sometimes a capture by reference sometimes not, depending
 // on how many memory spaces there are
 #if !(defined __CUDACC__ || defined __HIPCC__)
-#define PORTABLE_MAYBE_REF(...) __VA_ARGS__&
+#define PORTABLE_MAYBE_REF(...) __VA_ARGS__ &
 #else // must capture by value
 #define PORTABLE_MAYBE_REF(...) __VA_ARGS__
 #endif // no HIP or CUDA

@@ -87,8 +87,7 @@ TEST_CASE("portableCopy works with all portability strategies", "[portableCopy]"
   Real *a = (Real *)PORTABLE_MALLOC(Nb);
 
   // set device values to 0
-  portableFor(
-      "set to 0", 0, N, PORTABLE_LAMBDA(const int &i) { a[i] = 0.0; });
+  portableFor("set to 0", 0, N, PORTABLE_LAMBDA(const int &i) { a[i] = 0.0; });
 
   // set host values to reference
   for (size_t i = 0; i < N; ++i) {
@@ -146,7 +145,6 @@ PORTABLE_FORCEINLINE_FUNCTION void expensive_operation(int iterations) {
 
 TEST_CASE("PORTABLE_FENCE properly synchronizes execution after a portableFor",
           "[portableFor][PORTABLE_FENCE]") {
-
   // Create host array
   constexpr int N = 10000;
   constexpr Real init_val = 2.0;
