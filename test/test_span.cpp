@@ -92,7 +92,6 @@ constexpr bool contains(span<T, N> s, span<T, M> sub) {
 //
 
 TEST_CASE("span default construction", "[PortsOfCall::span]") {
-
   static_assert(std::is_nothrow_default_constructible<span<int>>::value,
                 "Error: span<int> is not nothrow default constructible");
   static_assert(std::is_nothrow_constructible<span<int, 0>>::value,
@@ -439,7 +438,6 @@ TEST_CASE("span different size span construction", "PortsOfCall::span") {
 }
 
 TEST_CASE("span member subview operations", "[PortsOfCall::span]") {
-
   int arr[] = {1, 2, 3, 4, 5};
   span<int, 5> s{arr};
 

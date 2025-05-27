@@ -29,6 +29,14 @@ internal tests will not be run automatically. So when the code is
 ready for merge, you must ask a project maintainer to trigger the
 remaining tests for you.
 
+Getting the right version of clang-format
+------------------------------------------
+
+``ports-of-call`` now uses clang-format-19. The version of clang
+format matters, as the formatting rules are not quite stable accross
+versions. If you can't get the version you're expecting, there are
+instructions for installation on the [clang website.](https://apt.llvm.org/)
+
 Tests
 -------
 
