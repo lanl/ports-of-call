@@ -11,11 +11,16 @@
 # the public, perform publicly and display publicly, and to permit others to do so.
 #=========================================================================================
 
+set(PORTS_CLANG_FORMAT_VERSION "19" CACHE STRING "preferred clang format version")
+math(EXPR PORTS_CLANG_FORMAT_VERSION_MAX "${PORTS_CLANG_FORMAT_VERSION} + 1")
+
 find_program(
     CLANG_FORMAT
     NAMES
-        clang-format-19 # Debian package manager, among others, provide this name
-        clang-format-mp-19.0 # MacPorts
+        # Debian package manager, among others, provide this name
+        clang-format-${PORTS_CLANG_FORMAT_VERSION}
+        # MacPorts
+        clang-format-mp-${PORTS_CLANG_FORMAT_VERSION}.0
         clang-format # Default name
     )
 
@@ -36,16 +41,16 @@ endif()
 if (NOT CLANG_FORMAT_VERSION)
     message(
         WARNING
-        "Couldn't determine clang-format version. clang-format 19.0 is \
+        "Couldn't determine clang-format version. clang-format ${PORTS_CLANG_FORMAT_VERSION} is \
         expected - results on other versions may not be stable")
 
     set(CLANG_FORMAT_VERSION "0.0.0" CACHE STRING "clang-format version not found")
-elseif (NOT (CLANG_FORMAT_VERSION VERSION_GREATER_EQUAL "19.0" AND
-         CLANG_FORMAT_VERSION VERSION_LESS "20.0"))
+elseif (NOT (CLANG_FORMAT_VERSION VERSION_GREATER_EQUAL "${PORTS_CLANG_FORMAT_VERSION}.0" AND
+         CLANG_FORMAT_VERSION VERSION_LESS "${PORTS_CLANG_FORMAT_VERSION_MAX}.0"))
     message(
         WARNING
-        "clang-format version 19.0 is required - results on other \
-        versions may not be stable")
+        "clang-format version ${PORTS_CLANG_FORMAT_VERSION} is required - results on other \
+        versions may not be stable. Your version is ${CLANG_FORMAT_VERSION}.")
 endif()
 
 # Specifically trying to exclude external here - I'm not sure if there's a better way
