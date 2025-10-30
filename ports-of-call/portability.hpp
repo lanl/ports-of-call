@@ -20,6 +20,8 @@
 #include <string_view>
 #include <type_traits>
 
+#include <ports-of-call/portable_config.hpp>
+
 #ifdef PORTABILITY_STRATEGY_KOKKOS
 #ifdef PORTABILITY_STRATEGY_CUDA
 #error "Two or more portability strategies defined."
@@ -61,8 +63,7 @@
 #include "cuda.h"
 #define PORTABLE_FUNCTION __host__ __device__
 #define PORTABLE_INLINE_FUNCTION __host__ __device__ inline
-#define PORTABLE_FORCEINLINE_FUNCTION                                                    \
-  __host__ __device__ inline __attribute__((always_inline))
+#define PORTABLE_FORCEINLINE_FUNCTION __host__ __device__ PORTABLE_FORCEINLINE
 #define PORTABLE_LAMBDA [=] __host__ __device__
 void *PORTABLE_MALLOC(size_t size) {
   void *devPtr = nullptr;
@@ -78,7 +79,7 @@ void PORTABLE_FREE(void *ptr) { cudaError_t e = cudaFree(ptr); }
 #else
 #define PORTABLE_FUNCTION
 #define PORTABLE_INLINE_FUNCTION inline
-#define PORTABLE_FORCEINLINE_FUNCTION inline __attribute__((always_inline))
+#define PORTABLE_FORCEINLINE_FUNCTION PORTABLE_FORCEINLINE
 #define PORTABLE_LAMBDA [=]
 #define PORTABLE_MALLOC(size) malloc(size)
 #define PORTABLE_FREE(ptr) free(ptr)
