@@ -40,7 +40,7 @@ struct get_qual_t {
 
 constexpr get_qual_t get_qual{};
 
-#ifdef MPARK_EXCEPTIONS
+#ifdef PORTABLE_HAS_EXCEPTIONS
 struct CopyConstruction : std::exception {};
 struct CopyAssignment : std::exception {};
 struct MoveConstruction : std::exception {};
@@ -132,7 +132,7 @@ TEST_CASE("Variant hello world", "[Variant]") {
   REQUIRE("hello world!" == PortsOfCall::get<std::string>(v));
 
   // bad access.
-#ifdef MPARK_EXCEPTIONS
+#ifdef PORTABLE_HAS_EXCEPTIONS
   REQUIRE_THROWS_AS(PortsOfCall::get<int>(v), PortsOfCall::bad_variant_access);
 #endif
 
@@ -221,7 +221,7 @@ TEST_CASE("Variant copy assignment, different type", "[Variant]") {
   v = w;
 }
 
-#ifdef MPARK_EXCEPTIONS
+#ifdef PORTABLE_HAS_EXCEPTIONS
 TEST_CASE("Variant copy assignment, Valueless by exception", "[Variant]") {
   PortsOfCall::variant<int, move_thrower_t> v(42);
   REQUIRE_THROWS_AS(v = move_thrower_t{}, MoveConstruction);
@@ -292,7 +292,7 @@ TEST_CASE("Variant forward assignment, optimizations for same type", "[Variant]"
   REQUIRE(capacity == y.capacity());
 }
 
-#ifdef MPARK_EXCEPTIONS
+#ifdef PORTABLE_HAS_EXCEPTIONS
 TEST_CASE("Variant forward assignment, ThrowOnAssignment", "[Variant]") {
   PortsOfCall::variant<int, move_thrower_t> v(
       PortsOfCall::in_place_type_t<move_thrower_t>{});
@@ -321,7 +321,7 @@ SCENARIO("Variant move assignment", "[Variant]") {
   }
 }
 
-#ifdef MPARK_EXCEPTIONS
+#ifdef PORTABLE_HAS_EXCEPTIONS
 TEST_CASE("Variant move assignment, ValuelessByException", "[Variant]") {
   PortsOfCall::variant<int, move_thrower_t> v(42);
   REQUIRE_THROWS_AS(v = move_thrower_t{}, MoveConstruction);
@@ -352,7 +352,7 @@ TEST_CASE("Variant copy constructor", "[Variant]") {
   }
 }
 
-#ifdef MPARK_EXCEPTIONS
+#ifdef PORTABLE_HAS_EXCEPTIONS
 TEST_CASE("Variant copy constructor, ValuelessByException", "[Variant]") {
   PortsOfCall::variant<int, move_thrower_t> v(42);
   REQUIRE_THROWS_AS(v = move_thrower_t{}, MoveConstruction);
@@ -500,7 +500,7 @@ SCENARIO("Variant move constructor", "[Variant]") {
     }
   }
 
-#ifdef MPARK_EXCEPTIONS
+#ifdef PORTABLE_HAS_EXCEPTIONS
   WHEN("We check ValuelessByException") {
     PortsOfCall::variant<int, move_thrower_t> v(42);
     REQUIRE_THROWS_AS(v = move_thrower_t{}, MoveConstruction);
@@ -598,7 +598,7 @@ SCENARIO("Variant Get", "[Variant]") {
     }
   }
 
-#ifdef MPARK_EXCEPTIONS
+#ifdef PORTABLE_HAS_EXCEPTIONS
   WHEN("We call get on a valueless variant") {
     THEN("We get an exception") {
       PortsOfCall::variant<int, move_thrower_t> v(42);
@@ -661,7 +661,7 @@ SCENARIO("Variant Get", "[Variant]") {
     }
   }
 
-#ifdef MPARK_EXCEPTONS
+#ifdef PORTABLE_HAS_EXCEPTONS
   WHEN("We call get if on a variant with an invalid value") {
     PortsOfCall::variant<int, move_thrower_t> v(42);
     THEN("Exceptions are raised appropriately") {
@@ -700,7 +700,7 @@ SCENARIO("Test variant hash", "[Variant]") {
   }
 }
 
-#ifdef MPARK_INCOMPLETE_TYPE_TRAITS
+#ifdef PORTABLE_HAS_INCOMPLETE_TYPE_TRAITS
 // https://github.com/mpark/variant/issues/34
 struct S {
   S(const S &) = default;
@@ -765,7 +765,6 @@ SCENARIO("Variant comparisons", "[Variant]") {
       REQUIRE(w <= v);
       REQUIRE(w >= v);
 
-#ifdef MPARK_CPP11_CONSTEXPR
       /* constexpr */ {
         constexpr PortsOfCall::variant<int, const char *> cv(0), cw(0);
         // `cv` op `cw`
@@ -783,7 +782,6 @@ SCENARIO("Variant comparisons", "[Variant]") {
         static_assert(cw <= cv, "");
         static_assert(cw >= cv, "");
       }
-#endif
     }
   }
 
@@ -805,7 +803,6 @@ SCENARIO("Variant comparisons", "[Variant]") {
       REQUIRE_FALSE(w <= v);
       REQUIRE(w >= v);
 
-#ifdef MPARK_CPP11_CONSTEXPR
       /* constexpr */ {
         constexpr PortsOfCall::variant<int, const char *> cv(0), cw(1);
         // `cv` op `cw`
@@ -823,7 +820,6 @@ SCENARIO("Variant comparisons", "[Variant]") {
         static_assert(!(cw <= cv), "");
         static_assert(cw >= cv, "");
       }
-#endif
     }
   }
 
@@ -845,7 +841,6 @@ SCENARIO("Variant comparisons", "[Variant]") {
       REQUIRE_FALSE(w <= v);
       REQUIRE(w >= v);
 
-#ifdef MPARK_CPP11_CONSTEXPR
       /* constexpr */ {
         constexpr PortsOfCall::variant<int, unsigned int> cv(0), cw(0u);
         // `cv` op `cw`
@@ -863,7 +858,6 @@ SCENARIO("Variant comparisons", "[Variant]") {
         static_assert(!(cw <= cv), "");
         static_assert(cw >= cv, "");
       }
-#endif
     }
   }
 
@@ -885,7 +879,6 @@ SCENARIO("Variant comparisons", "[Variant]") {
       REQUIRE_FALSE(w <= v);
       REQUIRE(w >= v);
 
-#ifdef MPARK_CPP11_CONSTEXPR
       /* constexpr */ {
         constexpr PortsOfCall::variant<int, unsigned int> cv(0), cw(1u);
         // `cv` op `cw`
@@ -903,7 +896,6 @@ SCENARIO("Variant comparisons", "[Variant]") {
         static_assert(!(cw <= cv), "");
         static_assert(cw >= cv, "");
       }
-#endif
     }
   }
 }
@@ -962,7 +954,7 @@ SCENARIO("Swapping two variants", "[Variant]") {
       REQUIRE(42 == PortsOfCall::get<int>(w));
     }
   }
-#ifdef MPARK_EXCEPTIONS
+#ifdef PORTABLE_HAS_EXCEPTIONS
   GIVEN("Two variants, one holding a corrupted value") {
     PortsOfCall::variant<int, move_thrower_t> v(42), w(42);
     REQUIRE_THROWS_AS(w = move_thrower_t{}, MoveConstruction);
@@ -1092,7 +1084,6 @@ SCENARIO("Variant visit pattern", "[Variant]") {
       REQUIRE(ConstLRef == visit(get_qual, v));
       REQUIRE(ConstRRef == visit(get_qual, std::move(v)));
 
-#ifdef MPARK_CPP11_CONSTEXPR
       /* constexpr */ {
         constexpr variant<int> cv(42);
         static_assert(42 == get<int>(cv), "");
@@ -1100,7 +1091,6 @@ SCENARIO("Variant visit pattern", "[Variant]") {
         static_assert(ConstLRef == visit(get_qual, cv), "");
         static_assert(ConstRRef == visit(get_qual, std::move(cv)), "");
       }
-#endif
     }
   }
 
@@ -1112,7 +1102,6 @@ SCENARIO("Variant visit pattern", "[Variant]") {
       REQUIRE(ConstLRef == visit(get_qual, v));
       REQUIRE(ConstRRef == visit(get_qual, std::move(v)));
 
-#ifdef MPARK_CPP11_CONSTEXPR
       /* constexpr */ {
         constexpr variant<const int> cv(42);
         static_assert(42 == get<const int>(cv), "");
@@ -1120,7 +1109,6 @@ SCENARIO("Variant visit pattern", "[Variant]") {
         static_assert(ConstLRef == visit(get_qual, cv), "");
         static_assert(ConstRRef == visit(get_qual, std::move(cv)), "");
       }
-#endif
     }
   }
 
@@ -1133,7 +1121,6 @@ SCENARIO("Variant visit pattern", "[Variant]") {
       variant<int, std::string> v("hello"), w("world!");
       REQUIRE("helloworld!" == visit(concat{}, v, w));
 
-#ifdef MPARK_CPP11_CONSTEXPR
       /* constexpr */ {
         constexpr variant<int, double> cv(101), cw(202), cx(3.3);
         static_assert(303 == visit(add_ints{}, cv, cw), "");
@@ -1141,7 +1128,6 @@ SCENARIO("Variant visit pattern", "[Variant]") {
         static_assert(101 == visit(add_ints{}, cx, cv), "");
         static_assert(0 == visit(add_ints{}, cx, cx), "");
       }
-#endif
     }
   }
 
