@@ -13,7 +13,7 @@
 // generative AI. The LLM Claude Sonnet 3.7 was used inside the
 // agentic Aider framework.
 
-#include "ports-of-call/variant/variant.hpp"
+#include "ports-of-call/variant.hpp"
 
 #ifndef CATCH_CONFIG_FAST_COMPILE
 #define CATCH_CONFIG_FAST_COMPILE

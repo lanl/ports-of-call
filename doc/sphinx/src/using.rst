@@ -391,8 +391,8 @@ between CPU and GPU.  It is related to a `proposed data structure
 https://www.open-std.org/jtc1/sc22/wg21/docs/papers/2023/p0843r8.html`_ that may be included in a
 future C++ standard.
 
-variant/variant.hpp
-^^^^^^^^^^^^^^^^^^^^
+variant.hpp
+^^^^^^^^^^^
 
 ``PortsOfCall::variant`` is a GPU capable backport of ``std::variant``
 to C++11. It is a lightly modified copy of `mpark variant`_, that has

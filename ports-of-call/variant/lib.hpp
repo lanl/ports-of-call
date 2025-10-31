@@ -25,6 +25,8 @@
   noexcept(noexcept(__VA_ARGS__))->decltype(__VA_ARGS__) { return __VA_ARGS__; }
 
 namespace PortsOfCall {
+namespace detail {
+namespace variant {
 namespace lib {
 template <typename T>
 struct identity {
@@ -486,6 +488,8 @@ struct push_back<index_sequence<Is...>, J> {
 };
 
 } // namespace lib
+} // namespace variant
+} // namespace detail
 } // namespace PortsOfCall
 
 #undef PORTABLE_RETURN

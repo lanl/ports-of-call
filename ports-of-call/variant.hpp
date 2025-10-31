@@ -11,8 +11,8 @@
 // Security, LLC for the U.S. Department of Energy/National Nuclear
 // Security Administration.
 
-#ifndef _PORTS_OF_CALL_VARIANT_VARIANT_HPP_
-#define _PORTS_OF_CALL_VARIANT_VARIANT_HPP_
+#ifndef _PORTS_OF_CALL_VARIANT_HPP_
+#define _PORTS_OF_CALL_VARIANT_HPP_
 
 #if defined(__CUDACC__) || defined(__HIPCC__)
 #define V_GPU_FUNCTION __host__ __device__
@@ -219,9 +219,9 @@ namespace std {
 #include <type_traits>
 #include <utility>
 
-#include "in_place.hpp"
-#include "lib.hpp"
 #include <ports-of-call/portable_config.hpp>
+#include <ports-of-call/variant/in_place.hpp>
+#include <ports-of-call/variant/lib.hpp>
 
 namespace PortsOfCall {
 
@@ -249,7 +249,7 @@ namespace PortsOfCall {
 
 #define AUTO auto
 #define AUTO_RETURN(...)                                                                 \
-  ->lib::decay_t<decltype(__VA_ARGS__)> { return __VA_ARGS__; }
+  ->detail::variant::lib::decay_t<decltype(__VA_ARGS__)> { return __VA_ARGS__; }
 
 #define AUTO_REFREF auto
 #define AUTO_REFREF_RETURN(...)                                                          \
@@ -302,7 +302,8 @@ template <typename T>
 struct variant_size<const volatile T> : variant_size<T> {};
 
 template <typename... Ts>
-struct variant_size<variant<Ts...>> : lib::size_constant<sizeof...(Ts)> {};
+struct variant_size<variant<Ts...>> : detail::variant::lib::size_constant<sizeof...(Ts)> {
+};
 
 template <std::size_t I, typename T>
 struct variant_alternative;
@@ -324,7 +325,7 @@ struct variant_alternative<I, const volatile T>
 template <std::size_t I, typename... Ts>
 struct variant_alternative<I, variant<Ts...>> {
   static_assert(I < sizeof...(Ts), "index out of bounds in `std::variant_alternative<>`");
-  using type = lib::type_pack_element_t<I, Ts...>;
+  using type = detail::variant::lib::type_pack_element_t<I, Ts...>;
 };
 
 constexpr std::size_t variant_npos = static_cast<std::size_t>(-1);
@@ -337,7 +338,8 @@ constexpr std::size_t ambiguous = static_cast<std::size_t>(-2);
 #ifdef PORTABLE_HAS_CPP14_CONSTEXPR
 template <typename T, typename... Ts>
 inline constexpr std::size_t find_index() {
-  constexpr lib::array<bool, sizeof...(Ts)> matches = {{std::is_same<T, Ts>::value...}};
+  constexpr detail::variant::lib::array<bool, sizeof...(Ts)> matches = {
+      {std::is_same<T, Ts>::value...}};
   std::size_t result = not_found;
   for (std::size_t i = 0; i < sizeof...(Ts); ++i) {
     if (matches[i]) {
@@ -369,13 +371,14 @@ inline constexpr std::size_t find_index() {
 
 template <std::size_t I>
 using find_index_sfinae_impl =
-    lib::enable_if_t<I != not_found && I != ambiguous, lib::size_constant<I>>;
+    detail::variant::lib::enable_if_t<I != not_found && I != ambiguous,
+                                      detail::variant::lib::size_constant<I>>;
 
 template <typename T, typename... Ts>
 using find_index_sfinae = find_index_sfinae_impl<find_index<T, Ts...>()>;
 
 template <std::size_t I>
-struct find_index_checked_impl : lib::size_constant<I> {
+struct find_index_checked_impl : detail::variant::lib::size_constant<I> {
   static_assert(I != not_found, "the specified type is not found.");
   static_assert(I != ambiguous, "the specified type is ambiguous.");
 };
@@ -399,7 +402,7 @@ inline constexpr Trait trait() {
 template <typename... Traits>
 inline constexpr Trait common_trait(Traits... traits_) {
   Trait result = Trait::TriviallyAvailable;
-  lib::array<Trait, sizeof...(Traits)> traits = {{traits_...}};
+  detail::variant::lib::array<Trait, sizeof...(Traits)> traits = {{traits_...}};
   for (std::size_t i = 0; i < sizeof...(Traits); ++i) {
     Trait t = traits[i];
     if (static_cast<int>(t) > static_cast<int>(result)) {
@@ -426,19 +429,23 @@ inline constexpr Trait common_trait(Traits... ts) {
 
 template <typename... Ts>
 struct traits {
-  static constexpr Trait copy_constructible_trait = common_trait(
-      trait<Ts, lib::is_trivially_copy_constructible, std::is_copy_constructible>()...);
+  static constexpr Trait copy_constructible_trait =
+      common_trait(trait<Ts, detail::variant::lib::is_trivially_copy_constructible,
+                         std::is_copy_constructible>()...);
 
-  static constexpr Trait move_constructible_trait = common_trait(
-      trait<Ts, lib::is_trivially_move_constructible, std::is_move_constructible>()...);
+  static constexpr Trait move_constructible_trait =
+      common_trait(trait<Ts, detail::variant::lib::is_trivially_move_constructible,
+                         std::is_move_constructible>()...);
 
-  static constexpr Trait copy_assignable_trait = common_trait(
-      copy_constructible_trait,
-      trait<Ts, lib::is_trivially_copy_assignable, std::is_copy_assignable>()...);
+  static constexpr Trait copy_assignable_trait =
+      common_trait(copy_constructible_trait,
+                   trait<Ts, detail::variant::lib::is_trivially_copy_assignable,
+                         std::is_copy_assignable>()...);
 
-  static constexpr Trait move_assignable_trait = common_trait(
-      move_constructible_trait,
-      trait<Ts, lib::is_trivially_move_assignable, std::is_move_assignable>()...);
+  static constexpr Trait move_assignable_trait =
+      common_trait(move_constructible_trait,
+                   trait<Ts, detail::variant::lib::is_trivially_move_assignable,
+                         std::is_move_assignable>()...);
 
   static constexpr Trait destructible_trait =
       common_trait(trait<Ts, std::is_trivially_destructible, std::is_destructible>()...);
@@ -450,31 +457,31 @@ struct recursive_union {
 #ifdef PORTABLE_HAS_RETURN_TYPE_DEDUCTION
   template <typename V>
   inline static constexpr auto &&get_alt(V &&v, in_place_index_t<0>) {
-    return lib::forward<V>(v).head_;
+    return detail::variant::lib::forward<V>(v).head_;
   }
 
   template <typename V, std::size_t I>
   inline static constexpr auto &&get_alt(V &&v, in_place_index_t<I>) {
-    return get_alt(lib::forward<V>(v).tail_, in_place_index_t<I - 1>{});
+    return get_alt(detail::variant::lib::forward<V>(v).tail_, in_place_index_t<I - 1>{});
   }
 #else
   template <std::size_t I, bool Dummy = true>
   struct get_alt_impl {
     template <typename V>
-    inline constexpr AUTO_REFREF operator()(V &&v) const
-        AUTO_REFREF_RETURN(get_alt_impl<I - 1>{}(lib::forward<V>(v).tail_))
+    inline constexpr AUTO_REFREF operator()(V &&v) const AUTO_REFREF_RETURN(
+        get_alt_impl<I - 1>{}(detail::variant::lib::forward<V>(v).tail_))
   };
 
   template <bool Dummy>
   struct get_alt_impl<0, Dummy> {
     template <typename V>
     inline constexpr AUTO_REFREF operator()(V &&v) const
-        AUTO_REFREF_RETURN(lib::forward<V>(v).head_)
+        AUTO_REFREF_RETURN(detail::variant::lib::forward<V>(v).head_)
   };
 
   template <typename V, std::size_t I>
   inline static constexpr AUTO_REFREF get_alt(V &&v, in_place_index_t<I>)
-      AUTO_REFREF_RETURN(get_alt_impl<I>{}(lib::forward<V>(v)))
+      AUTO_REFREF_RETURN(get_alt_impl<I>{}(detail::variant::lib::forward<V>(v)))
 #endif
 };
 
@@ -482,18 +489,18 @@ struct base {
   template <std::size_t I, typename V>
   inline static constexpr AUTO_REFREF get_alt(V &&v)
 #ifdef _MSC_VER
-      AUTO_REFREF_RETURN(recursive_union::get_alt(lib::forward<V>(v).data_,
-                                                  in_place_index_t<I>{}))
+      AUTO_REFREF_RETURN(recursive_union::get_alt(
+          detail::variant::lib::forward<V>(v).data_, in_place_index_t<I>{}))
 #else
-      AUTO_REFREF_RETURN(recursive_union::get_alt(data(lib::forward<V>(v)),
-                                                  in_place_index_t<I>{}))
+      AUTO_REFREF_RETURN(recursive_union::get_alt(
+          data(detail::variant::lib::forward<V>(v)), in_place_index_t<I>{}))
 #endif
 };
 
 struct variant {
   template <std::size_t I, typename V>
   inline static constexpr AUTO_REFREF get_alt(V &&v)
-      AUTO_REFREF_RETURN(base::get_alt<I>(lib::forward<V>(v).impl_))
+      AUTO_REFREF_RETURN(base::get_alt<I>(detail::variant::lib::forward<V>(v).impl_))
 };
 
 } // namespace access
@@ -506,7 +513,7 @@ namespace visitation {
 
 struct base {
   template <typename Visitor, typename... Vs>
-  using dispatch_result_t = decltype(lib::invoke(
+  using dispatch_result_t = decltype(detail::variant::lib::invoke(
       std::declval<Visitor>(), access::base::get_alt<0>(std::declval<Vs>())...));
 
   template <typename Expected>
@@ -524,8 +531,9 @@ struct base {
 
     template <typename Visitor, typename... Alts>
     inline static constexpr DECLTYPE_AUTO invoke(Visitor &&visitor, Alts &&...alts)
-        DECLTYPE_AUTO_RETURN(lib::invoke(lib::forward<Visitor>(visitor),
-                                         lib::forward<Alts>(alts)...))
+        DECLTYPE_AUTO_RETURN(
+            detail::variant::lib::invoke(detail::variant::lib::forward<Visitor>(visitor),
+                                         detail::variant::lib::forward<Alts>(alts)...))
   };
 
 #ifdef PORTABLE_VARIANT_SWITCH_VISIT
@@ -557,27 +565,33 @@ struct base {
     PORTABLE_ALWAYS_INLINE static constexpr R
     dispatch(F &&f, typename ITs::type &&...visited_vs) {
       using Expected = R;
-      using Actual = decltype(lib::invoke(
-          lib::forward<F>(f), access::base::get_alt<ITs::value>(
-                                  lib::forward<typename ITs::type>(visited_vs))...));
+      using Actual = decltype(detail::variant::lib::invoke(
+          detail::variant::lib::forward<F>(f),
+          access::base::get_alt<ITs::value>(
+              detail::variant::lib::forward<typename ITs::type>(visited_vs))...));
       return visit_return_type_check<Expected, Actual>::invoke(
-          lib::forward<F>(f), access::base::get_alt<ITs::value>(
-                                  lib::forward<typename ITs::type>(visited_vs))...);
+          detail::variant::lib::forward<F>(f),
+          access::base::get_alt<ITs::value>(
+              detail::variant::lib::forward<typename ITs::type>(visited_vs))...);
     }
 
     template <std::size_t B, typename F, typename V, typename... Vs>
     PORTABLE_ALWAYS_INLINE static constexpr R
     dispatch(F &&f, typename ITs::type &&...visited_vs, V &&v, Vs &&...vs) {
 #define PORTABLE_DISPATCH(I)                                                             \
-  dispatcher<(I < lib::decay_t<V>::size()), R, ITs..., lib::indexed_type<I, V>>::        \
-      template dispatch<0>(lib::forward<F>(f),                                           \
-                           lib::forward<typename ITs::type>(visited_vs)...,              \
-                           lib::forward<V>(v), lib::forward<Vs>(vs)...)
+  dispatcher<(I < detail::variant::lib::decay_t<V>::size()), R, ITs...,                  \
+             detail::variant::lib::indexed_type<I, V>>::                                 \
+      template dispatch<0>(                                                              \
+          detail::variant::lib::forward<F>(f),                                           \
+          detail::variant::lib::forward<typename ITs::type>(visited_vs)...,              \
+          detail::variant::lib::forward<V>(v), detail::variant::lib::forward<Vs>(vs)...)
 
 #define PORTABLE_DEFAULT(I)                                                              \
-  dispatcher<(I < lib::decay_t<V>::size()), R, ITs...>::template dispatch<I>(            \
-      lib::forward<F>(f), lib::forward<typename ITs::type>(visited_vs)...,               \
-      lib::forward<V>(v), lib::forward<Vs>(vs)...)
+  dispatcher<(I < detail::variant::lib::decay_t<V>::size()), R, ITs...>::                \
+      template dispatch<I>(                                                              \
+          detail::variant::lib::forward<F>(f),                                           \
+          detail::variant::lib::forward<typename ITs::type>(visited_vs)...,              \
+          detail::variant::lib::forward<V>(v), detail::variant::lib::forward<Vs>(vs)...)
 
       switch (v.index()) {
       case B + 0:
@@ -655,25 +669,32 @@ struct base {
     template <std::size_t I, typename F, typename... Vs>
     PORTABLE_ALWAYS_INLINE static constexpr R dispatch_case(F &&f, Vs &&...vs) {
       using Expected = R;
-      using Actual = decltype(lib::invoke(
-          lib::forward<F>(f), access::base::get_alt<I>(lib::forward<Vs>(vs))...));
+      using Actual = decltype(detail::variant::lib::invoke(
+          detail::variant::lib::forward<F>(f),
+          access::base::get_alt<I>(detail::variant::lib::forward<Vs>(vs))...));
       return visit_return_type_check<Expected, Actual>::invoke(
-          lib::forward<F>(f), access::base::get_alt<I>(lib::forward<Vs>(vs))...);
+          detail::variant::lib::forward<F>(f),
+          access::base::get_alt<I>(detail::variant::lib::forward<Vs>(vs))...);
     }
 
     template <std::size_t B, typename F, typename V, typename... Vs>
     PORTABLE_ALWAYS_INLINE static constexpr R dispatch_at(std::size_t index, F &&f, V &&v,
                                                           Vs &&...vs) {
-      static_assert(
-          lib::all<(lib::decay_t<V>::size() == lib::decay_t<Vs>::size())...>::value,
-          "all of the variants must be the same size.");
+      static_assert(detail::variant::lib::all<(
+                        detail::variant::lib::decay_t<V>::size() ==
+                        detail::variant::lib::decay_t<Vs>::size())...>::value,
+                    "all of the variants must be the same size.");
 #define PORTABLE_DISPATCH_AT(I)                                                          \
-  dispatcher<(I < lib::decay_t<V>::size()), R>::template dispatch_case<I>(               \
-      lib::forward<F>(f), lib::forward<V>(v), lib::forward<Vs>(vs)...)
+  dispatcher<(I < detail::variant::lib::decay_t<V>::size()),                             \
+             R>::template dispatch_case<I>(detail::variant::lib::forward<F>(f),          \
+                                           detail::variant::lib::forward<V>(v),          \
+                                           detail::variant::lib::forward<Vs>(vs)...)
 
 #define PORTABLE_DEFAULT(I)                                                              \
-  dispatcher<(I < lib::decay_t<V>::size()), R>::template dispatch_at<I>(                 \
-      index, lib::forward<F>(f), lib::forward<V>(v), lib::forward<Vs>(vs)...)
+  dispatcher<(I < detail::variant::lib::decay_t<V>::size()),                             \
+             R>::template dispatch_at<I>(index, detail::variant::lib::forward<F>(f),     \
+                                         detail::variant::lib::forward<V>(v),            \
+                                         detail::variant::lib::forward<Vs>(vs)...)
 
       switch (index) {
       case B + 0:
@@ -755,15 +776,17 @@ struct base {
   }
 
   template <typename T, std::size_t N, typename... Is>
-  inline static constexpr const lib::remove_all_extents_t<T> &
-  at(const lib::array<T, N> &elems, std::size_t i, Is... is) noexcept {
+  inline static constexpr const detail::variant::lib::remove_all_extents_t<T> &
+  at(const detail::variant::lib::array<T, N> &elems, std::size_t i, Is... is) noexcept {
     return at(elems[i], is...);
   }
 
   template <typename F, typename... Fs>
-  inline static constexpr lib::array<lib::decay_t<F>, sizeof...(Fs) + 1>
+  inline static constexpr detail::variant::lib::array<detail::variant::lib::decay_t<F>,
+                                                      sizeof...(Fs) + 1>
   make_farray(F &&f, Fs &&...fs) {
-    return {{lib::forward<F>(f), lib::forward<Fs>(fs)...}};
+    return {
+        {detail::variant::lib::forward<F>(f), detail::variant::lib::forward<Fs>(fs)...}};
   }
 
   template <typename F, typename... Vs>
@@ -772,35 +795,38 @@ struct base {
     template <std::size_t... Is>
     inline static constexpr dispatch_result_t<F, Vs...> dispatch(F &&f, Vs &&...vs) {
       using Expected = dispatch_result_t<F, Vs...>;
-      using Actual = decltype(lib::invoke(
-          lib::forward<F>(f), access::base::get_alt<Is>(lib::forward<Vs>(vs))...));
+      using Actual = decltype(detail::variant::lib::invoke(
+          detail::variant::lib::forward<F>(f),
+          access::base::get_alt<Is>(detail::variant::lib::forward<Vs>(vs))...));
       return visit_return_type_check<Expected, Actual>::invoke(
-          lib::forward<F>(f), access::base::get_alt<Is>(lib::forward<Vs>(vs))...);
+          detail::variant::lib::forward<F>(f),
+          access::base::get_alt<Is>(detail::variant::lib::forward<Vs>(vs))...);
     }
 
 #ifdef PORTABLE_HAS_RETURN_TYPE_DEDUCTION
     template <std::size_t... Is>
-    inline static constexpr auto impl(lib::index_sequence<Is...>) {
+    inline static constexpr auto impl(detail::variant::lib::index_sequence<Is...>) {
       return &dispatch<Is...>;
     }
 
     template <typename Is, std::size_t... Js, typename... Ls>
-    inline static constexpr auto impl(Is, lib::index_sequence<Js...>, Ls... ls) {
-      return make_farray(impl(lib::push_back_t<Is, Js>{}, ls...)...);
+    inline static constexpr auto impl(Is, detail::variant::lib::index_sequence<Js...>,
+                                      Ls... ls) {
+      return make_farray(impl(detail::variant::lib::push_back_t<Is, Js>{}, ls...)...);
     }
 #else
     template <typename...>
     struct impl;
 
     template <std::size_t... Is>
-    struct impl<lib::index_sequence<Is...>> {
+    struct impl<detail::variant::lib::index_sequence<Is...>> {
       inline constexpr AUTO operator()() const AUTO_RETURN(&dispatch<Is...>)
     };
 
     template <typename Is, std::size_t... Js, typename... Ls>
-    struct impl<Is, lib::index_sequence<Js...>, Ls...> {
-      inline constexpr AUTO operator()() const
-          AUTO_RETURN(make_farray(impl<lib::push_back_t<Is, Js>, Ls...>{}()...))
+    struct impl<Is, detail::variant::lib::index_sequence<Js...>, Ls...> {
+      inline constexpr AUTO operator()() const AUTO_RETURN(
+          make_farray(impl<detail::variant::lib::push_back_t<Is, Js>, Ls...>{}()...))
     };
 #endif
   };
@@ -809,14 +835,17 @@ struct base {
   template <typename F, typename... Vs>
   inline static constexpr auto make_fmatrix() {
     return make_fmatrix_impl<F, Vs...>::impl(
-        lib::index_sequence<>{}, lib::make_index_sequence<lib::decay_t<Vs>::size()>{}...);
+        detail::variant::lib::index_sequence<>{},
+        detail::variant::lib::make_index_sequence<
+            detail::variant::lib::decay_t<Vs>::size()>{}...);
   }
 #else
   template <typename F, typename... Vs>
   inline static constexpr AUTO make_fmatrix()
       AUTO_RETURN(typename make_fmatrix_impl<F, Vs...>::template impl<
-                  lib::index_sequence<>,
-                  lib::make_index_sequence<lib::decay_t<Vs>::size()>...>{}())
+                  detail::variant::lib::index_sequence<>,
+                  detail::variant::lib::make_index_sequence<
+                      detail::variant::lib::decay_t<Vs>::size()>...>{}())
 #endif
 
   template <typename F, typename... Vs>
@@ -824,26 +853,31 @@ struct base {
     template <std::size_t I>
     inline static constexpr dispatch_result_t<F, Vs...> dispatch(F &&f, Vs &&...vs) {
       using Expected = dispatch_result_t<F, Vs...>;
-      using Actual = decltype(lib::invoke(
-          lib::forward<F>(f), access::base::get_alt<I>(lib::forward<Vs>(vs))...));
+      using Actual = decltype(detail::variant::lib::invoke(
+          detail::variant::lib::forward<F>(f),
+          access::base::get_alt<I>(detail::variant::lib::forward<Vs>(vs))...));
       return visit_return_type_check<Expected, Actual>::invoke(
-          lib::forward<F>(f), access::base::get_alt<I>(lib::forward<Vs>(vs))...);
+          detail::variant::lib::forward<F>(f),
+          access::base::get_alt<I>(detail::variant::lib::forward<Vs>(vs))...);
     }
 
     template <std::size_t... Is>
-    inline static constexpr AUTO impl(lib::index_sequence<Is...>)
+    inline static constexpr AUTO impl(detail::variant::lib::index_sequence<Is...>)
         AUTO_RETURN(make_farray(&dispatch<Is>...))
   };
 
   template <typename F, typename V, typename... Vs>
   inline static constexpr auto make_fdiagonal()
       -> decltype(make_fdiagonal_impl<F, V, Vs...>::impl(
-          lib::make_index_sequence<lib::decay_t<V>::size()>{})) {
+          detail::variant::lib::make_index_sequence<
+              detail::variant::lib::decay_t<V>::size()>{})) {
     static_assert(
-        lib::all<(lib::decay_t<V>::size() == lib::decay_t<Vs>::size())...>::value,
+        detail::variant::lib::all<(detail::variant::lib::decay_t<V>::size() ==
+                                   detail::variant::lib::decay_t<Vs>::size())...>::value,
         "all of the variants must be the same size.");
     return make_fdiagonal_impl<F, V, Vs...>::impl(
-        lib::make_index_sequence<lib::decay_t<V>::size()>{});
+        detail::variant::lib::make_index_sequence<
+            detail::variant::lib::decay_t<V>::size()>{});
   }
 #endif
 };
@@ -878,20 +912,23 @@ struct alt {
 #ifdef PORTABLE_VARIANT_SWITCH_VISIT
       DECLTYPE_AUTO_RETURN(
           base::dispatcher<
-              true, base::dispatch_result_t<Visitor,
-                                            decltype(as_base(lib::forward<Vs>(vs)))...>>::
-              template dispatch<0>(lib::forward<Visitor>(visitor),
-                                   as_base(lib::forward<Vs>(vs))...))
+              true,
+              base::dispatch_result_t<
+                  Visitor, decltype(as_base(detail::variant::lib::forward<Vs>(vs)))...>>::
+              template dispatch<0>(detail::variant::lib::forward<Visitor>(visitor),
+                                   as_base(detail::variant::lib::forward<Vs>(vs))...))
 #elif !defined(_MSC_VER) || _MSC_VER >= 1910
-      DECLTYPE_AUTO_RETURN(
-          base::at(fmatrix<Visitor &&, decltype(as_base(lib::forward<Vs>(vs)))...>::value,
-                   vs.index()...)(lib::forward<Visitor>(visitor),
-                                  as_base(lib::forward<Vs>(vs))...))
+      DECLTYPE_AUTO_RETURN(base::at(
+          fmatrix<Visitor &&,
+                  decltype(as_base(detail::variant::lib::forward<Vs>(vs)))...>::value,
+          vs.index()...)(detail::variant::lib::forward<Visitor>(visitor),
+                         as_base(detail::variant::lib::forward<Vs>(vs))...))
 #else
       DECLTYPE_AUTO_RETURN(base::at(
-          base::make_fmatrix<Visitor &&, decltype(as_base(lib::forward<Vs>(vs)))...>(),
-          vs.index()...)(lib::forward<Visitor>(visitor),
-                         as_base(lib::forward<Vs>(vs))...))
+          base::make_fmatrix<
+              Visitor &&, decltype(as_base(detail::variant::lib::forward<Vs>(vs)))...>(),
+          vs.index()...)(detail::variant::lib::forward<Visitor>(visitor),
+                         as_base(detail::variant::lib::forward<Vs>(vs))...))
 #endif
 
           template <typename Visitor, typename... Vs>
@@ -899,20 +936,26 @@ struct alt {
       visit_alt_at(std::size_t index, Visitor &&visitor, Vs &&...vs)
 #ifdef PORTABLE_VARIANT_SWITCH_VISIT
           DECLTYPE_AUTO_RETURN(
-              base::dispatcher<true,
-                               base::dispatch_result_t<
-                                   Visitor, decltype(as_base(lib::forward<Vs>(vs)))...>>::
-                  template dispatch_at<0>(index, lib::forward<Visitor>(visitor),
-                                          as_base(lib::forward<Vs>(vs))...))
+              base::dispatcher<
+                  true, base::dispatch_result_t<
+                            Visitor, decltype(as_base(
+                                         detail::variant::lib::forward<Vs>(vs)))...>>::
+                  template dispatch_at<0>(
+                      index, detail::variant::lib::forward<Visitor>(visitor),
+                      as_base(detail::variant::lib::forward<Vs>(vs))...))
 #elif !defined(_MSC_VER) || _MSC_VER >= 1910
           DECLTYPE_AUTO_RETURN(base::at(
-              fdiagonal<Visitor &&, decltype(as_base(lib::forward<Vs>(vs)))...>::value,
-              index)(lib::forward<Visitor>(visitor), as_base(lib::forward<Vs>(vs))...))
+              fdiagonal<Visitor &&, decltype(as_base(detail::variant::lib::forward<Vs>(
+                                        vs)))...>::value,
+              index)(detail::variant::lib::forward<Visitor>(visitor),
+                     as_base(detail::variant::lib::forward<Vs>(vs))...))
 #else
-          DECLTYPE_AUTO_RETURN(base::at(
-              base::make_fdiagonal<Visitor &&,
-                                   decltype(as_base(lib::forward<Vs>(vs)))...>(),
-              index)(lib::forward<Visitor>(visitor), as_base(lib::forward<Vs>(vs))...))
+          DECLTYPE_AUTO_RETURN(
+              base::at(base::make_fdiagonal<
+                           Visitor &&,
+                           decltype(as_base(detail::variant::lib::forward<Vs>(vs)))...>(),
+                       index)(detail::variant::lib::forward<Visitor>(visitor),
+                              as_base(detail::variant::lib::forward<Vs>(vs))...))
 #endif
 };
 
@@ -922,7 +965,7 @@ struct variant {
   struct visitor {
     template <typename... Values>
     inline static constexpr bool does_not_handle() {
-      return lib::is_invocable<Visitor, Values...>::value;
+      return detail::variant::lib::is_invocable<Visitor, Values...>::value;
     }
   };
 
@@ -932,8 +975,9 @@ struct variant {
                   "`visit` requires the visitor to be exhaustive.");
 
     inline static constexpr DECLTYPE_AUTO invoke(Visitor &&visitor, Values &&...values)
-        DECLTYPE_AUTO_RETURN(lib::invoke(lib::forward<Visitor>(visitor),
-                                         lib::forward<Values>(values)...))
+        DECLTYPE_AUTO_RETURN(detail::variant::lib::invoke(
+            detail::variant::lib::forward<Visitor>(visitor),
+            detail::variant::lib::forward<Values>(values)...))
   };
 
   template <typename Visitor>
@@ -942,38 +986,42 @@ struct variant {
 
     template <typename... Alts>
     inline constexpr DECLTYPE_AUTO operator()(Alts &&...alts) const DECLTYPE_AUTO_RETURN(
-        visit_exhaustiveness_check<Visitor,
-                                   decltype((lib::forward<Alts>(alts).value))...>::
-            invoke(lib::forward<Visitor>(visitor_), lib::forward<Alts>(alts).value...))
+        visit_exhaustiveness_check<
+            Visitor, decltype((detail::variant::lib::forward<Alts>(alts).value))...>::
+            invoke(detail::variant::lib::forward<Visitor>(visitor_),
+                   detail::variant::lib::forward<Alts>(alts).value...))
   };
 
  template <typename Visitor>
  inline static constexpr AUTO make_value_visitor(Visitor &&visitor)
-     AUTO_RETURN(value_visitor<Visitor>{lib::forward<Visitor>(visitor)})
+     AUTO_RETURN(value_visitor<Visitor>{detail::variant::lib::forward<Visitor>(visitor)})
 
          public
      : template <typename Visitor, typename... Vs>
        inline static constexpr DECLTYPE_AUTO visit_alt(Visitor &&visitor, Vs &&...vs)
-           DECLTYPE_AUTO_RETURN(alt::visit_alt(lib::forward<Visitor>(visitor),
-                                               lib::forward<Vs>(vs).impl_...))
+           DECLTYPE_AUTO_RETURN(
+               alt::visit_alt(detail::variant::lib::forward<Visitor>(visitor),
+                              detail::variant::lib::forward<Vs>(vs).impl_...))
 
                template <typename Visitor, typename... Vs>
                inline static constexpr DECLTYPE_AUTO
        visit_alt_at(std::size_t index, Visitor &&visitor, Vs &&...vs)
-           DECLTYPE_AUTO_RETURN(alt::visit_alt_at(index, lib::forward<Visitor>(visitor),
-                                                  lib::forward<Vs>(vs).impl_...))
+           DECLTYPE_AUTO_RETURN(
+               alt::visit_alt_at(index, detail::variant::lib::forward<Visitor>(visitor),
+                                 detail::variant::lib::forward<Vs>(vs).impl_...))
 
                template <typename Visitor, typename... Vs>
                inline static constexpr DECLTYPE_AUTO
-       visit_value(Visitor &&visitor, Vs &&...vs) DECLTYPE_AUTO_RETURN(visit_alt(
-           make_value_visitor(lib::forward<Visitor>(visitor)), lib::forward<Vs>(vs)...))
+       visit_value(Visitor &&visitor, Vs &&...vs) DECLTYPE_AUTO_RETURN(
+           visit_alt(make_value_visitor(detail::variant::lib::forward<Visitor>(visitor)),
+                     detail::variant::lib::forward<Vs>(vs)...))
 
            template <typename Visitor, typename... Vs>
            inline static constexpr DECLTYPE_AUTO
        visit_value_at(std::size_t index, Visitor &&visitor, Vs &&...vs)
-           DECLTYPE_AUTO_RETURN(
-               visit_alt_at(index, make_value_visitor(lib::forward<Visitor>(visitor)),
-                            lib::forward<Vs>(vs)...))
+           DECLTYPE_AUTO_RETURN(visit_alt_at(
+               index, make_value_visitor(detail::variant::lib::forward<Visitor>(visitor)),
+               detail::variant::lib::forward<Vs>(vs)...))
 };
 
 } // namespace visitation
@@ -988,7 +1036,7 @@ struct alt {
 #endif
   template <typename... Args>
   inline explicit constexpr alt(in_place_t, Args &&...args)
-      : value(lib::forward<Args>(args)...) {}
+      : value(detail::variant::lib::forward<Args>(args)...) {}
 #ifdef _MSC_VER
 #pragma warning(pop)
 #endif
@@ -1010,11 +1058,12 @@ union recursive_union<DestructibleTrait, Index> {};
                                                                                          \
     template <typename... Args>                                                          \
     inline explicit constexpr recursive_union(in_place_index_t<0>, Args &&...args)       \
-        : head_(in_place_t{}, lib::forward<Args>(args)...) {}                            \
+        : head_(in_place_t{}, detail::variant::lib::forward<Args>(args)...) {}           \
                                                                                          \
     template <std::size_t I, typename... Args>                                           \
     inline explicit constexpr recursive_union(in_place_index_t<I>, Args &&...args)       \
-        : tail_(in_place_index_t<I - 1>{}, lib::forward<Args>(args)...) {}               \
+        : tail_(in_place_index_t<I - 1>{},                                               \
+                detail::variant::lib::forward<Args>(args)...) {}                         \
                                                                                          \
     recursive_union(const recursive_union &) = default;                                  \
     recursive_union(recursive_union &&) = default;                                       \
@@ -1055,7 +1104,8 @@ class base {
 
   template <std::size_t I, typename... Args>
   inline explicit constexpr base(in_place_index_t<I>, Args &&...args)
-      : data_(in_place_index_t<I>{}, lib::forward<Args>(args)...), index_(I) {}
+      : data_(in_place_index_t<I>{}, detail::variant::lib::forward<Args>(args)...),
+        index_(I) {}
 
   inline constexpr bool valueless_by_exception() const noexcept {
     return index_ == static_cast<index_t<Ts...>>(-1);
@@ -1070,14 +1120,20 @@ class base {
 
   friend inline constexpr base &as_base(base &b) { return b; }
   friend inline constexpr const base &as_base(const base &b) { return b; }
-  friend inline constexpr base &&as_base(base &&b) { return lib::move(b); }
-  friend inline constexpr const base &&as_base(const base &&b) { return lib::move(b); }
+  friend inline constexpr base &&as_base(base &&b) {
+    return detail::variant::lib::move(b);
+  }
+  friend inline constexpr const base &&as_base(const base &&b) {
+    return detail::variant::lib::move(b);
+  }
 
   friend inline constexpr data_t &data(base &b) { return b.data_; }
   friend inline constexpr const data_t &data(const base &b) { return b.data_; }
-  friend inline constexpr data_t &&data(base &&b) { return lib::move(b).data_; }
+  friend inline constexpr data_t &&data(base &&b) {
+    return detail::variant::lib::move(b).data_;
+  }
   friend inline constexpr const data_t &&data(const base &&b) {
-    return lib::move(b).data_;
+    return detail::variant::lib::move(b).data_;
   }
 
   inline static constexpr std::size_t size() { return sizeof...(Ts); }
@@ -1108,7 +1164,8 @@ struct dtor {
 #else
 #define PORTABLE_INHERITING_CTOR(type, base)                                             \
   template <typename... Args>                                                            \
-  inline explicit constexpr type(Args &&...args) : base(lib::forward<Args>(args)...) {}
+  inline explicit constexpr type(Args &&...args)                                         \
+      : base(detail::variant::lib::forward<Args>(args)...) {}
 #endif
 
 template <typename Traits, Trait = Traits::destructible_trait>
@@ -1166,15 +1223,16 @@ class constructor : public destructor<Traits> {
   struct ctor {
     template <typename LhsAlt, typename RhsAlt>
     inline void operator()(LhsAlt &lhs_alt, RhsAlt &&rhs_alt) const {
-      constructor::construct_alt(lhs_alt, lib::forward<RhsAlt>(rhs_alt).value);
+      constructor::construct_alt(lhs_alt,
+                                 detail::variant::lib::forward<RhsAlt>(rhs_alt).value);
     }
   };
 #endif
 
   template <std::size_t I, typename T, typename... Args>
   inline constexpr static T &construct_alt(alt<I, T> &a, Args &&...args) {
-    auto *result = ::new (static_cast<void *>(lib::addressof(a)))
-        alt<I, T>(in_place_t{}, lib::forward<Args>(args)...);
+    auto *result = ::new (static_cast<void *>(detail::variant::lib::addressof(a)))
+        alt<I, T>(in_place_t{}, detail::variant::lib::forward<Args>(args)...);
     return result->value;
   }
 
@@ -1186,14 +1244,14 @@ class constructor : public destructor<Traits> {
           rhs.index(),
 #ifdef PORTABLE_HAS_GENERIC_LAMBDAS
           [](auto &lhs_alt, auto &&rhs_alt) {
-            constructor::construct_alt(lhs_alt,
-                                       lib::forward<decltype(rhs_alt)>(rhs_alt).value);
+            constructor::construct_alt(
+                lhs_alt, detail::variant::lib::forward<decltype(rhs_alt)>(rhs_alt).value);
           }
 #else
           ctor{}
 #endif
           ,
-          lhs, lib::forward<Rhs>(rhs));
+          lhs, detail::variant::lib::forward<Rhs>(rhs));
       lhs.index_ = rhs.index_;
     }
   }
@@ -1222,10 +1280,11 @@ PORTABLE_VARIANT_MOVE_CONSTRUCTOR(Trait::TriviallyAvailable,
                                   move_constructor(move_constructor &&that) = default;);
 
 PORTABLE_VARIANT_MOVE_CONSTRUCTOR(
-    Trait::Available, constexpr move_constructor(move_constructor &&that) noexcept(
-                          lib::all<std::is_nothrow_move_constructible<Ts>::value...>::
-                              value) : move_constructor(valueless_t{}) {
-      this->generic_construct(*this, lib::move(that));
+    Trait::Available,
+    constexpr move_constructor(move_constructor &&that) noexcept(
+        detail::variant::lib::all<std::is_nothrow_move_constructible<Ts>::value...>::
+            value) : move_constructor(valueless_t{}) {
+      this->generic_construct(*this, detail::variant::lib::move(that));
     });
 
 PORTABLE_VARIANT_MOVE_CONSTRUCTOR(Trait::Unavailable,
@@ -1276,10 +1335,10 @@ class assignment : public copy_constructor<Traits> {
   template <std::size_t I, typename... Args>
   inline constexpr /* auto & */ auto emplace(Args &&...args)
       -> decltype(this->construct_alt(access::base::get_alt<I>(*this),
-                                      lib::forward<Args>(args)...)) {
+                                      detail::variant::lib::forward<Args>(args)...)) {
     this->destroy();
-    auto &result =
-        this->construct_alt(access::base::get_alt<I>(*this), lib::forward<Args>(args)...);
+    auto &result = this->construct_alt(access::base::get_alt<I>(*this),
+                                       detail::variant::lib::forward<Args>(args)...);
     this->index_ = I;
     return result;
   }
@@ -1290,7 +1349,7 @@ class assignment : public copy_constructor<Traits> {
   struct assigner {
     template <typename ThisAlt, typename ThatAlt>
     inline void operator()(ThisAlt &this_alt, ThatAlt &&that_alt) const {
-      self->assign_alt(this_alt, lib::forward<ThatAlt>(that_alt).value);
+      self->assign_alt(this_alt, detail::variant::lib::forward<ThatAlt>(that_alt).value);
     }
     assignment *self;
   };
@@ -1303,22 +1362,23 @@ class assignment : public copy_constructor<Traits> {
 #pragma warning(push)
 #pragma warning(disable : 4244)
 #endif
-      a.value = lib::forward<Arg>(arg);
+      a.value = detail::variant::lib::forward<Arg>(arg);
 #ifdef _MSC_VER
 #pragma warning(pop)
 #endif
     } else {
       struct {
         V_GPU_FUNCTION void operator()(std::true_type) const {
-          this_->emplace<I>(lib::forward<Arg>(arg_));
+          this_->emplace<I>(detail::variant::lib::forward<Arg>(arg_));
         }
         V_GPU_FUNCTION void operator()(std::false_type) const {
-          this_->emplace<I>(T(lib::forward<Arg>(arg_)));
+          this_->emplace<I>(T(detail::variant::lib::forward<Arg>(arg_)));
         }
         assignment *this_;
         Arg &&arg_;
-      } impl{this, lib::forward<Arg>(arg)};
-      impl(lib::bool_constant < std::is_nothrow_constructible<T, Arg>::value ||
+      } impl{this, detail::variant::lib::forward<Arg>(arg)};
+      impl(detail::variant::lib::bool_constant <
+               std::is_nothrow_constructible<T, Arg>::value ||
            !std::is_nothrow_move_constructible<T>::value > {});
     }
   }
@@ -1334,13 +1394,15 @@ class assignment : public copy_constructor<Traits> {
           that.index(),
 #ifdef PORTABLE_HAS_GENERIC_LAMBDAS
           [this](auto &this_alt, auto &&that_alt) {
-            this->assign_alt(this_alt, lib::forward<decltype(that_alt)>(that_alt).value);
+            this->assign_alt(
+                this_alt,
+                detail::variant::lib::forward<decltype(that_alt)>(that_alt).value);
           }
 #else
           assigner<That>{this}
 #endif
           ,
-          *this, lib::forward<That>(that));
+          *this, detail::variant::lib::forward<That>(that));
     }
   }
 };
@@ -1372,9 +1434,10 @@ PORTABLE_VARIANT_MOVE_ASSIGNMENT(
 PORTABLE_VARIANT_MOVE_ASSIGNMENT(
     Trait::Available,
     constexpr move_assignment &operator=(move_assignment &&that) noexcept(
-        lib::all<(std::is_nothrow_move_constructible<Ts>::value &&
-                  std::is_nothrow_move_assignable<Ts>::value)...>::value) {
-      this->generic_assign(lib::move(that));
+        detail::variant::lib::all<
+            (std::is_nothrow_move_constructible<Ts>::value &&
+             std::is_nothrow_move_assignable<Ts>::value)...>::value) {
+      this->generic_assign(detail::variant::lib::move(that));
       return *this;
     });
 
@@ -1433,7 +1496,8 @@ class impl : public copy_assignment<traits<Ts...>> {
 
   template <std::size_t I, typename Arg>
   inline constexpr void assign(Arg &&arg) {
-    this->assign_alt(access::base::get_alt<I>(*this), lib::forward<Arg>(arg));
+    this->assign_alt(access::base::get_alt<I>(*this),
+                     detail::variant::lib::forward<Arg>(arg));
   }
 
   inline void swap(impl &that) {
@@ -1454,27 +1518,27 @@ class impl : public copy_assignment<traits<Ts...>> {
           *this, that);
     } else {
       impl *lhs = this;
-      impl *rhs = lib::addressof(that);
+      impl *rhs = detail::variant::lib::addressof(that);
       if (lhs->move_nothrow() && !rhs->move_nothrow()) {
         std::swap(lhs, rhs);
       }
-      impl tmp(lib::move(*rhs));
+      impl tmp(detail::variant::lib::move(*rhs));
 #ifdef PORTABLE_HAS_EXCEPTIONS
       // EXTENSION: When the move construction of `lhs` into `rhs` throws
       // and `tmp` is nothrow move constructible then we move `tmp` back
       // into `rhs` and provide the strong exception safety guarantee.
       try {
-        this->generic_construct(*rhs, lib::move(*lhs));
+        this->generic_construct(*rhs, detail::variant::lib::move(*lhs));
       } catch (...) {
         if (tmp.move_nothrow()) {
-          this->generic_construct(*rhs, lib::move(tmp));
+          this->generic_construct(*rhs, detail::variant::lib::move(tmp));
         }
         throw;
       }
 #else
-      this->generic_construct(*rhs, lib::move(*lhs));
+      this->generic_construct(*rhs, detail::variant::lib::move(*lhs));
 #endif
-      this->generic_construct(*lhs, lib::move(tmp));
+      this->generic_construct(*lhs, detail::variant::lib::move(tmp));
     }
   }
 
@@ -1491,7 +1555,7 @@ class impl : public copy_assignment<traits<Ts...>> {
 
   inline constexpr bool move_nothrow() const {
     return this->valueless_by_exception() ||
-           lib::array<bool, sizeof...(Ts)>{
+           detail::variant::lib::array<bool, sizeof...(Ts)>{
                {std::is_nothrow_move_constructible<Ts>::value...}}[this->index()];
   }
 };
@@ -1518,7 +1582,7 @@ struct overload_leaf {};
 
 template <typename Arg, std::size_t I, typename T>
 struct overload_leaf<Arg, I, T, false> {
-  using impl = lib::size_constant<I> (*)(T);
+  using impl = detail::variant::lib::size_constant<I> (*)(T);
   operator impl() const { return nullptr; };
 };
 
@@ -1527,12 +1591,13 @@ struct overload_leaf<
     Arg, I, T, true
 #if defined(__clang__) || !defined(__GNUC__) || __GNUC__ >= 5
     ,
-    lib::enable_if_t<std::is_same<lib::remove_cvref_t<T>, bool>::value
-                         ? std::is_same<lib::remove_cvref_t<Arg>, bool>::value
-                         : is_non_narrowing_convertible<Arg, T>::value>
+    detail::variant::lib::enable_if_t<
+        std::is_same<detail::variant::lib::remove_cvref_t<T>, bool>::value
+            ? std::is_same<detail::variant::lib::remove_cvref_t<Arg>, bool>::value
+            : is_non_narrowing_convertible<Arg, T>::value>
 #endif
     > {
-  using impl = lib::size_constant<I> (*)(T);
+  using impl = detail::variant::lib::size_constant<I> (*)(T);
   operator impl() const { return nullptr; };
 };
 
@@ -1543,17 +1608,18 @@ struct overload_impl {
   struct impl;
 
   template <std::size_t... Is>
-  struct impl<lib::index_sequence<Is...>> : overload_leaf<Arg, Is, Ts>... {};
+  struct impl<detail::variant::lib::index_sequence<Is...>>
+      : overload_leaf<Arg, Is, Ts>... {};
 
  public:
-  using type = impl<lib::index_sequence_for<Ts...>>;
+  using type = impl<detail::variant::lib::index_sequence_for<Ts...>>;
 };
 
 template <typename Arg, typename... Ts>
 using overload = typename overload_impl<Arg, Ts...>::type;
 
 template <typename Arg, typename... Ts>
-using best_match = lib::invoke_result_t<overload<Arg, Ts...>, Arg>;
+using best_match = detail::variant::lib::invoke_result_t<overload<Arg, Ts...>, Arg>;
 
 template <typename T>
 struct is_in_place_index : std::false_type {};
@@ -1573,122 +1639,132 @@ template <typename... Ts>
 class variant {
   static_assert(0 < sizeof...(Ts), "variant must consist of at least one alternative.");
 
-  static_assert(lib::all<!std::is_array<Ts>::value...>::value,
+  static_assert(detail::variant::lib::all<!std::is_array<Ts>::value...>::value,
                 "variant can not have an array type as an alternative.");
 
-  static_assert(lib::all<!std::is_reference<Ts>::value...>::value,
+  static_assert(detail::variant::lib::all<!std::is_reference<Ts>::value...>::value,
                 "variant can not have a reference type as an alternative.");
 
-  static_assert(lib::all<!std::is_void<Ts>::value...>::value,
+  static_assert(detail::variant::lib::all<!std::is_void<Ts>::value...>::value,
                 "variant can not have a void type as an alternative.");
 
  public:
-  template <typename Front = lib::type_pack_element_t<0, Ts...>,
-            lib::enable_if_t<std::is_default_constructible<Front>::value, int> = 0>
+  template <typename Front = detail::variant::lib::type_pack_element_t<0, Ts...>,
+            detail::variant::lib::enable_if_t<std::is_default_constructible<Front>::value,
+                                              int> = 0>
   inline constexpr variant() noexcept(std::is_nothrow_default_constructible<Front>::value)
       : impl_(in_place_index_t<0>{}) {}
 
   variant(const variant &) = default;
   variant(variant &&) = default;
 
-  template <typename Arg, typename Decayed = lib::decay_t<Arg>,
-            lib::enable_if_t<!std::is_same<Decayed, variant>::value, int> = 0,
-            lib::enable_if_t<!detail::is_in_place_index<Decayed>::value, int> = 0,
-            lib::enable_if_t<!detail::is_in_place_type<Decayed>::value, int> = 0,
-            std::size_t I = detail::best_match<Arg, Ts...>::value,
-            typename T = lib::type_pack_element_t<I, Ts...>,
-            lib::enable_if_t<std::is_constructible<T, Arg>::value, int> = 0>
+  template <
+      typename Arg, typename Decayed = detail::variant::lib::decay_t<Arg>,
+      detail::variant::lib::enable_if_t<!std::is_same<Decayed, variant>::value, int> = 0,
+      detail::variant::lib::enable_if_t<!detail::is_in_place_index<Decayed>::value, int> =
+          0,
+      detail::variant::lib::enable_if_t<!detail::is_in_place_type<Decayed>::value, int> =
+          0,
+      std::size_t I = detail::best_match<Arg, Ts...>::value,
+      typename T = detail::variant::lib::type_pack_element_t<I, Ts...>,
+      detail::variant::lib::enable_if_t<std::is_constructible<T, Arg>::value, int> = 0>
   inline constexpr variant(Arg &&arg) noexcept(
       std::is_nothrow_constructible<T, Arg>::value)
-      : impl_(in_place_index_t<I>{}, lib::forward<Arg>(arg)) {}
+      : impl_(in_place_index_t<I>{}, detail::variant::lib::forward<Arg>(arg)) {}
 
   template <std::size_t I, typename... Args,
-            typename T = lib::type_pack_element_t<I, Ts...>,
-            lib::enable_if_t<std::is_constructible<T, Args...>::value, int> = 0>
+            typename T = detail::variant::lib::type_pack_element_t<I, Ts...>,
+            detail::variant::lib::enable_if_t<std::is_constructible<T, Args...>::value,
+                                              int> = 0>
   inline explicit constexpr variant(in_place_index_t<I>, Args &&...args) noexcept(
       std::is_nothrow_constructible<T, Args...>::value)
-      : impl_(in_place_index_t<I>{}, lib::forward<Args>(args)...) {}
+      : impl_(in_place_index_t<I>{}, detail::variant::lib::forward<Args>(args)...) {}
 
   template <
       std::size_t I, typename Up, typename... Args,
-      typename T = lib::type_pack_element_t<I, Ts...>,
-      lib::enable_if_t<
+      typename T = detail::variant::lib::type_pack_element_t<I, Ts...>,
+      detail::variant::lib::enable_if_t<
           std::is_constructible<T, std::initializer_list<Up> &, Args...>::value, int> = 0>
   inline explicit constexpr variant(
       in_place_index_t<I>, std::initializer_list<Up> il,
       Args &&...args) noexcept(std::is_nothrow_constructible<T,
                                                              std::initializer_list<Up> &,
                                                              Args...>::value)
-      : impl_(in_place_index_t<I>{}, il, lib::forward<Args>(args)...) {}
+      : impl_(in_place_index_t<I>{}, il, detail::variant::lib::forward<Args>(args)...) {}
 
   template <typename T, typename... Args,
             std::size_t I = detail::find_index_sfinae<T, Ts...>::value,
-            lib::enable_if_t<std::is_constructible<T, Args...>::value, int> = 0>
+            detail::variant::lib::enable_if_t<std::is_constructible<T, Args...>::value,
+                                              int> = 0>
   inline explicit constexpr variant(in_place_type_t<T>, Args &&...args) noexcept(
       std::is_nothrow_constructible<T, Args...>::value)
-      : impl_(in_place_index_t<I>{}, lib::forward<Args>(args)...) {}
+      : impl_(in_place_index_t<I>{}, detail::variant::lib::forward<Args>(args)...) {}
 
   template <
       typename T, typename Up, typename... Args,
       std::size_t I = detail::find_index_sfinae<T, Ts...>::value,
-      lib::enable_if_t<
+      detail::variant::lib::enable_if_t<
           std::is_constructible<T, std::initializer_list<Up> &, Args...>::value, int> = 0>
   inline explicit constexpr variant(
       in_place_type_t<T>, std::initializer_list<Up> il,
       Args &&...args) noexcept(std::is_nothrow_constructible<T,
                                                              std::initializer_list<Up> &,
                                                              Args...>::value)
-      : impl_(in_place_index_t<I>{}, il, lib::forward<Args>(args)...) {}
+      : impl_(in_place_index_t<I>{}, il, detail::variant::lib::forward<Args>(args)...) {}
 
   ~variant() = default;
 
   constexpr variant &operator=(const variant &) = default;
   constexpr variant &operator=(variant &&) = default;
 
-  template <typename Arg,
-            lib::enable_if_t<!std::is_same<lib::decay_t<Arg>, variant>::value, int> = 0,
-            std::size_t I = detail::best_match<Arg, Ts...>::value,
-            typename T = lib::type_pack_element_t<I, Ts...>,
-            lib::enable_if_t<(std::is_assignable<T &, Arg>::value &&
-                              std::is_constructible<T, Arg>::value),
-                             int> = 0>
+  template <
+      typename Arg,
+      detail::variant::lib::enable_if_t<
+          !std::is_same<detail::variant::lib::decay_t<Arg>, variant>::value, int> = 0,
+      std::size_t I = detail::best_match<Arg, Ts...>::value,
+      typename T = detail::variant::lib::type_pack_element_t<I, Ts...>,
+      detail::variant::lib::enable_if_t<(std::is_assignable<T &, Arg>::value &&
+                                         std::is_constructible<T, Arg>::value),
+                                        int> = 0>
   inline constexpr variant &
   operator=(Arg &&arg) noexcept((std::is_nothrow_assignable<T &, Arg>::value &&
                                  std::is_nothrow_constructible<T, Arg>::value)) {
-    impl_.template assign<I>(lib::forward<Arg>(arg));
+    impl_.template assign<I>(detail::variant::lib::forward<Arg>(arg));
     return *this;
   }
 
   template <std::size_t I, typename... Args,
-            typename T = lib::type_pack_element_t<I, Ts...>,
-            lib::enable_if_t<std::is_constructible<T, Args...>::value, int> = 0>
+            typename T = detail::variant::lib::type_pack_element_t<I, Ts...>,
+            detail::variant::lib::enable_if_t<std::is_constructible<T, Args...>::value,
+                                              int> = 0>
   inline constexpr T &emplace(Args &&...args) {
-    return impl_.template emplace<I>(lib::forward<Args>(args)...);
+    return impl_.template emplace<I>(detail::variant::lib::forward<Args>(args)...);
   }
 
   template <
       std::size_t I, typename Up, typename... Args,
-      typename T = lib::type_pack_element_t<I, Ts...>,
-      lib::enable_if_t<
+      typename T = detail::variant::lib::type_pack_element_t<I, Ts...>,
+      detail::variant::lib::enable_if_t<
           std::is_constructible<T, std::initializer_list<Up> &, Args...>::value, int> = 0>
   inline constexpr T &emplace(std::initializer_list<Up> il, Args &&...args) {
-    return impl_.template emplace<I>(il, lib::forward<Args>(args)...);
+    return impl_.template emplace<I>(il, detail::variant::lib::forward<Args>(args)...);
   }
 
   template <typename T, typename... Args,
             std::size_t I = detail::find_index_sfinae<T, Ts...>::value,
-            lib::enable_if_t<std::is_constructible<T, Args...>::value, int> = 0>
+            detail::variant::lib::enable_if_t<std::is_constructible<T, Args...>::value,
+                                              int> = 0>
   inline constexpr T &emplace(Args &&...args) {
-    return impl_.template emplace<I>(lib::forward<Args>(args)...);
+    return impl_.template emplace<I>(detail::variant::lib::forward<Args>(args)...);
   }
 
   template <
       typename T, typename Up, typename... Args,
       std::size_t I = detail::find_index_sfinae<T, Ts...>::value,
-      lib::enable_if_t<
+      detail::variant::lib::enable_if_t<
           std::is_constructible<T, std::initializer_list<Up> &, Args...>::value, int> = 0>
   inline constexpr T &emplace(std::initializer_list<Up> il, Args &&...args) {
-    return impl_.template emplace<I>(il, lib::forward<Args>(args)...);
+    return impl_.template emplace<I>(il, detail::variant::lib::forward<Args>(args)...);
   }
 
   inline constexpr bool valueless_by_exception() const noexcept {
@@ -1697,16 +1773,19 @@ class variant {
 
   inline constexpr std::size_t index() const noexcept { return impl_.index(); }
 
-  template <
-      bool Dummy = true,
-      lib::enable_if_t<
-          lib::all<Dummy,
-                   (lib::dependent_type<std::is_move_constructible<Ts>, Dummy>::value &&
-                    lib::dependent_type<lib::is_swappable<Ts>, Dummy>::value)...>::value,
-          int> = 0>
+  template <bool Dummy = true,
+            detail::variant::lib::enable_if_t<
+                detail::variant::lib::all<
+                    Dummy, (detail::variant::lib::dependent_type<
+                                std::is_move_constructible<Ts>, Dummy>::value &&
+                            detail::variant::lib::dependent_type<
+                                detail::variant::lib::is_swappable<Ts>,
+                                Dummy>::value)...>::value,
+                int> = 0>
   inline constexpr void swap(variant &that) noexcept(
-      lib::all<(std::is_nothrow_move_constructible<Ts>::value &&
-                lib::is_nothrow_swappable<Ts>::value)...>::value) {
+      detail::variant::lib::all<
+          (std::is_nothrow_move_constructible<Ts>::value &&
+           detail::variant::lib::is_nothrow_swappable<Ts>::value)...>::value) {
     impl_.swap(that.impl_);
   }
 
@@ -1732,13 +1811,15 @@ template <std::size_t I, typename V>
 struct generic_get_impl {
   constexpr generic_get_impl(int) noexcept {}
 
-  constexpr AUTO_REFREF operator()(V &&v) const
-      AUTO_REFREF_RETURN(access::variant::get_alt<I>(lib::forward<V>(v)).value)
+  constexpr AUTO_REFREF operator()(V &&v) const AUTO_REFREF_RETURN(
+      access::variant::get_alt<I>(detail::variant::lib::forward<V>(v)).value)
 };
 
 template <std::size_t I, typename V>
 inline constexpr AUTO_REFREF generic_get(V &&v) AUTO_REFREF_RETURN(generic_get_impl<I, V>(
-    holds_alternative<I>(v) ? 0 : (throw_bad_variant_access(), 0))(lib::forward<V>(v)))
+    holds_alternative<I>(v)
+        ? 0
+        : (throw_bad_variant_access(), 0))(detail::variant::lib::forward<V>(v)))
 } // namespace detail
 
 template <std::size_t I, typename... Ts>
@@ -1748,7 +1829,7 @@ inline constexpr variant_alternative_t<I, variant<Ts...>> &get(variant<Ts...> &v
 
 template <std::size_t I, typename... Ts>
 inline constexpr variant_alternative_t<I, variant<Ts...>> &&get(variant<Ts...> &&v) {
-  return detail::generic_get<I>(lib::move(v));
+  return detail::generic_get<I>(detail::variant::lib::move(v));
 }
 
 template <std::size_t I, typename... Ts>
@@ -1760,7 +1841,7 @@ get(const variant<Ts...> &v) {
 template <std::size_t I, typename... Ts>
 inline constexpr const variant_alternative_t<I, variant<Ts...>> &&
 get(const variant<Ts...> &&v) {
-  return detail::generic_get<I>(lib::move(v));
+  return detail::generic_get<I>(detail::variant::lib::move(v));
 }
 
 template <typename T, typename... Ts>
@@ -1770,7 +1851,7 @@ inline constexpr T &get(variant<Ts...> &v) {
 
 template <typename T, typename... Ts>
 inline constexpr T &&get(variant<Ts...> &&v) {
-  return get<detail::find_index_checked<T, Ts...>::value>(lib::move(v));
+  return get<detail::find_index_checked<T, Ts...>::value>(detail::variant::lib::move(v));
 }
 
 template <typename T, typename... Ts>
@@ -1780,38 +1861,42 @@ inline constexpr const T &get(const variant<Ts...> &v) {
 
 template <typename T, typename... Ts>
 inline constexpr const T &&get(const variant<Ts...> &&v) {
-  return get<detail::find_index_checked<T, Ts...>::value>(lib::move(v));
+  return get<detail::find_index_checked<T, Ts...>::value>(detail::variant::lib::move(v));
 }
 
 namespace detail {
 
 template <std::size_t I, typename V>
 inline constexpr /* auto * */ AUTO generic_get_if(V *v) noexcept
-    AUTO_RETURN(v &&holds_alternative<I>(*v)
-                    ? lib::addressof(access::variant::get_alt<I>(*v).value)
-                    : nullptr)
+    AUTO_RETURN(v &&holds_alternative<I>(*v) ? detail::variant::lib::addressof(
+                                                   access::variant::get_alt<I>(*v).value)
+                                             : nullptr)
 
 } // namespace detail
 
 template <std::size_t I, typename... Ts>
-inline constexpr lib::add_pointer_t<variant_alternative_t<I, variant<Ts...>>>
+inline constexpr detail::variant::lib::add_pointer_t<
+    variant_alternative_t<I, variant<Ts...>>>
 get_if(variant<Ts...> *v) noexcept {
   return detail::generic_get_if<I>(v);
 }
 
 template <std::size_t I, typename... Ts>
-inline constexpr lib::add_pointer_t<const variant_alternative_t<I, variant<Ts...>>>
+inline constexpr detail::variant::lib::add_pointer_t<
+    const variant_alternative_t<I, variant<Ts...>>>
 get_if(const variant<Ts...> *v) noexcept {
   return detail::generic_get_if<I>(v);
 }
 
 template <typename T, typename... Ts>
-inline constexpr lib::add_pointer_t<T> get_if(variant<Ts...> *v) noexcept {
+inline constexpr detail::variant::lib::add_pointer_t<T>
+get_if(variant<Ts...> *v) noexcept {
   return get_if<detail::find_index_checked<T, Ts...>::value>(v);
 }
 
 template <typename T, typename... Ts>
-inline constexpr lib::add_pointer_t<const T> get_if(const variant<Ts...> *v) noexcept {
+inline constexpr detail::variant::lib::add_pointer_t<const T>
+get_if(const variant<Ts...> *v) noexcept {
   return get_if<detail::find_index_checked<T, Ts...>::value>(v);
 }
 
@@ -1820,10 +1905,13 @@ template <typename RelOp>
 struct convert_to_bool {
   template <typename Lhs, typename Rhs>
   inline constexpr bool operator()(Lhs &&lhs, Rhs &&rhs) const {
-    static_assert(std::is_convertible<lib::invoke_result_t<RelOp, Lhs, Rhs>, bool>::value,
-                  "relational operators must return a type"
-                  " implicitly convertible to bool");
-    return lib::invoke(RelOp{}, lib::forward<Lhs>(lhs), lib::forward<Rhs>(rhs));
+    static_assert(
+        std::is_convertible<detail::variant::lib::invoke_result_t<RelOp, Lhs, Rhs>,
+                            bool>::value,
+        "relational operators must return a type"
+        " implicitly convertible to bool");
+    return detail::variant::lib::invoke(RelOp{}, detail::variant::lib::forward<Lhs>(lhs),
+                                        detail::variant::lib::forward<Rhs>(rhs));
   }
 };
 } // namespace detail
@@ -1831,7 +1919,7 @@ struct convert_to_bool {
 template <typename... Ts>
 inline constexpr bool operator==(const variant<Ts...> &lhs, const variant<Ts...> &rhs) {
   using detail::visitation::variant;
-  using equal_to = detail::convert_to_bool<lib::equal_to>;
+  using equal_to = detail::convert_to_bool<detail::variant::lib::equal_to>;
 #ifdef PORTABLE_HAS_CPP14_CONSTEXPR
   if (lhs.index() != rhs.index()) return false;
   if (lhs.valueless_by_exception()) return true;
@@ -1846,7 +1934,7 @@ inline constexpr bool operator==(const variant<Ts...> &lhs, const variant<Ts...>
 template <typename... Ts>
 inline constexpr bool operator!=(const variant<Ts...> &lhs, const variant<Ts...> &rhs) {
   using detail::visitation::variant;
-  using not_equal_to = detail::convert_to_bool<lib::not_equal_to>;
+  using not_equal_to = detail::convert_to_bool<detail::variant::lib::not_equal_to>;
 #ifdef PORTABLE_HAS_CPP14_CONSTEXPR
   if (lhs.index() != rhs.index()) return true;
   if (lhs.valueless_by_exception()) return false;
@@ -1861,7 +1949,7 @@ inline constexpr bool operator!=(const variant<Ts...> &lhs, const variant<Ts...>
 template <typename... Ts>
 inline constexpr bool operator<(const variant<Ts...> &lhs, const variant<Ts...> &rhs) {
   using detail::visitation::variant;
-  using less = detail::convert_to_bool<lib::less>;
+  using less = detail::convert_to_bool<detail::variant::lib::less>;
 #ifdef PORTABLE_HAS_CPP14_CONSTEXPR
   if (rhs.valueless_by_exception()) return false;
   if (lhs.valueless_by_exception()) return true;
@@ -1879,7 +1967,7 @@ inline constexpr bool operator<(const variant<Ts...> &lhs, const variant<Ts...> 
 template <typename... Ts>
 inline constexpr bool operator>(const variant<Ts...> &lhs, const variant<Ts...> &rhs) {
   using detail::visitation::variant;
-  using greater = detail::convert_to_bool<lib::greater>;
+  using greater = detail::convert_to_bool<detail::variant::lib::greater>;
 #ifdef PORTABLE_HAS_CPP14_CONSTEXPR
   if (lhs.valueless_by_exception()) return false;
   if (rhs.valueless_by_exception()) return true;
@@ -1897,7 +1985,7 @@ inline constexpr bool operator>(const variant<Ts...> &lhs, const variant<Ts...> 
 template <typename... Ts>
 inline constexpr bool operator<=(const variant<Ts...> &lhs, const variant<Ts...> &rhs) {
   using detail::visitation::variant;
-  using less_equal = detail::convert_to_bool<lib::less_equal>;
+  using less_equal = detail::convert_to_bool<detail::variant::lib::less_equal>;
 #ifdef PORTABLE_HAS_CPP14_CONSTEXPR
   if (lhs.valueless_by_exception()) return true;
   if (rhs.valueless_by_exception()) return false;
@@ -1916,7 +2004,7 @@ inline constexpr bool operator<=(const variant<Ts...> &lhs, const variant<Ts...>
 template <typename... Ts>
 inline constexpr bool operator>=(const variant<Ts...> &lhs, const variant<Ts...> &rhs) {
   using detail::visitation::variant;
-  using greater_equal = detail::convert_to_bool<lib::greater_equal>;
+  using greater_equal = detail::convert_to_bool<detail::variant::lib::greater_equal>;
 #ifdef PORTABLE_HAS_CPP14_CONSTEXPR
   if (rhs.valueless_by_exception()) return true;
   if (lhs.valueless_by_exception()) return false;
@@ -1964,31 +2052,35 @@ template <typename Visitor, typename... Vs>
 inline constexpr decltype(auto) visit(Visitor &&visitor, Vs &&...vs) {
   return (!detail::any({vs.valueless_by_exception()...}) ? (void)0
                                                          : throw_bad_variant_access()),
-         detail::visitation::variant::visit_value(lib::forward<Visitor>(visitor),
-                                                  lib::forward<Vs>(vs)...);
+         detail::visitation::variant::visit_value(
+             detail::variant::lib::forward<Visitor>(visitor),
+             detail::variant::lib::forward<Vs>(vs)...);
 }
 #else
 namespace detail {
 
 template <std::size_t N>
-inline constexpr bool all_impl(const lib::array<bool, N> &bs, std::size_t idx) {
+inline constexpr bool all_impl(const detail::variant::lib::array<bool, N> &bs,
+                               std::size_t idx) {
   return idx >= N || (bs[idx] && all_impl(bs, idx + 1));
 }
 
 template <std::size_t N>
-inline constexpr bool all(const lib::array<bool, N> &bs) {
+inline constexpr bool all(const detail::variant::lib::array<bool, N> &bs) {
   return all_impl(bs, 0);
 }
 
 } // namespace detail
 
 template <typename Visitor, typename... Vs>
-inline constexpr DECLTYPE_AUTO visit(Visitor &&visitor, Vs &&...vs) DECLTYPE_AUTO_RETURN(
-    (detail::all(lib::array<bool, sizeof...(Vs)>{{!vs.valueless_by_exception()...}})
-         ? (void)0
-         : throw_bad_variant_access()),
-    detail::visitation::variant::visit_value(lib::forward<Visitor>(visitor),
-                                             lib::forward<Vs>(vs)...))
+inline constexpr DECLTYPE_AUTO visit(Visitor &&visitor, Vs &&...vs)
+    DECLTYPE_AUTO_RETURN((detail::all(detail::variant::lib::array<bool, sizeof...(Vs)>{
+                              {!vs.valueless_by_exception()...}})
+                              ? (void)0
+                              : throw_bad_variant_access()),
+                         detail::visitation::variant::visit_value(
+                             detail::variant::lib::forward<Visitor>(visitor),
+                             detail::variant::lib::forward<Vs>(vs)...))
 #endif
 
 template <typename... Ts>
@@ -2008,7 +2100,7 @@ namespace hash {
 template <typename H, typename K>
 constexpr bool meets_requirements() noexcept {
   return std::is_copy_constructible<H>::value && std::is_move_constructible<H>::value &&
-         lib::is_invocable_r<std::size_t, H, const K &>::value;
+         detail::variant::lib::is_invocable_r<std::size_t, H, const K &>::value;
 }
 
 template <typename K>
@@ -2038,9 +2130,9 @@ namespace std {
 template <typename... Ts>
 struct hash<PortsOfCall::detail::enabled_type<
     PortsOfCall::variant<Ts...>,
-    PortsOfCall::lib::enable_if_t<
-        PortsOfCall::lib::all<PortsOfCall::detail::hash::is_enabled<
-            PortsOfCall::lib::remove_const_t<Ts>>()...>::value>>> {
+    PortsOfCall::detail::variant::lib::enable_if_t<
+        PortsOfCall::detail::variant::lib::all<PortsOfCall::detail::hash::is_enabled<
+            PortsOfCall::detail::variant::lib::remove_const_t<Ts>>()...>::value>>> {
   using argument_type = PortsOfCall::variant<Ts...>;
   using result_type = std::size_t;
 
@@ -2052,9 +2144,10 @@ struct hash<PortsOfCall::detail::enabled_type<
             : variant::visit_alt(
 #ifdef PORTABLE_HAS_GENERIC_LAMBDAS
                   [](const auto &alt) {
-                    using alt_type = PortsOfCall::lib::decay_t<decltype(alt)>;
-                    using value_type =
-                        PortsOfCall::lib::remove_const_t<typename alt_type::value_type>;
+                    using alt_type =
+                        PortsOfCall::detail::variant::lib::decay_t<decltype(alt)>;
+                    using value_type = PortsOfCall::detail::variant::lib::remove_const_t<
+                        typename alt_type::value_type>;
                     return hash<value_type>{}(alt.value);
                   }
 #else
@@ -2070,8 +2163,9 @@ struct hash<PortsOfCall::detail::enabled_type<
   struct hasher {
     template <typename Alt>
     inline std::size_t operator()(const Alt &alt) const {
-      using alt_type = PortsOfCall::lib::decay_t<Alt>;
-      using value_type = PortsOfCall::lib::remove_const_t<typename alt_type::value_type>;
+      using alt_type = PortsOfCall::detail::variant::lib::decay_t<Alt>;
+      using value_type = PortsOfCall::detail::variant::lib::remove_const_t<
+          typename alt_type::value_type>;
       return hash<value_type>{}(alt.value);
     }
   };
@@ -2095,4 +2189,4 @@ struct hash<PortsOfCall::monostate> {
 } // namespace std
 #undef V_GPU_FUNCTION
 
-#endif // _PORTS_OF_CALL_VARIANT_VARIANT_HPP_
+#endif // _PORTS_OF_CALL_VARIANT_HPP_
