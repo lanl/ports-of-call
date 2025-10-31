@@ -63,7 +63,7 @@
 #include "cuda.h"
 #define PORTABLE_FUNCTION __host__ __device__
 #define PORTABLE_INLINE_FUNCTION __host__ __device__ inline
-#define PORTABLE_FORCEINLINE_FUNCTION __host__ __device__ PORTABLE_ALWAYS_INLINE
+#define PORTABLE_FORCEINLINE_FUNCTION __host__ __device__ POC_ALWAYS_INLINE
 #define PORTABLE_LAMBDA [=] __host__ __device__
 void *PORTABLE_MALLOC(size_t size) {
   void *devPtr = nullptr;
@@ -79,7 +79,7 @@ void PORTABLE_FREE(void *ptr) { cudaError_t e = cudaFree(ptr); }
 #else
 #define PORTABLE_FUNCTION
 #define PORTABLE_INLINE_FUNCTION inline
-#define PORTABLE_FORCEINLINE_FUNCTION PORTABLE_ALWAYS_INLINE
+#define PORTABLE_FORCEINLINE_FUNCTION POC_ALWAYS_INLINE
 #define PORTABLE_LAMBDA [=]
 #define PORTABLE_MALLOC(size) malloc(size)
 #define PORTABLE_FREE(ptr) free(ptr)

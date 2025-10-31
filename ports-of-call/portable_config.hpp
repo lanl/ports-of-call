@@ -42,11 +42,11 @@
 #endif
 
 #if __has_attribute(always_inline) || defined(__GNUC__)
-#define PORTABLE_ALWAYS_INLINE __attribute__((__always_inline__)) inline
+#define POC_ALWAYS_INLINE __attribute__((__always_inline__)) inline
 #elif defined(_MSC_VER)
-#define PORTABLE_ALWAYS_INLINE __forceinline
+#define POC_ALWAYS_INLINE __forceinline
 #else
-#define PORTABLE_ALWAYS_INLINE inline
+#define POC_ALWAYS_INLINE inline
 #endif
 
 #if __has_builtin(__builtin_addressof) || (defined(__GNUC__) && __GNUC__ >= 7) ||        \

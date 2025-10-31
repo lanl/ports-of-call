@@ -543,18 +543,18 @@ struct base {
   template <typename R, typename... ITs>
   struct dispatcher<false, R, ITs...> {
     template <std::size_t B, typename F, typename... Vs>
-    PORTABLE_ALWAYS_INLINE static constexpr R dispatch(F &&, typename ITs::type &&...,
-                                                       Vs &&...) {
+    POC_ALWAYS_INLINE static constexpr R dispatch(F &&, typename ITs::type &&...,
+                                                  Vs &&...) {
       PORTABLE_BUILTIN_UNREACHABLE;
     }
 
     template <std::size_t I, typename F, typename... Vs>
-    PORTABLE_ALWAYS_INLINE static constexpr R dispatch_case(F &&, Vs &&...) {
+    POC_ALWAYS_INLINE static constexpr R dispatch_case(F &&, Vs &&...) {
       PORTABLE_BUILTIN_UNREACHABLE;
     }
 
     template <std::size_t B, typename F, typename... Vs>
-    PORTABLE_ALWAYS_INLINE static constexpr R dispatch_at(std::size_t, F &&, Vs &&...) {
+    POC_ALWAYS_INLINE static constexpr R dispatch_at(std::size_t, F &&, Vs &&...) {
       PORTABLE_BUILTIN_UNREACHABLE;
     }
   };
@@ -562,8 +562,8 @@ struct base {
   template <typename R, typename... ITs>
   struct dispatcher<true, R, ITs...> {
     template <std::size_t B, typename F>
-    PORTABLE_ALWAYS_INLINE static constexpr R
-    dispatch(F &&f, typename ITs::type &&...visited_vs) {
+    POC_ALWAYS_INLINE static constexpr R dispatch(F &&f,
+                                                  typename ITs::type &&...visited_vs) {
       using Expected = R;
       using Actual = decltype(detail::variant::lib::invoke(
           detail::variant::lib::forward<F>(f),
@@ -576,7 +576,7 @@ struct base {
     }
 
     template <std::size_t B, typename F, typename V, typename... Vs>
-    PORTABLE_ALWAYS_INLINE static constexpr R
+    POC_ALWAYS_INLINE static constexpr R
     dispatch(F &&f, typename ITs::type &&...visited_vs, V &&v, Vs &&...vs) {
 #define PORTABLE_DISPATCH(I)                                                             \
   dispatcher<(I < detail::variant::lib::decay_t<V>::size()), R, ITs...,                  \
@@ -667,7 +667,7 @@ struct base {
     }
 
     template <std::size_t I, typename F, typename... Vs>
-    PORTABLE_ALWAYS_INLINE static constexpr R dispatch_case(F &&f, Vs &&...vs) {
+    POC_ALWAYS_INLINE static constexpr R dispatch_case(F &&f, Vs &&...vs) {
       using Expected = R;
       using Actual = decltype(detail::variant::lib::invoke(
           detail::variant::lib::forward<F>(f),
@@ -678,8 +678,8 @@ struct base {
     }
 
     template <std::size_t B, typename F, typename V, typename... Vs>
-    PORTABLE_ALWAYS_INLINE static constexpr R dispatch_at(std::size_t index, F &&f, V &&v,
-                                                          Vs &&...vs) {
+    POC_ALWAYS_INLINE static constexpr R dispatch_at(std::size_t index, F &&f, V &&v,
+                                                     Vs &&...vs) {
       static_assert(detail::variant::lib::all<(
                         detail::variant::lib::decay_t<V>::size() ==
                         detail::variant::lib::decay_t<Vs>::size())...>::value,
