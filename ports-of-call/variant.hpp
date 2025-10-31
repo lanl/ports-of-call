@@ -275,6 +275,8 @@ class bad_variant_access : public std::exception {
 #elif defined(__HIP_DEVICE_COMPILE__) ||                                                 \
     (defined(__clang__) && defined(__CUDA__) && defined(__CUDA_ARCH__))
   __assert_fail(nullptr, nullptr, 0, nullptr);
+#elif defined(__CUDA__) && defined(__CUDA_ARCH__)
+  __trap();
 #else
   std::terminate();
   PORTABLE_BUILTIN_UNREACHABLE;
