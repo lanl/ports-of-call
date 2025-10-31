@@ -390,3 +390,18 @@ type to be self-contained: no pointers, so a ``PortsOfCall::static_vector`` can 
 between CPU and GPU.  It is related to a `proposed data structure
 https://www.open-std.org/jtc1/sc22/wg21/docs/papers/2023/p0843r8.html`_ that may be included in a
 future C++ standard.
+
+variant/variant.hpp
+^^^^^^^^^^^^^^^^^^^^
+
+``PortsOfCall::variant`` is a GPU capable backport of ``std::variant``
+to C++11. It is a lightly modified copy of `mpark variant`_, that has
+been modified to be GPU capable and function on both NVIDIA and AMD
+GPUs. The API is identical to that for the standards provided
+`variant`_, with the exception that all API calls are in the
+``PortsOfCall`` namespace rather than ``std`` and that exceptions are
+optional. The code **will** throw exceptions on CPUs, but they will
+not be thrown on device.
+
+.. _`mpark variant`:  https://github.com/mpark/variant
+.. _`variant`: https://en.cppreference.com/w/cpp/utility/variant.html
