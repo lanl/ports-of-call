@@ -9,6 +9,10 @@
 // Security, LLC for the U.S. Department of Energy/National Nuclear
 // Security Administration.
 
+// Conversion from Google Test to Catch2 performed with the aid of
+// generative AI. The LLM Claude Sonnet 3.7 was used inside the
+// agentic Aider framework.
+
 #include "ports-of-call/variant/variant.hpp"
 
 #ifndef CATCH_CONFIG_FAST_COMPILE
@@ -18,6 +22,7 @@
 
 #include <iostream>
 #include <map>
+#include <sstream>
 #include <string>
 #include <utility>
 #include <vector>
@@ -904,7 +909,6 @@ SCENARIO("Variant comparisons", "[Variant]") {
 }
 
 namespace swp_detail {
-
 struct Obj {
   Obj(size_t *dtor_count) : dtor_count_(dtor_count) {}
   Obj(const Obj &) = default;
@@ -914,22 +918,24 @@ struct Obj {
   Obj &operator=(Obj &&) = default;
   size_t *dtor_count_;
 }; // Obj
-using V = Obj;
-struct W {
-  W(size_t *dtor_count) : dtor_count_(dtor_count) {}
-  W(const W &) = default;
-  W(W &&) = default;
-  ~W() { ++(*dtor_count_); }
-  W &operator=(const W &) = default;
-  W &operator=(W &&) = default;
-  size_t *dtor_count_;
-}; // W
-
+// does not call destructor
 static void swap(Obj &lhs, Obj &rhs) noexcept {
   std::swap(lhs.dtor_count_, rhs.dtor_count_);
 }
-
 } // namespace swp_detail
+// Does call destructor
+template <bool isW = false>
+struct SwapObj {
+  SwapObj(size_t *dtor_count) : dtor_count_(dtor_count) {}
+  SwapObj(const SwapObj &) = default;
+  SwapObj(SwapObj &&) = default;
+  ~SwapObj() { ++(*dtor_count_); }
+  SwapObj &operator=(const SwapObj &) = default;
+  SwapObj &operator=(SwapObj &&) = default;
+  size_t *dtor_count_;
+}; // SwapObj
+using SwapV = SwapObj<false>;
+using SwapW = SwapObj<true>;
 
 SCENARIO("Swapping two variants", "[Variant]") {
   GIVEN("two variants holding the same type") {
@@ -982,14 +988,186 @@ SCENARIO("Swapping two variants", "[Variant]") {
   }
 #endif
 
-/*
-  GIVEN("Variants of destructibles") {
-    size_t v_count = 0;
-    size_t w_count = 0;
-    WHEN("We 
-    { // scope to trigger destructors
-      PortsOfCallVariant<swp_detail::Obj> v{&v_count}, w { &w_count }
+  GIVEN("Counts of times destructor is called") {
+    std::size_t v_count = 0;
+    std::size_t w_count = 0;
+    WHEN("We swap two variants with destructors of the same type") {
+      THEN("The destructor is called the correct number of times") {
+        { // scope to trigger destructors
+          PortsOfCall::variant<SwapV> v{&v_count}, w{&w_count};
+          using std::swap; // deliberately pulling swap into namespace
+          swap(v, w);
+          // Calls `std::swap(Obj &lhs, Obj &rhs)`, with which we perform:
+          // ```
+          // {
+          //   Obj temp(move(lhs));
+          //   lhs = move(rhs);
+          //   rhs = move(temp);
+          // }  `++v_count` from `temp::~Obj()`.
+          // ```
+          REQUIRE(v_count == 1u);
+          REQUIRE(w_count == 0u);
+        }
+        REQUIRE(v_count == 2u); // both destructors called
+        REQUIRE(w_count == 1u);
+      }
+    }
+
+    WHEN("We swap two variants with destructors of the same type, but a custom swap") {
+      THEN("The custom swap is evoked via ADL") {
+        { // scope to call destructors
+          PortsOfCall::variant<swp_detail::Obj> v{&v_count}, w{&w_count};
+          using std::swap;
+          swap(v, w);
+          REQUIRE(v_count == 0u);
+          REQUIRE(w_count == 0u);
+        }
+        REQUIRE(v_count == 1u);
+        REQUIRE(w_count == 1u);
+      }
+    }
+
+    WHEN("We swap two variants with different destructors") {
+      THEN("The destructor is evoked the correct number of times") {
+        using v_t = PortsOfCall::variant<SwapV, SwapW>;
+        { // scope for destructor
+          v_t v{PortsOfCall::in_place_type_t<SwapV>{}, &v_count};
+          v_t w{PortsOfCall::in_place_type_t<SwapW>{}, &w_count};
+          using std::swap; // another case where ADL is necessary
+          swap(v, w);
+          // when types change, destructor of old type must be called
+          REQUIRE(v_count == 1u);
+          REQUIRE(w_count == 2u);
+        }
+        REQUIRE(v_count == 2u);
+        REQUIRE(w_count == 3u);
+      }
     }
   }
-*/
+}
+
+struct concat {
+  template <typename... Args>
+  std::string operator()(const Args &...args) const {
+    std::ostringstream strm;
+    std::initializer_list<int>({(strm << args, 0)...});
+    return std::move(strm).str();
+  }
+};
+struct add_ints {
+  constexpr int operator()(int lhs, int rhs) const { return lhs + rhs; }
+  constexpr int operator()(int lhs, double) const { return lhs; }
+  constexpr int operator()(double, int rhs) const { return rhs; }
+  constexpr int operator()(double, double) const { return 0; }
+}; // add
+
+SCENARIO("Variant visit pattern", "[Variant]") {
+  using namespace PortsOfCall;
+  WHEN("We visit on a mutable variant of mutable type") {
+    THEN("lvalues and rvalues are as expected") {
+      variant<int> v(42);
+      // Check `v`.
+      REQUIRE(42 == get<int>(v));
+      // Check qualifier.
+      REQUIRE(LRef == visit(get_qual, v));
+      REQUIRE(RRef == visit(get_qual, std::move(v)));
+    }
+  }
+
+  WHEN("We visit on a mutable variant of const type") {
+    THEN("lvalues and rvalues are as expected") {
+      variant<const int> v(42);
+      REQUIRE(42 == get<const int>(v));
+      // Check qualifier.
+      REQUIRE(ConstLRef == visit(get_qual, v));
+      REQUIRE(ConstRRef == visit(get_qual, std::move(v)));
+    }
+  }
+
+  WHEN("We visit on a const variant of mutable type") {
+    THEN("lvalues and rvalues are as expected") {
+      const variant<int> v(42);
+      REQUIRE(42 == get<int>(v));
+      // Check qualifier.
+      REQUIRE(ConstLRef == visit(get_qual, v));
+      REQUIRE(ConstRRef == visit(get_qual, std::move(v)));
+
+#ifdef MPARK_CPP11_CONSTEXPR
+      /* constexpr */ {
+        constexpr variant<int> cv(42);
+        static_assert(42 == get<int>(cv), "");
+        // Check qualifier.
+        static_assert(ConstLRef == visit(get_qual, cv), "");
+        static_assert(ConstRRef == visit(get_qual, std::move(cv)), "");
+      }
+#endif
+    }
+  }
+
+  WHEN("We visit on a const variant of const type") {
+    THEN("lvalues and rvalues are as expected") {
+      const variant<const int> v(42);
+      REQUIRE(42 == get<const int>(v));
+      // Check qualifier.
+      REQUIRE(ConstLRef == visit(get_qual, v));
+      REQUIRE(ConstRRef == visit(get_qual, std::move(v)));
+
+#ifdef MPARK_CPP11_CONSTEXPR
+      /* constexpr */ {
+        constexpr variant<const int> cv(42);
+        static_assert(42 == get<const int>(cv), "");
+        // Check qualifier.
+        static_assert(ConstLRef == visit(get_qual, cv), "");
+        static_assert(ConstRRef == visit(get_qual, std::move(cv)), "");
+      }
+#endif
+    }
+  }
+
+  WHEN("We visit with zero arguments") {
+    THEN("We get the expected answer") { REQUIRE("" == visit(concat{})); }
+  }
+
+  WHEN("We visit with two variants of the same type") {
+    THEN("The visitor is called with the correct arguments") {
+      variant<int, std::string> v("hello"), w("world!");
+      REQUIRE("helloworld!" == visit(concat{}, v, w));
+
+#ifdef MPARK_CPP11_CONSTEXPR
+      /* constexpr */ {
+        constexpr variant<int, double> cv(101), cw(202), cx(3.3);
+        static_assert(303 == visit(add_ints{}, cv, cw), "");
+        static_assert(202 == visit(add_ints{}, cw, cx), "");
+        static_assert(101 == visit(add_ints{}, cx, cv), "");
+        static_assert(0 == visit(add_ints{}, cx, cx), "");
+      }
+#endif
+    }
+  }
+
+  WHEN("We visit with five variants of the same type") {
+    THEN("The visitor is called with the correct arguments") {
+      variant<int, std::string> v(101), w("+"), x(202), y("="), z(303);
+      REQUIRE("101+202=303" == visit(concat{}, v, w, x, y, z));
+    }
+  }
+
+  WHEN("We visit with two variants of different types") {
+    THEN("The visitor is called with the correct arguments") {
+      variant<int, std::string> v("hello");
+      variant<double, const char *> w("world!");
+      REQUIRE("helloworld!" == visit(concat{}, v, w));
+    }
+  }
+
+  WHEN("We visit with five variants of different types") {
+    THEN("The visitor is called with the correct arguments") {
+      variant<int, double> v(101);
+      variant<const char *> w("+");
+      variant<bool, std::string, int> x(202);
+      variant<char, std::string, const char *> y('=');
+      variant<long, short> z(303L);
+      REQUIRE("101+202=303" == visit(concat{}, v, w, x, y, z));
+    }
+  }
 }
