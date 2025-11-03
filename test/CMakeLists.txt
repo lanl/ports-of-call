@@ -111,5 +111,6 @@ target_sources(test_portsofcall
     test_span.cpp
     test_static_vector.cpp
     test_static_vector_iterator.cpp
+    test_variant.cpp
     "$<$<BOOL:${PORTABILITY_STRATEGY_KOKKOS}>:test_static_vector_kokkos.cpp>"
 )
