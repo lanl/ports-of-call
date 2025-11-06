@@ -4,9 +4,6 @@ stages:
 variables:
   PROJECT_NAME: ports-of-call
   ENABLE_CDASH: true
-  # use this variable if there is a xcap/deployment MR you want to use instead
-  # PROJECT_SPACK_ENV_VERSION: "mr/62/2024-10-15"
-  XCAP_SPACK_PACKAGE_REF: main
 
 include:
  - .gitlab/common.yml
