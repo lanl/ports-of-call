@@ -4,6 +4,7 @@ export PROJECT_NAME=ports-of-call
 export PROJECT_DEFAULT_BRANCH=main
 export PROJECT_TYPE=oss
 export PROJECT_GROUP=oss
+export PROJECT_SPACK_ENV_VERSION_DEFAULT="2025-01-18"
 ###############################################################################
 
 export BUILD_DIR=${BUILD_DIR:-build}
@@ -29,7 +30,7 @@ if ${SUBMIT_ON_ERROR}; then
 else
   REPORT_ERRORS=""
 fi
-PROJECT_SPACK_ENV_VERSION=${PROJECT_SPACK_ENV_VERSION:-current}
+PROJECT_SPACK_ENV_VERSION=${PROJECT_SPACK_ENV_VERSION:-${PROJECT_SPACK_ENV_VERSION_DEFAULT}}
 
 # colors
 COLOR_BLUE='\033[1;34m'
@@ -191,6 +192,7 @@ prepare_env() {
   fi
 
   source ${CI_SPACK_ENV}/systems/${SYSTEM_NAME}/activate.sh ${PROJECT_GROUP}/${PROJECT_NAME}/${SPACK_ENV_NAME}
+
   if [ -d ${SOURCE_DIR}/spack-repo ]; then
     spack repo add ${SOURCE_DIR}/spack-repo
   fi
@@ -295,10 +297,9 @@ if ${SHOW_HELP_MESSAGE}; then
     echo " "
     echo -e "${COLOR_BLUE}ssh ${CLUSTER}${COLOR_PLAIN}"
     echo -e "${COLOR_BLUE}cd /your/${PROJECT_NAME}/checkout${COLOR_PLAIN}"
+    echo -e "${COLOR_BLUE}source .gitlab/download_prereqs.sh${COLOR_PLAIN}"
     if [[ ! -z "${LLNL_FLUX_SCHEDULER_PARAMETERS}" ]]; then
       echo -e "${COLOR_BLUE}flux alloc ${LLNL_FLUX_SCHEDULER_PARAMETERS}${COLOR_PLAIN}"
-    elif [[ ! -z "${LLNL_LSF_SCHEDULER_PARAMETERS}" ]]; then
-      echo -e "${COLOR_BLUE}bsub -I ${LLNL_LSF_SCHEDULER_PARAMETERS}${COLOR_PLAIN}"
     else
       echo -e "${COLOR_BLUE}salloc ${SCHEDULER_PARAMETERS}${COLOR_PLAIN}"
     fi

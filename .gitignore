@@ -19,3 +19,4 @@ simple_test_cuda
 *.log
 __pycache__
 .aider*
+extern
