@@ -14,7 +14,7 @@
 #ifndef _PORTS_OF_CALL_VARIANT_HPP_
 #define _PORTS_OF_CALL_VARIANT_HPP_
 
-#if defined(__CUDACC__) || defined(__HIPCC__)
+#if defined(__HIP_DEVICE_COMPILE__) || (defined(__CUDA__) && defined(__CUDA_ARCH__))
 #define V_GPU_FUNCTION __host__ __device__
 #else
 #define V_GPU_FUNCTION
@@ -270,13 +270,15 @@ class bad_variant_access : public std::exception {
 };
 
 [[noreturn]] V_GPU_FUNCTION inline void throw_bad_variant_access() {
-#if defined(PORTABLE_HAS_EXCEPTIONS) && !defined(__CUDACC__) && !defined(__HIPCC__)
-  throw bad_variant_access{};
-#elif defined(__HIP_DEVICE_COMPILE__) ||                                                 \
+#if defined(__HIP_DEVICE_COMPILE__) ||                                                 \
     (defined(__clang__) && defined(__CUDA__) && defined(__CUDA_ARCH__))
   __assert_fail(nullptr, nullptr, 0, nullptr);
+  PORTABLE_BUILTIN_UNREACHABLE;
 #elif defined(__CUDA__) && defined(__CUDA_ARCH__)
   __trap();
+  PORTABLE_BUILTIN_UNREACHABLE;
+#elif defined(PORTABLE_HAS_EXCEPTIONS)
+  throw bad_variant_access{};
 #else
   std::terminate();
   PORTABLE_BUILTIN_UNREACHABLE;
