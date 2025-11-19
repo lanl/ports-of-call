@@ -114,7 +114,7 @@ install(FILES ${CMAKE_CURRENT_BINARY_DIR}/${POCLIB}Config.cmake
         DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/${POCLIB})
 
 # Install the source header files
-install(DIRECTORY "${CMAKE_SOURCE_DIR}/${POCLIB}"
+install(DIRECTORY "${PROJECT_SOURCE_DIR}/${POCLIB}"
         DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}")
 
 # Install the export target. This will define the CMake target for external
