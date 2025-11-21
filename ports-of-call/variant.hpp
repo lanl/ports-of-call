@@ -1155,7 +1155,7 @@ struct dtor {
 #pragma warning(disable : 4100)
 #endif
   template <typename Alt>
-  inline void operator()(Alt &alt) const noexcept {
+  inline constexpr void operator()(Alt &alt) const noexcept {
     alt.~Alt();
   }
 #ifdef _MSC_VER
@@ -1226,7 +1226,7 @@ class constructor : public destructor<Traits> {
 #ifndef PORTABLE_HAS_GENERIC_LAMBDAS
   struct ctor {
     template <typename LhsAlt, typename RhsAlt>
-    inline void operator()(LhsAlt &lhs_alt, RhsAlt &&rhs_alt) const {
+    inline void constexpr operator()(LhsAlt &lhs_alt, RhsAlt &&rhs_alt) const {
       constructor::construct_alt(lhs_alt,
                                  detail::variant::lib::forward<RhsAlt>(rhs_alt).value);
     }
@@ -1352,7 +1352,7 @@ class assignment : public copy_constructor<Traits> {
   template <typename That>
   struct assigner {
     template <typename ThisAlt, typename ThatAlt>
-    inline void operator()(ThisAlt &this_alt, ThatAlt &&that_alt) const {
+    inline void constexpr operator()(ThisAlt &this_alt, ThatAlt &&that_alt) const {
       self->assign_alt(this_alt, detail::variant::lib::forward<ThatAlt>(that_alt).value);
     }
     assignment *self;
@@ -1372,10 +1372,10 @@ class assignment : public copy_constructor<Traits> {
 #endif
     } else {
       struct {
-        V_GPU_FUNCTION void operator()(std::true_type) const {
+        V_GPU_FUNCTION constexpr void operator()(std::true_type) const {
           this_->emplace<I>(detail::variant::lib::forward<Arg>(arg_));
         }
-        V_GPU_FUNCTION void operator()(std::false_type) const {
+        V_GPU_FUNCTION constexpr void operator()(std::false_type) const {
           this_->emplace<I>(T(detail::variant::lib::forward<Arg>(arg_)));
         }
         assignment *this_;
