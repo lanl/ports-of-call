@@ -89,6 +89,7 @@ dependency requirements. It is therefore the job of the project using
 DevOps support was provided by
 - Karen Tsai
 - Christopher Mauney
+- Richard Berger
 
 ## Copyright
 

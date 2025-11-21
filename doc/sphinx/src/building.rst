@@ -62,15 +62,4 @@ installed, simply call
 
   spack install ports-of-call
 
-We also provide a spackage for Ports of Call within the
-the source repository. To use it, call:
-
 .. _Spack: https://spack.io/
-
-.. code-block:: bash
-
-  spack repo add ports-of-call/spack-repo
-  spack install ports-of-call
-
-The spack repo supports one variant, ``+doc``, which adds tooling for
-building the docs.
