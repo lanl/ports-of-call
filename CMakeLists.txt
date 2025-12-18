@@ -17,7 +17,7 @@ cmake_minimum_required(VERSION 3.14)
 # ----------------------------------------
 
 # define project and version
-set(PORTS_OF_CALL_VERSION 2.0.0)
+set(PORTS_OF_CALL_VERSION 2.0.1)
 project(ports-of-call VERSION ${PORTS_OF_CALL_VERSION} LANGUAGES CXX)
 
 # CMAKE WARMUP
@@ -106,7 +106,7 @@ configure_package_config_file(
 write_basic_package_version_file(
   ${CMAKE_CURRENT_BINARY_DIR}/${POCLIB}ConfigVersion.cmake
   VERSION ${PORTS_OF_CALL_VERSION}
-  COMPATIBILITY SameMajorVersion)
+  COMPATIBILITY AnyNewerVersion)
 
 # Install the cmake configuration files
 install(FILES ${CMAKE_CURRENT_BINARY_DIR}/${POCLIB}Config.cmake
