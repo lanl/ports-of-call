@@ -1587,7 +1587,7 @@ struct overload_leaf {};
 template <typename Arg, std::size_t I, typename T>
 struct overload_leaf<Arg, I, T, false> {
   using impl = detail::variant::lib::size_constant<I> (*)(T);
-  operator impl() const { return nullptr; };
+  operator impl() const { return nullptr; }
 };
 
 template <typename Arg, std::size_t I, typename T>
@@ -1602,7 +1602,7 @@ struct overload_leaf<
 #endif
     > {
   using impl = detail::variant::lib::size_constant<I> (*)(T);
-  operator impl() const { return nullptr; };
+  operator impl() const { return nullptr; }
 };
 
 template <typename Arg, typename... Ts>
