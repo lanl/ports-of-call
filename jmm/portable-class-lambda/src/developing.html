@@ -1,0 +1,288 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Developing Ports of Call &mdash; Ports-of-Call  documentation</title>
+      <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=80d5e7a1" />
+      <link rel="stylesheet" type="text/css" href="../_static/css/theme.css?v=9edc463e" />
+
+  
+      <script src="../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../_static/documentation_options.js?v=5929fcd5"></script>
+      <script src="../_static/doctools.js?v=9bcbadda"></script>
+      <script src="../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="How to Use Sphinx for Writing Docs" href="sphinx-howto.html" />
+    <link rel="prev" title="Using Ports of Call" href="using.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../index.html" class="icon icon-home">
+            Ports-of-Call
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="building.html">Building Ports of Call</a></li>
+<li class="toctree-l1"><a class="reference internal" href="using.html">Using Ports of Call</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Developing Ports of Call</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#tests">Tests</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#expectations-for-code-review">Expectations for code review</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#from-the-perspective-of-the-contributor">From the perspective of the contributor</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#expectations-of-code-reviewers">Expectations of code reviewers</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#some-notes-on-style-and-code-architecture">Some notes on style and code architecture</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="sphinx-howto.html">How to Use Sphinx for Writing Docs</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">Ports-of-Call</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">Developing Ports of Call</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../_sources/src/developing.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="developing-ports-of-call">
+<span id="developing"></span><h1>Developing Ports of Call<a class="headerlink" href="#developing-ports-of-call" title="Link to this heading"></a></h1>
+<p>As Ports of Call is only a few small header files, not much is
+required. We do require the files be formatted using
+<code class="docutils literal notranslate"><span class="pre">clang-format</span></code>. The format version is pinned 12. Please call
+<code class="docutils literal notranslate"><span class="pre">`clang-format</span></code> on your files before merging them.</p>
+<p>You may do so automatically either by making the <code class="docutils literal notranslate"><span class="pre">format_ports</span></code>
+target in the build system, e.g.,</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>mkdir<span class="w"> </span>-p<span class="w"> </span>ports-of-call/build
+<span class="nb">cd</span><span class="w"> </span>ports-of-call/build
+cmake<span class="w"> </span>..
+make<span class="w"> </span>format_ports
+</pre></div>
+</div>
+<p>or you may call the <code class="docutils literal notranslate"><span class="pre">format.sh</span></code> script in the <code class="docutils literal notranslate"><span class="pre">scripts</span></code>
+directory. This script supports two environment variables, <code class="docutils literal notranslate"><span class="pre">CFM</span></code> and
+<code class="docutils literal notranslate"><span class="pre">VERBOSE</span></code>. <code class="docutils literal notranslate"><span class="pre">CFM</span></code> is the path (or name) of your <code class="docutils literal notranslate"><span class="pre">clang-format</span></code>
+executable. <code class="docutils literal notranslate"><span class="pre">VERBOSE=1</span></code> will cause it to output all files it
+modifies.</p>
+<p>The docs are built but not deployed on PRs from forks, and the
+internal tests will not be run automatically. So when the code is
+ready for merge, you must ask a project maintainer to trigger the
+remaining tests for you.</p>
+<section id="tests">
+<h2>Tests<a class="headerlink" href="#tests" title="Link to this heading"></a></h2>
+<p><code class="docutils literal notranslate"><span class="pre">ports-of-call</span></code> uses the <a class="reference external" href="https://github.com/catchorg/Catch2">Catch2</a> unit testing infrastructure,
+v3. To add a test, add a new <code class="docutils literal notranslate"><span class="pre">cpp</span></code> file in the <code class="docutils literal notranslate"><span class="pre">test</span></code> directory
+that implements your <code class="docutils literal notranslate"><span class="pre">catch2</span></code> scenarios and/or test cases and then
+add it to the <code class="docutils literal notranslate"><span class="pre">target_sources</span></code> line at the bottom of
+<code class="docutils literal notranslate"><span class="pre">test/CMakeLists.txt</span></code>.</p>
+</section>
+<section id="expectations-for-code-review">
+<h2>Expectations for code review<a class="headerlink" href="#expectations-for-code-review" title="Link to this heading"></a></h2>
+<section id="from-the-perspective-of-the-contributor">
+<h3>From the perspective of the contributor<a class="headerlink" href="#from-the-perspective-of-the-contributor" title="Link to this heading"></a></h3>
+<p>Code review is an integral part of the development process
+for <code class="docutils literal notranslate"><span class="pre">ports-of-call</span></code>. You can expect at least one, perhaps many,
+core developers to read your code and offer suggestions.
+You should treat this much like scientific or academic peer review.
+You should listen to suggestions but also feel entitled to push back
+if you believe the suggestions or comments are incorrect or
+are requesting too much effort.</p>
+<p>Reviewers may offer conflicting advice, if this is the case, it’s an
+opportunity to open a discussion and communally arrive at a good
+approach. You should feel empowered to argue for which of the
+conflicting solutions you prefer or to suggest a compromise. If you
+don’t feel strongly, that’s fine too, but it’s best to say so to keep
+the lines of communication open.</p>
+<p>Big contributions may be difficult to review in one piece and you may
+be requested to split your pull request into two or more separate
+contributions. You may also receive many “nitpicky” comments about
+code style or structure. These comments help keep a broad codebase,
+with many contributors uniform in style and maintainable with
+consistent expectations accross the code base. While there is no
+formal style guide for now, the regular contributors have a sense for
+the broad style of the project. You should take these stylistic and
+“nitpicky” suggestions seriously, but you should also feel free to
+push back.</p>
+<p>As with any creative endeavor, we put a lot of ourselves into our
+code. It can be painful to receive criticism on your contribution and
+easy to take it personally. While you should resist the urge to take
+offense, it is also partly code reviewer’s responsiblity to create a
+constructive environment, as discussed below.</p>
+</section>
+<section id="expectations-of-code-reviewers">
+<h3>Expectations of code reviewers<a class="headerlink" href="#expectations-of-code-reviewers" title="Link to this heading"></a></h3>
+<p>A good code review builds a contribution up, rather than tearing it
+down. Here are a few rules to keep code reviews constructive and
+congenial:</p>
+<ul class="simple">
+<li><p>You should take the time needed to review a contribution and offer
+meaningful advice. Unless a contribution is very small, limit
+the times you simply click “approve” with a “looks good to me.”</p></li>
+<li><p>You should keep your comments constructive. For example, rather than
+saying “this pattern is bad,” try saying “at this point, you may
+want to try this other pattern.”</p></li>
+<li><p>Avoid language that can be misconstrued, even if it’s common
+notation in the commnunity. For example, avoid phrases like “code
+smell.”</p></li>
+<li><p>Explain why you make a suggestion. In addition to saying “try X
+instead of Y” explain why you like pattern X more than pattern Y.</p></li>
+<li><p>A contributor may push back on your suggestion. Be open to the
+possibility that you’re either asking too much or are incorrect in
+this instance. Code review is an opportunity for everyone to learn.</p></li>
+<li><p>Don’t just highlight what you don’t like. Also highlight the parts
+of the pull request you do like and thank the contributor for their
+effort.</p></li>
+</ul>
+</section>
+<section id="some-notes-on-style-and-code-architecture">
+<h3>Some notes on style and code architecture<a class="headerlink" href="#some-notes-on-style-and-code-architecture" title="Link to this heading"></a></h3>
+<ul>
+<li><p>A major influence on code style and architecture is the
+<a class="reference external" href="http://web.eecs.umich.edu/~imarkov/10rules.pdf">ten rules for developing safety-critical code</a>, by Gerard Holzmann.
+Safety critical code is code that exists in a context where failure
+implies serious harm. A flight controler on an airplane or
+spacecraft or the microcontroller in a car are examples of
+safety-critical contexts. <code class="docutils literal notranslate"><span class="pre">ports-of-call</span></code> is not safety-critical
+but many of the coding habits advocated for by Holzmann produce
+long-lived, easy to understand, easy to parse, and easy to maintain code.
+And we take many of the rules to heart. Here are a few that are most
+relevant to <code class="docutils literal notranslate"><span class="pre">ports-of-call</span></code>. They have been adapted slightly to
+our context.</p>
+<blockquote>
+<div><ol class="arabic simple">
+<li><p>Avoid complex flow constructs such as gotos.</p></li>
+<li><p>All loops must have fixed bounds. This prevents runaway
+code. (Note this implies that as a general rule, one should use
+<code class="docutils literal notranslate"><span class="pre">for</span></code> loops, not <code class="docutils literal notranslate"><span class="pre">while</span></code> loops. It also implies one should
+keep recursion to a minimum.)</p></li>
+<li><p>Heap memory allocation should only be performed at
+initialization. Heap memory de-allocation should only be
+performed at cleanup.</p></li>
+<li><p>Restrict the length of functions to a single printed page.</p></li>
+<li><p>Restrict the scope of data to the smallest possible.</p></li>
+<li><p>Limit pointer use to a single dereference. Avoid pointers of
+pointers when possible.</p></li>
+<li><p>Be compiler warning aware. Try to address compiler warnings as
+they come up.</p></li>
+</ol>
+</div></blockquote>
+</li>
+</ul>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">ports-of-call</span></code> is a modern C++ code
+and both standard template library capabilities and template
+metaprogramming are leveraged frequently. This can sometimes make
+parsing the code difficult. If you see something you don’t
+understand, ask. It may be it can be refactored to be more simple or
+better documented.</p></li>
+</ul>
+</section>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="using.html" class="btn btn-neutral float-left" title="Using Ports of Call" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="sphinx-howto.html" class="btn btn-neutral float-right" title="How to Use Sphinx for Writing Docs" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2021-2022, Triad National Security.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  
+<div class="rst-versions" data-toggle="rst-versions" role="note" aria-label="versions">
+  <span class="rst-current-version" data-toggle="rst-current-version">
+    <span class="fa fa-book"> Other Versions</span>
+    v: jmm/portable-class-lambda
+    <span class="fa fa-caret-down"></span>
+  </span>
+  <div class="rst-other-versions">
+    <dl>
+      <dt>Tags</dt>
+      <dd><a href="../../../v1.0.0/src/developing.html">v1.0.0</a></dd>
+      <dd><a href="../../../v1.1.0/src/developing.html">v1.1.0</a></dd>
+      <dd><a href="../../../v1.2.0/src/developing.html">v1.2.0</a></dd>
+      <dd><a href="../../../v1.3.0/src/developing.html">v1.3.0</a></dd>
+      <dd><a href="../../../v1.4.0/src/developing.html">v1.4.0</a></dd>
+      <dd><a href="../../../v1.4.1/src/developing.html">v1.4.1</a></dd>
+      <dd><a href="../../../v1.4.2/src/developing.html">v1.4.2</a></dd>
+      <dd><a href="../../../v1.5.1/src/developing.html">v1.5.1</a></dd>
+      <dd><a href="../../../v1.5.2/src/developing.html">v1.5.2</a></dd>
+      <dd><a href="../../../v1.6.0/src/developing.html">v1.6.0</a></dd>
+      <dd><a href="../../../v1.7.0/src/developing.html">v1.7.0</a></dd>
+      <dd><a href="../../../v1.7.1/src/developing.html">v1.7.1</a></dd>
+      <dd><a href="../../../v2.0.0/src/developing.html">v2.0.0</a></dd>
+      <dd><a href="../../../v2.0.1/src/developing.html">v2.0.1</a></dd>
+    </dl>
+    <dl>
+      <dt>Branches</dt>
+      <dd><a href="../../../main/src/developing.html">main</a></dd>
+      <dd><a href="../../../bkk_span/src/developing.html">bkk_span</a></dd>
+      <dd><a href="../../../fortran/src/developing.html">fortran</a></dd>
+      <dd><a href="../../formatting-automation/src/developing.html">jmm/formatting-automation</a></dd>
+      <dd><a href="developing.html">jmm/portable-class-lambda</a></dd>
+      <dd><a href="../../portable-variant/src/developing.html">jmm/portable-variant</a></dd>
+      <dd><a href="../../../mauneyc/templated_md/src/developing.html">mauneyc/templated_md</a></dd>
+    </dl>
+  </div>
+</div><script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

@@ -1,0 +1,468 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Using Ports of Call &mdash; Ports-of-Call  documentation</title>
+      <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=80d5e7a1" />
+      <link rel="stylesheet" type="text/css" href="../_static/css/theme.css?v=9edc463e" />
+
+  
+      <script src="../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../_static/documentation_options.js?v=5929fcd5"></script>
+      <script src="../_static/doctools.js?v=9bcbadda"></script>
+      <script src="../_static/sphinx_highlight.js?v=dc90522c"></script>
+      <script async="async" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <script src="../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Developing Ports of Call" href="developing.html" />
+    <link rel="prev" title="Building Ports of Call" href="building.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../index.html" class="icon icon-home">
+            Ports-of-Call
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="building.html">Building Ports of Call</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Using Ports of Call</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#portability-hpp">portability.hpp</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#_CPPv411portableForPKcii8Function"><code class="docutils literal notranslate"><span class="pre">portableFor()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#_CPPv418portableCopyToHostPC1TPCK1TK6size_t"><code class="docutils literal notranslate"><span class="pre">portableCopyToHost()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#_CPPv420portableCopyToDevicePC1TPCK1TK6size_t"><code class="docutils literal notranslate"><span class="pre">portableCopyToDevice()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#portable-errors-hpp">portable_errors.hpp</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#robust-utils-hpp">robust_utils.hpp</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#macros-arrays-hpp">macros_arrays.hpp</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#_CPPv4N15PortableMDArray7GetRankEv"><code class="docutils literal notranslate"><span class="pre">GetRank()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#_CPPv4N15PortableMDArray6GetDimE6size_t"><code class="docutils literal notranslate"><span class="pre">GetDim()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#_CPPv4N15PortableMDArray7GetSizeEv"><code class="docutils literal notranslate"><span class="pre">GetSize()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#_CPPv4N15PortableMDArray14GetSizeInBytesEv"><code class="docutils literal notranslate"><span class="pre">GetSizeInBytes()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#_CPPv4N15PortableMDArray7IsEmptyEv"><code class="docutils literal notranslate"><span class="pre">IsEmpty()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#_CPPv4N15PortableMDArray4dataEv"><code class="docutils literal notranslate"><span class="pre">data()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#_CPPv4N15PortableMDArray7ReshapeEiii"><code class="docutils literal notranslate"><span class="pre">Reshape()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#array-hpp">array.hpp</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#static-vector-hpp">static_vector.hpp</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="developing.html">Developing Ports of Call</a></li>
+<li class="toctree-l1"><a class="reference internal" href="sphinx-howto.html">How to Use Sphinx for Writing Docs</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">Ports-of-Call</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">Using Ports of Call</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../_sources/src/using.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="using-ports-of-call">
+<span id="using"></span><h1>Using Ports of Call<a class="headerlink" href="#using-ports-of-call" title="Link to this heading"></a></h1>
+<p>Ports of call is a header-only library that provides a bit of
+flexibility for performance portability. At the moment it mainly
+provides a one-header abstraction to enable or disable <a class="reference external" href="https://github.com/kokkos/kokkos">Kokkos</a> in a
+code. However other backends can be added. (If you’re interested in
+adding a backend, please let us know!)</p>
+<p>To include Ports of Call in your project, simply include the directory
+(e.g., as a submodule) in your include path.</p>
+<ol class="arabic simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">PORTABLE_FUNCTION</span></code>: decorators necessary for compiling a kernel function</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">PORTABLE_INLINE_FUNCTION</span></code>: ditto, but for when functions ought to be inlined</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">PORTABLE_FORCEINLINE_FUNCTION</span></code>: forces the compiler to inline</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">PORTABLE_LAMBDA</span></code>: Resolves to a <code class="docutils literal notranslate"><span class="pre">KOKKOS_LAMBDA</span></code> or to <code class="docutils literal notranslate"><span class="pre">[=]</span></code> depending on context</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">_WITH_KOKKOS_</span></code>: Defined if Kokkos is enabled.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">_WITH_CUDA_</span></code>: Defined when Cuda is enabled</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">Real</span></code>: a typedef to double (default) or float (if you define <code class="docutils literal notranslate"><span class="pre">SINGLE_PRECISION_ENABLED</span></code>)</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">PORTABLE_MALLOC()</span></code>, <code class="docutils literal notranslate"><span class="pre">PORTABLE_FREE()</span></code>: A wrapper for kokkos_malloc or cudaMalloc, or raw malloc and equivalent free.</p></li>
+</ol>
+<p>At compile time, you define
+<code class="docutils literal notranslate"><span class="pre">PORTABILITY_STRATEGY_{KOKKOS,CUDA,NONE}</span></code> (if you don’t define it,
+it defaults to NONE). The above macros then behave as expected. In
+particular, <code class="docutils literal notranslate"><span class="pre">PORTABLE_FUNCTION</span></code> and friends resolve to <code class="docutils literal notranslate"><span class="pre">__host__</span>
+<span class="pre">__device__</span></code> decorators as appropriate.</p>
+<p>There are several headers in this library, for different use cases.</p>
+<section id="portability-hpp">
+<h2>portability.hpp<a class="headerlink" href="#portability-hpp" title="Link to this heading"></a></h2>
+<p><code class="docutils literal notranslate"><span class="pre">portability.hpp</span></code> provides the above-mentioned macros for decorating
+functions. Also provides loop abstractions that can be leveraged by a
+code. These loop abstractions are of the form:</p>
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv411portableForPKcii8Function">
+<span id="_CPPv311portableForPKcii8Function"></span><span id="_CPPv211portableForPKcii8Function"></span><span id="portableFor__cCP.i.i.Function"></span><span class="kt"><span class="pre">void</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">portableFor</span></span></span><span class="sig-paren">(</span><span class="k"><span class="pre">const</span></span><span class="w"> </span><span class="kt"><span class="pre">char</span></span><span class="w"> </span><span class="p"><span class="pre">*</span></span><span class="n sig-param"><span class="pre">name</span></span>, <span class="kt"><span class="pre">int</span></span><span class="w"> </span><span class="n sig-param"><span class="pre">start</span></span>, <span class="kt"><span class="pre">int</span></span><span class="w"> </span><span class="n sig-param"><span class="pre">stop</span></span>, <a class="reference internal" href="#_CPPv411portableForPKcii8Function" title="portableFor::Function"><span class="n"><span class="pre">Function</span></span></a><span class="w"> </span><span class="n sig-param"><span class="pre">Function</span></span><span class="sig-paren">)</span><a class="headerlink" href="#_CPPv411portableForPKcii8Function" title="Link to this definition"></a><br /></dt>
+<dd></dd></dl>
+
+<p>where <code class="docutils literal notranslate"><span class="pre">Function</span></code> is a template parameter and should be set to a
+functor that takes one index, e.g., an index in an array. For example:</p>
+<div class="highlight-cpp notranslate"><div class="highlight"><pre><span></span><span class="n">portableFor</span><span class="p">(</span><span class="s">&quot;Example&quot;</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="mi">5</span><span class="p">,</span>
+<span class="w">  </span><span class="n">PORTABLE_LAMBDA</span><span class="p">(</span><span class="kt">int</span><span class="w"> </span><span class="n">i</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="n">printf</span><span class="p">(</span><span class="s">&quot;hello from thread %d</span><span class="se">\n</span><span class="s">&quot;</span><span class="p">,</span><span class="w"> </span><span class="n">i</span><span class="p">);</span>
+<span class="p">});</span>
+</pre></div>
+</div>
+<p><code class="docutils literal notranslate"><span class="pre">start</span></code> is inclusive, <code class="docutils literal notranslate"><span class="pre">stop</span></code> is exclusive. Up to five-dimensional
+<code class="docutils literal notranslate"><span class="pre">portableFor</span></code> loops are available. For example:</p>
+<div class="highlight-cpp notranslate"><div class="highlight"><pre><span></span><span class="k">template</span><span class="w"> </span><span class="o">&lt;</span><span class="k">typename</span><span class="w"> </span><span class="nc">Function</span><span class="o">&gt;</span>
+<span class="kt">void</span><span class="w"> </span><span class="n">portableFor</span><span class="p">(</span><span class="k">const</span><span class="w"> </span><span class="kt">char</span><span class="w"> </span><span class="o">*</span><span class="n">name</span><span class="p">,</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="n">startb</span><span class="p">,</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="n">stopb</span><span class="p">,</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="n">starta</span><span class="p">,</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="n">stopa</span><span class="p">,</span>
+<span class="w">  </span><span class="kt">int</span><span class="w"> </span><span class="n">startz</span><span class="p">,</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="n">stopz</span><span class="p">,</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="n">starty</span><span class="p">,</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="n">stopy</span><span class="p">,</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="n">startx</span><span class="p">,</span>
+<span class="w">  </span><span class="kt">int</span><span class="w"> </span><span class="n">stopx</span><span class="p">,</span><span class="w"> </span><span class="n">Function</span><span class="w"> </span><span class="n">function</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+</pre></div>
+</div>
+<p>We also provide <code class="docutils literal notranslate"><span class="pre">portableReduce</span></code>, however the functionality is very
+limited. The syntax is:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">template</span> <span class="o">&lt;</span><span class="n">typename</span> <span class="n">Function</span><span class="p">,</span> <span class="n">typename</span> <span class="n">T</span><span class="o">&gt;</span>
+<span class="n">void</span> <span class="n">portableReduce</span><span class="p">(</span><span class="n">const</span> <span class="n">char</span> <span class="o">*</span><span class="n">name</span><span class="p">,</span> <span class="nb">int</span> <span class="n">starta</span><span class="p">,</span> <span class="nb">int</span> <span class="n">stopa</span><span class="p">,</span> <span class="nb">int</span> <span class="n">startz</span><span class="p">,</span>
+  <span class="nb">int</span> <span class="n">stopz</span><span class="p">,</span> <span class="nb">int</span> <span class="n">starty</span><span class="p">,</span> <span class="nb">int</span> <span class="n">stopy</span><span class="p">,</span> <span class="nb">int</span> <span class="n">startx</span><span class="p">,</span> <span class="nb">int</span> <span class="n">stopx</span><span class="p">,</span>
+  <span class="n">Function</span> <span class="n">function</span><span class="p">,</span> <span class="n">T</span> <span class="o">&amp;</span><span class="n">reduced</span><span class="p">)</span> <span class="p">{</span>
+</pre></div>
+</div>
+<p>where <code class="docutils literal notranslate"><span class="pre">Function</span></code> now takes as many indices are required and
+<code class="docutils literal notranslate"><span class="pre">reduced</span></code> as arguments.</p>
+<p>Also provided are host to device and device to host memory transfers of the form:</p>
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv418portableCopyToHostPC1TPCK1TK6size_t">
+<span id="_CPPv318portableCopyToHostPC1TPCK1TK6size_t"></span><span id="_CPPv218portableCopyToHostPC1TPCK1TK6size_t"></span><span id="portableCopyToHost__TPC.TCPC.sC"></span><span class="kt"><span class="pre">void</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">portableCopyToHost</span></span></span><span class="sig-paren">(</span><span class="n"><span class="pre">T</span></span><span class="w"> </span><span class="p"><span class="pre">*</span></span><span class="k"><span class="pre">const</span></span><span class="w"> </span><span class="n sig-param"><span class="pre">to</span></span>, <span class="n"><span class="pre">T</span></span><span class="w"> </span><span class="k"><span class="pre">const</span></span><span class="w"> </span><span class="p"><span class="pre">*</span></span><span class="k"><span class="pre">const</span></span><span class="w"> </span><span class="n sig-param"><span class="pre">from</span></span>, <span class="n"><span class="pre">size_t</span></span><span class="w"> </span><span class="k"><span class="pre">const</span></span><span class="w"> </span><span class="n sig-param"><span class="pre">size_bytes</span></span><span class="sig-paren">)</span><a class="headerlink" href="#_CPPv418portableCopyToHostPC1TPCK1TK6size_t" title="Link to this definition"></a><br /></dt>
+<dd></dd></dl>
+
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv420portableCopyToDevicePC1TPCK1TK6size_t">
+<span id="_CPPv320portableCopyToDevicePC1TPCK1TK6size_t"></span><span id="_CPPv220portableCopyToDevicePC1TPCK1TK6size_t"></span><span id="portableCopyToDevice__TPC.TCPC.sC"></span><span class="kt"><span class="pre">void</span></span><span class="w"> </span><span class="sig-name descname"><span class="n"><span class="pre">portableCopyToDevice</span></span></span><span class="sig-paren">(</span><span class="n"><span class="pre">T</span></span><span class="w"> </span><span class="p"><span class="pre">*</span></span><span class="k"><span class="pre">const</span></span><span class="w"> </span><span class="n sig-param"><span class="pre">to</span></span>, <span class="n"><span class="pre">T</span></span><span class="w"> </span><span class="k"><span class="pre">const</span></span><span class="w"> </span><span class="p"><span class="pre">*</span></span><span class="k"><span class="pre">const</span></span><span class="w"> </span><span class="n sig-param"><span class="pre">from</span></span>, <span class="n"><span class="pre">size_t</span></span><span class="w"> </span><span class="k"><span class="pre">const</span></span><span class="w"> </span><span class="n sig-param"><span class="pre">size_bytes</span></span><span class="sig-paren">)</span><a class="headerlink" href="#_CPPv420portableCopyToDevicePC1TPCK1TK6size_t" title="Link to this definition"></a><br /></dt>
+<dd></dd></dl>
+
+<p>with <cite>to</cite> being the target location, from being the source location, and size_bytes is
+the size of the transfer in bytes. This has implemenatations for kokkos and none
+portability strategies.</p>
+<p>It may be useful to query the execution space, for example to know where memory needs to be copied.
+To this end, a compile-time constant boolean can be queried:</p>
+<dl class="cpp var">
+<dt class="sig sig-object cpp">
+<span class="sig-name descname"><span class="pre">PortsOfCall::EXECUTION_IS_HOST</span></span></dt>
+<dd></dd></dl>
+
+<p>which is <cite>true</cite> if the host execution space can trivially access device memory space. For example,
+for <cite>PORTABILITY_STRATEGY_CUDA</cite>, <cite>PortsOfCall::EXECUTION_IS_HOST == false</cite>.</p>
+</section>
+<section id="portable-errors-hpp">
+<h2>portable_errors.hpp<a class="headerlink" href="#portable-errors-hpp" title="Link to this heading"></a></h2>
+<p><code class="docutils literal notranslate"><span class="pre">portable_errors.hpp</span></code> provides error handling that works with
+different portability backends, such as <cite>Kokkos</cite>. We provide several
+useful macros. All the macros in this file will print the file and
+line number where the macro was called, enabling easier debugging.</p>
+<p>The following macros are <strong>disabled</strong> automaticaly for production
+builds (e.g., when the <code class="docutils literal notranslate"><span class="pre">NDEBUG</span></code> preprocessor macro is defined):</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">PORTABLE_REQUIRE(condition,</span> <span class="pre">message)</span></code> prints an error message and aborts the program (without throwing an exception) if compiled in debug mode and <code class="docutils literal notranslate"><span class="pre">condition</span></code> is not satisfied.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">PORTABLE_ABORT(message)</span></code> prints an error message and aborts the program when compiled in debug mode.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">PORTABLE_WARN(message)</span></code> prints a warning message if compiled in debug mode.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">PORTABLE_THROW_OR_ABORT(message)</span></code> prints an error message and then raises a runtime error if <code class="docutils literal notranslate"><span class="pre">PORTABILITY_STRATEGY</span></code> is <code class="docutils literal notranslate"><span class="pre">NONE</span></code> and otherwise aborts the program without an exception. This macro is disabled in production.</p></li>
+</ul>
+<p>Each of the above macros is <strong>disabled</strong> and becomes a no-op for most builds and only enabled for <code class="docutils literal notranslate"><span class="pre">Debug</span></code> builds. However, for each of the above macros there is an equivalent <code class="docutils literal notranslate"><span class="pre">PORTABLE_ALWAYS_*</span></code> macro, which <strong>always</strong> functions and is <strong>never</strong> a no-op:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">PORTABLE_ALWAYS_REQUIRE(condition,</span> <span class="pre">message)</span></code> prints an error message and aborts the program (without throwing an exception) if <code class="docutils literal notranslate"><span class="pre">condition</span></code> is not satisfied.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">PORTABLE_ALWAYS_ABORT(message)</span></code> prints an error message and aborts the program.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">PORTABLE_ALWAYS_WARN(message)</span></code> prints a warning message.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">PORTABLE_ALWAYS_THROW_OR_ABORT(message)</span></code> prints an error message and then raises a runtime error if <code class="docutils literal notranslate"><span class="pre">PORTABILITY_STRATEGY</span></code> is <code class="docutils literal notranslate"><span class="pre">NONE</span></code> and otherwise aborts the program without an exception.</p></li>
+</ul>
+<p>Additionally the macro</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">PORTABLE_ERROR_MESSAGE(message,</span> <span class="pre">output)</span></code> fills an output <code class="docutils literal notranslate"><span class="pre">char*</span></code> with a useful error message containing the filename and line number where the macro is called. Note there is no bounds checking so you <strong>must</strong> provide the macro with a sufficiently large <code class="docutils literal notranslate"><span class="pre">char*</span></code> array.</p></li>
+</ul>
+<p>The <code class="docutils literal notranslate"><span class="pre">message</span></code> parameter in the above macros can be <code class="docutils literal notranslate"><span class="pre">char*</span></code> arrays and string literals on device and additionally accepts <code class="docutils literal notranslate"><span class="pre">std::string</span></code> and <code class="docutils literal notranslate"><span class="pre">std::stringstream</span></code> on host.</p>
+<p>Please note that none of these functions are thread or MPI aware. In a parallel program, the same message may be called <strong>many times</strong>. Therefore caution should be used with this machinery and you may wish to hide these macros in if statements, for example,</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="k">if</span> <span class="p">(</span><span class="n">rank</span> <span class="o">==</span> <span class="mi">0</span><span class="p">)</span> <span class="n">PORTABLE_REQUIRE</span><span class="p">(</span><span class="n">my_condition</span><span class="p">,</span> <span class="n">my_message</span><span class="p">);</span>
+</pre></div>
+</div>
+<p>as appropriate.</p>
+</section>
+<section id="robust-utils-hpp">
+<h2>robust_utils.hpp<a class="headerlink" href="#robust-utils-hpp" title="Link to this heading"></a></h2>
+<p><code class="docutils literal notranslate"><span class="pre">robust_utils.hpp</span></code> contains small utility functions for numerical
+robustness, especially around floating point numbers. The available
+functionality is contained in the namespace <code class="docutils literal notranslate"><span class="pre">PortsOfCall::Robust</span></code> and includes:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">constexpr</span> <span class="pre">auto</span> <span class="pre">SMALL&lt;T&gt;()</span></code> returns a small number of type <code class="docutils literal notranslate"><span class="pre">T</span></code>.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">constexpr</span> <span class="pre">auto</span> <span class="pre">EPS&lt;T&gt;()</span></code> returns a value of type <code class="docutils literal notranslate"><span class="pre">T</span></code> close to machine epsilon.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">constexpr</span> <span class="pre">auto</span> <span class="pre">min_exp_arg&lt;T&gt;()</span></code> returns the smallest safe value of type <code class="docutils literal notranslate"><span class="pre">T</span></code> to pass into an exponent.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">constexpr</span> <span class="pre">auto</span> <span class="pre">max_exp_exp_arg&lt;T&gt;()</span></code> returns the max safe value of type <code class="docutils literal notranslate"><span class="pre">T</span></code> to pass into an exponent.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">auto</span> <span class="pre">make_positive(const</span> <span class="pre">T</span> <span class="pre">val)</span></code> makes the argument of type <code class="docutils literal notranslate"><span class="pre">T</span></code> positive.</p></li>
+</ul>
+<p>where here all functionality is templated on type <code class="docutils literal notranslate"><span class="pre">T</span></code> and marked
+with <code class="docutils literal notranslate"><span class="pre">PORTABLE_INLINE_FUNCTION</span></code>. The default type <code class="docutils literal notranslate"><span class="pre">T</span></code> is always
+<code class="docutils literal notranslate"><span class="pre">Real</span></code>.</p>
+<p>The function</p>
+<div class="highlight-cpp notranslate"><div class="highlight"><pre><span></span><span class="k">template</span><span class="w"> </span><span class="o">&lt;</span><span class="k">typename</span><span class="w"> </span><span class="nc">T</span><span class="o">&gt;</span>
+<span class="n">PORTABLE_FORCEINLINE_FUNCTION</span>
+<span class="n">Real</span><span class="w"> </span><span class="n">make_bounded</span><span class="p">(</span><span class="k">const</span><span class="w"> </span><span class="n">T</span><span class="w"> </span><span class="n">val</span><span class="p">,</span><span class="w"> </span><span class="k">const</span><span class="w"> </span><span class="n">T</span><span class="w"> </span><span class="n">vmin</span><span class="p">,</span><span class="w"> </span><span class="k">const</span><span class="w"> </span><span class="n">T</span><span class="w"> </span><span class="n">vmax</span><span class="p">);</span>
+</pre></div>
+</div>
+<p>bounds <code class="docutils literal notranslate"><span class="pre">val</span></code> between <code class="docutils literal notranslate"><span class="pre">vmin</span></code> and <code class="docutils literal notranslate"><span class="pre">vmax</span></code>, exclusive. Note this is
+slightly different than <code class="docutils literal notranslate"><span class="pre">std::clamp</span></code>, which uses inclusive bounds.</p>
+<p>The function</p>
+<div class="highlight-cpp notranslate"><div class="highlight"><pre><span></span><span class="k">template</span><span class="w"> </span><span class="o">&lt;</span><span class="k">typename</span><span class="w"> </span><span class="nc">T</span><span class="o">&gt;</span>
+<span class="n">PORTABLE_FORCEINLINE_FUNCTION</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="n">sgn</span><span class="p">(</span><span class="k">const</span><span class="w"> </span><span class="n">T</span><span class="w"> </span><span class="o">&amp;</span><span class="n">val</span><span class="p">);</span>
+</pre></div>
+</div>
+<p>returns the sign of a quantity <code class="docutils literal notranslate"><span class="pre">val</span></code>.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Note this implementation <strong>never</strong> returns zero. It <strong>always</strong>
+returns <span class="math notranslate nohighlight">\(\pm 1\)</span>.</p>
+</div>
+<p>The function</p>
+<div class="highlight-cpp notranslate"><div class="highlight"><pre><span></span><span class="k">template</span><span class="w"> </span><span class="o">&lt;</span><span class="k">typename</span><span class="w"> </span><span class="nc">A</span><span class="p">,</span><span class="w"> </span><span class="k">typename</span><span class="w"> </span><span class="nc">B</span><span class="o">&gt;</span>
+<span class="n">PORTABLE_FORCEINLINE_FUNCTION</span><span class="w"> </span><span class="k">auto</span><span class="w"> </span><span class="n">ratio</span><span class="p">(</span><span class="k">const</span><span class="w"> </span><span class="n">A</span><span class="w"> </span><span class="o">&amp;</span><span class="n">a</span><span class="p">,</span><span class="w"> </span><span class="k">const</span><span class="w"> </span><span class="n">B</span><span class="w"> </span><span class="o">&amp;</span><span class="n">b</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>computes the ratio <span class="math notranslate nohighlight">\(A/B\)</span> but in a way robust to 0/0 errors. If
+both <span class="math notranslate nohighlight">\(A\)</span> and <span class="math notranslate nohighlight">\(B\)</span> are zero, this function will return 0. If
+<span class="math notranslate nohighlight">\(|A| &gt; 0\)</span> and <span class="math notranslate nohighlight">\(B=0\)</span>, then it will return a very large,
+possibly (but not guaranteed to be) infinite number.</p>
+<p>The function</p>
+<div class="highlight-cpp notranslate"><div class="highlight"><pre><span></span><span class="k">template</span><span class="w"> </span><span class="o">&lt;</span><span class="k">typename</span><span class="w"> </span><span class="nc">T</span><span class="o">&gt;</span>
+<span class="n">PORTABLE_FORCEINLINE_FUNCTION</span><span class="w"> </span><span class="n">T</span><span class="w"> </span><span class="n">safe_arg_exp</span><span class="p">(</span><span class="k">const</span><span class="w"> </span><span class="n">T</span><span class="w"> </span><span class="o">&amp;</span><span class="n">x</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>returns exponentiation in such a way that avoids floating point
+exceptions. For very large negative inputs, it returns 0. For very
+large positive ones, it returns
+<code class="docutils literal notranslate"><span class="pre">std::numeric_limits&lt;T&gt;::infinity()</span></code>.</p>
+</section>
+<section id="macros-arrays-hpp">
+<h2>macros_arrays.hpp<a class="headerlink" href="#macros-arrays-hpp" title="Link to this heading"></a></h2>
+<p><code class="docutils literal notranslate"><span class="pre">portable_arrays.hpp</span></code> provides a wrapper class, <code class="docutils literal notranslate"><span class="pre">PortableMDArray</span></code>,
+around a contiguous block of host or device memory that knows stride
+and layout, enabling one to mock up multidimensional arrays from a
+pointer to memory. The design is heavily inspired by the
+<code class="docutils literal notranslate"><span class="pre">AthenaArray</span></code> class from <a class="reference external" href="https://www.athena-astro.app">Athena++</a>.</p>
+<p>One constructs a <code class="docutils literal notranslate"><span class="pre">PortableMDArray</span></code> by passing it a pointer to
+underlying data and a shape. For example:</p>
+<div class="highlight-cpp notranslate"><div class="highlight"><pre><span></span><span class="cp">#include</span><span class="w"> </span><span class="cpf">&lt;portability.hpp&gt;</span>
+<span class="cp">#include</span><span class="w"> </span><span class="cpf">&lt;portable_arrays.hpp&gt;</span>
+<span class="k">constexpr</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="n">NX</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">2</span><span class="p">;</span>
+<span class="k">constexpr</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="n">NY</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">3</span><span class="p">;</span>
+<span class="k">constexpr</span><span class="w"> </span><span class="kt">int</span><span class="w"> </span><span class="n">NZ</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">4</span><span class="p">;</span>
+<span class="n">Real</span><span class="w"> </span><span class="o">*</span><span class="n">data</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">(</span><span class="n">Real</span><span class="o">*</span><span class="p">)</span><span class="n">PORTABLE_MALLOC</span><span class="p">(</span><span class="n">NX</span><span class="o">*</span><span class="n">NY</span><span class="o">*</span><span class="n">NZ</span><span class="o">*</span><span class="k">sizeof</span><span class="p">(</span><span class="n">Real</span><span class="p">));</span>
+<span class="n">PortableMDArray</span><span class="o">&lt;</span><span class="n">Real</span><span class="o">&gt;</span><span class="w"> </span><span class="n">my_3d_array</span><span class="p">(</span><span class="n">data</span><span class="p">,</span><span class="w"> </span><span class="n">NZ</span><span class="p">,</span><span class="w"> </span><span class="n">NY</span><span class="p">,</span><span class="w"> </span><span class="n">NX</span><span class="p">);</span>
+</pre></div>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p><code class="docutils literal notranslate"><span class="pre">PortableMDArray</span></code> is templated on underlying data
+type.</p>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<blockquote>
+<div><p><code class="docutils literal notranslate"><span class="pre">PortableMDArray</span></code> is column-major-ordered. The</p>
+</div></blockquote>
+<p>slowest moving index is <code class="docutils literal notranslate"><span class="pre">z</span></code> and the fastest is <code class="docutils literal notranslate"><span class="pre">x</span></code>.</p>
+</div>
+<p>You can then set or access an element by reference as:</p>
+<div class="highlight-cpp notranslate"><div class="highlight"><pre><span></span><span class="c1">// z = 3, y = 2, x = 1</span>
+<span class="n">my_3d_array</span><span class="p">(</span><span class="mi">3</span><span class="p">,</span><span class="mi">2</span><span class="p">,</span><span class="mi">1</span><span class="p">)</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mf">5.0</span><span class="p">;</span>
+</pre></div>
+</div>
+<p>You can always access the “flat” array by simply using the 1D accessor:</p>
+<div class="highlight-cpp notranslate"><div class="highlight"><pre><span></span><span class="n">my_3d_array</span><span class="p">(</span><span class="mi">6</span><span class="p">)</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mf">2.0</span><span class="p">;</span>
+</pre></div>
+</div>
+<p>By default <code class="docutils literal notranslate"><span class="pre">PortableMDArray</span></code> has reference-semantics. In
+other words, copies are shallow.</p>
+<p>You can assign new data and a new shape to a <code class="docutils literal notranslate"><span class="pre">PortableMDArray</span></code> with
+the <code class="docutils literal notranslate"><span class="pre">NewPortableMDArray</span></code> function. For example:</p>
+<div class="highlight-cpp notranslate"><div class="highlight"><pre><span></span><span class="n">my_3d_array</span><span class="p">.</span><span class="n">NewPortableArray</span><span class="p">(</span><span class="n">new_data</span><span class="p">,</span><span class="w"> </span><span class="mi">9</span><span class="p">,</span><span class="w"> </span><span class="mi">8</span><span class="p">,</span><span class="w"> </span><span class="mi">7</span><span class="p">);</span>
+</pre></div>
+</div>
+<p>would reshape <code class="docutils literal notranslate"><span class="pre">my_3d_array</span></code> to be of shape 7x8x9 and point it at the
+<code class="docutils literal notranslate"><span class="pre">new_data</span></code> pointer.</p>
+<p><code class="docutils literal notranslate"><span class="pre">PortableMDArray</span></code> also provides a few useful methods:</p>
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4N15PortableMDArray7GetRankEv">
+<span id="_CPPv3N15PortableMDArray7GetRankEv"></span><span id="_CPPv2N15PortableMDArray7GetRankEv"></span><span id="PortableMDArray::GetRank"></span><span class="n"><span class="pre">size_t</span></span><span class="w"> </span><span class="sig-prename descclassname"><span class="n"><span class="pre">PortableMDArray</span></span><span class="p"><span class="pre">::</span></span></span><span class="sig-name descname"><span class="n"><span class="pre">GetRank</span></span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#_CPPv4N15PortableMDArray7GetRankEv" title="Link to this definition"></a><br /></dt>
+<dd></dd></dl>
+
+<p>provides the number of dimensions of the array.</p>
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4N15PortableMDArray6GetDimE6size_t">
+<span id="_CPPv3N15PortableMDArray6GetDimE6size_t"></span><span id="_CPPv2N15PortableMDArray6GetDimE6size_t"></span><span id="PortableMDArray::GetDim__s"></span><span class="kt"><span class="pre">int</span></span><span class="w"> </span><span class="sig-prename descclassname"><span class="n"><span class="pre">PortableMDArray</span></span><span class="p"><span class="pre">::</span></span></span><span class="sig-name descname"><span class="n"><span class="pre">GetDim</span></span></span><span class="sig-paren">(</span><span class="n"><span class="pre">size_t</span></span><span class="w"> </span><span class="n sig-param"><span class="pre">i</span></span><span class="sig-paren">)</span><a class="headerlink" href="#_CPPv4N15PortableMDArray6GetDimE6size_t" title="Link to this definition"></a><br /></dt>
+<dd></dd></dl>
+
+<p>returns the size of a given dimension (indexed from 1, not 0).</p>
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4N15PortableMDArray7GetSizeEv">
+<span id="_CPPv3N15PortableMDArray7GetSizeEv"></span><span id="_CPPv2N15PortableMDArray7GetSizeEv"></span><span id="PortableMDArray::GetSize"></span><span class="kt"><span class="pre">int</span></span><span class="w"> </span><span class="sig-prename descclassname"><span class="n"><span class="pre">PortableMDArray</span></span><span class="p"><span class="pre">::</span></span></span><span class="sig-name descname"><span class="n"><span class="pre">GetSize</span></span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#_CPPv4N15PortableMDArray7GetSizeEv" title="Link to this definition"></a><br /></dt>
+<dd></dd></dl>
+
+<p>returns the size of the flattened array.</p>
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4N15PortableMDArray14GetSizeInBytesEv">
+<span id="_CPPv3N15PortableMDArray14GetSizeInBytesEv"></span><span id="_CPPv2N15PortableMDArray14GetSizeInBytesEv"></span><span id="PortableMDArray::GetSizeInBytes"></span><span class="n"><span class="pre">size_t</span></span><span class="w"> </span><span class="sig-prename descclassname"><span class="n"><span class="pre">PortableMDArray</span></span><span class="p"><span class="pre">::</span></span></span><span class="sig-name descname"><span class="n"><span class="pre">GetSizeInBytes</span></span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#_CPPv4N15PortableMDArray14GetSizeInBytesEv" title="Link to this definition"></a><br /></dt>
+<dd></dd></dl>
+
+<p>returns the size of the flattened array in bytes.</p>
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4N15PortableMDArray7IsEmptyEv">
+<span id="_CPPv3N15PortableMDArray7IsEmptyEv"></span><span id="_CPPv2N15PortableMDArray7IsEmptyEv"></span><span id="PortableMDArray::IsEmpty"></span><span class="kt"><span class="pre">bool</span></span><span class="w"> </span><span class="sig-prename descclassname"><span class="n"><span class="pre">PortableMDArray</span></span><span class="p"><span class="pre">::</span></span></span><span class="sig-name descname"><span class="n"><span class="pre">IsEmpty</span></span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#_CPPv4N15PortableMDArray7IsEmptyEv" title="Link to this definition"></a><br /></dt>
+<dd></dd></dl>
+
+<p>returns true if the array is empty and false otherwise.</p>
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4N15PortableMDArray4dataEv">
+<span id="_CPPv3N15PortableMDArray4dataEv"></span><span id="_CPPv2N15PortableMDArray4dataEv"></span><span id="PortableMDArray::data"></span><span class="n"><span class="pre">T</span></span><span class="w"> </span><span class="p"><span class="pre">*</span></span><span class="sig-prename descclassname"><span class="n"><span class="pre">PortableMDArray</span></span><span class="p"><span class="pre">::</span></span></span><span class="sig-name descname"><span class="n"><span class="pre">data</span></span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#_CPPv4N15PortableMDArray4dataEv" title="Link to this definition"></a><br /></dt>
+<dd></dd></dl>
+
+<p>returns the underlying pointer. The <code class="docutils literal notranslate"><span class="pre">begin()</span></code> and <code class="docutils literal notranslate"><span class="pre">end()</span></code>
+functions return pointers to the beginning and end of the array.</p>
+<dl class="cpp function">
+<dt class="sig sig-object cpp" id="_CPPv4N15PortableMDArray7ReshapeEiii">
+<span id="_CPPv3N15PortableMDArray7ReshapeEiii"></span><span id="_CPPv2N15PortableMDArray7ReshapeEiii"></span><span id="PortableMDArray::Reshape__i.i.i"></span><span class="kt"><span class="pre">void</span></span><span class="w"> </span><span class="sig-prename descclassname"><span class="n"><span class="pre">PortableMDArray</span></span><span class="p"><span class="pre">::</span></span></span><span class="sig-name descname"><span class="n"><span class="pre">Reshape</span></span></span><span class="sig-paren">(</span><span class="kt"><span class="pre">int</span></span><span class="w"> </span><span class="n sig-param"><span class="pre">nx3</span></span>, <span class="kt"><span class="pre">int</span></span><span class="w"> </span><span class="n sig-param"><span class="pre">nx2</span></span>, <span class="kt"><span class="pre">int</span></span><span class="w"> </span><span class="n sig-param"><span class="pre">nx1</span></span><span class="sig-paren">)</span><a class="headerlink" href="#_CPPv4N15PortableMDArray7ReshapeEiii" title="Link to this definition"></a><br /></dt>
+<dd></dd></dl>
+
+<p>resets the shape of the array without pointing to a new underlying
+data pointer. It accepts anywhere between 1 and 6 sizes.</p>
+<p><code class="docutils literal notranslate"><span class="pre">PortableMDArray</span></code> also supports some simple boolean comparitors,
+such as <code class="docutils literal notranslate"><span class="pre">==</span></code> and arithmetic such as <code class="docutils literal notranslate"><span class="pre">+</span></code>, and <code class="docutils literal notranslate"><span class="pre">-</span></code>.</p>
+</section>
+<section id="array-hpp">
+<h2>array.hpp<a class="headerlink" href="#array-hpp" title="Link to this heading"></a></h2>
+<p><code class="docutils literal notranslate"><span class="pre">PortsOfCall::array</span></code> is intended to be a drop-in replacement for <code class="docutils literal notranslate"><span class="pre">std::array</span></code>, with the
+exception that it works on GPUs.  As of C++17, <code class="docutils literal notranslate"><span class="pre">std::array::fill</span></code> and <code class="docutils literal notranslate"><span class="pre">std::array::swap</span></code> are
+not yet <code class="docutils literal notranslate"><span class="pre">constexpr</span></code>, so even with the “relaxed <code class="docutils literal notranslate"><span class="pre">constexpr</span></code>” compilation mode <code class="docutils literal notranslate"><span class="pre">std::array</span></code> is
+not feature-complete on GPUs.  This will change when those member functions become <code class="docutils literal notranslate"><span class="pre">constexpr</span></code> in
+C++20.</p>
+<p>span.hpp</p>
+<p><code class="docutils literal notranslate"><span class="pre">PortsOfCall::span</span></code> is implements <code class="docutils literal notranslate"><span class="pre">std::span</span></code> for C++17 (uses native implmentation in C++20)
+as a view over contiguous data. <code class="docutils literal notranslate"><span class="pre">span</span></code> may have compile-time static extent, or a dynamic extent.
+<code class="docutils literal notranslate"><span class="pre">span</span></code> provides iterator functions similar to containers.</p>
+<div class="highlight-cpp notranslate"><div class="highlight"><pre><span></span><span class="kt">int</span><span class="w"> </span><span class="n">arr</span><span class="p">[]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">{</span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="mi">2</span><span class="p">,</span><span class="w"> </span><span class="mi">3</span><span class="p">};</span>
+<span class="k">auto</span><span class="w"> </span><span class="n">s</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">span</span><span class="p">{</span><span class="n">arr</span><span class="p">};</span>
+<span class="k">for</span><span class="p">(</span><span class="k">auto</span><span class="w"> </span><span class="o">&amp;</span><span class="w"> </span><span class="n">i</span><span class="w"> </span><span class="o">:</span><span class="w"> </span><span class="n">s</span><span class="p">)</span>
+<span class="p">{</span>
+<span class="w">  </span><span class="n">i</span><span class="w"> </span><span class="o">-=</span><span class="w"> </span><span class="mi">1</span><span class="p">;</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<p><code class="docutils literal notranslate"><span class="pre">span::subspan</span></code> returns a span over a subrange. Element access uses <code class="docutils literal notranslate"><span class="pre">span::operator[]</span></code>. For
+more information, see <a class="reference external" href="https://en.cppreference.com/w/cpp/container/span">C++ reference page</a>.</p>
+</section>
+<section id="static-vector-hpp">
+<h2>static_vector.hpp<a class="headerlink" href="#static-vector-hpp" title="Link to this heading"></a></h2>
+<p><code class="docutils literal notranslate"><span class="pre">PortsOfCall::static_vector</span></code> is a GPU-compatible data structure that provides a
+<code class="docutils literal notranslate"><span class="pre">std::vector</span></code>-like interface, but uses <code class="docutils literal notranslate"><span class="pre">std::array</span></code>-like backing storage.  That means that the
+size is variable, but the capacity is fixed at runtime.  This allows the creation of a data
+structure of non-default-constructible objects like with a <code class="docutils literal notranslate"><span class="pre">std::vector</span></code>.  This also allows the
+type to be self-contained: no pointers, so a <code class="docutils literal notranslate"><span class="pre">PortsOfCall::static_vector</span></code> can be memcopied
+between CPU and GPU.  It is related to a <a href="#id1"><span class="problematic" id="id2">`proposed data structure
+https://www.open-std.org/jtc1/sc22/wg21/docs/papers/2023/p0843r8.html`_</span></a> that may be included in a
+future C++ standard.</p>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="building.html" class="btn btn-neutral float-left" title="Building Ports of Call" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="developing.html" class="btn btn-neutral float-right" title="Developing Ports of Call" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2021-2022, Triad National Security.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  
+<div class="rst-versions" data-toggle="rst-versions" role="note" aria-label="versions">
+  <span class="rst-current-version" data-toggle="rst-current-version">
+    <span class="fa fa-book"> Other Versions</span>
+    v: mauneyc/templated_md
+    <span class="fa fa-caret-down"></span>
+  </span>
+  <div class="rst-other-versions">
+    <dl>
+      <dt>Tags</dt>
+      <dd><a href="../../../v1.0.0/src/using.html">v1.0.0</a></dd>
+      <dd><a href="../../../v1.1.0/src/using.html">v1.1.0</a></dd>
+      <dd><a href="../../../v1.2.0/src/using.html">v1.2.0</a></dd>
+      <dd><a href="../../../v1.3.0/src/using.html">v1.3.0</a></dd>
+      <dd><a href="../../../v1.4.0/src/using.html">v1.4.0</a></dd>
+      <dd><a href="../../../v1.4.1/src/using.html">v1.4.1</a></dd>
+      <dd><a href="../../../v1.4.2/src/using.html">v1.4.2</a></dd>
+      <dd><a href="../../../v1.5.1/src/using.html">v1.5.1</a></dd>
+      <dd><a href="../../../v1.5.2/src/using.html">v1.5.2</a></dd>
+      <dd><a href="../../../v1.6.0/src/using.html">v1.6.0</a></dd>
+      <dd><a href="../../../v1.7.0/src/using.html">v1.7.0</a></dd>
+      <dd><a href="../../../v1.7.1/src/using.html">v1.7.1</a></dd>
+      <dd><a href="../../../v2.0.0/src/using.html">v2.0.0</a></dd>
+      <dd><a href="../../../v2.0.1/src/using.html">v2.0.1</a></dd>
+    </dl>
+    <dl>
+      <dt>Branches</dt>
+      <dd><a href="../../../main/src/using.html">main</a></dd>
+      <dd><a href="../../../bkk_span/src/using.html">bkk_span</a></dd>
+      <dd><a href="../../../fortran/src/using.html">fortran</a></dd>
+      <dd><a href="../../../jmm/formatting-automation/src/using.html">jmm/formatting-automation</a></dd>
+      <dd><a href="../../../jmm/portable-class-lambda/src/using.html">jmm/portable-class-lambda</a></dd>
+      <dd><a href="../../../jmm/portable-variant/src/using.html">jmm/portable-variant</a></dd>
+      <dd><a href="using.html">mauneyc/templated_md</a></dd>
+    </dl>
+  </div>
+</div><script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

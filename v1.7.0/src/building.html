@@ -1,0 +1,205 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Building Ports of Call &mdash; Ports-of-Call  documentation</title>
+      <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=80d5e7a1" />
+      <link rel="stylesheet" type="text/css" href="../_static/css/theme.css?v=9edc463e" />
+
+  
+      <script src="../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../_static/documentation_options.js?v=5929fcd5"></script>
+      <script src="../_static/doctools.js?v=9bcbadda"></script>
+      <script src="../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Using Ports of Call" href="using.html" />
+    <link rel="prev" title="Ports of Call: Utilities for Performance Portability" href="../index.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../index.html" class="icon icon-home">
+            Ports-of-Call
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Building Ports of Call</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#installation">Installation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#including-in-tree">Including in-tree</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#cmake">CMake</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#spack">Spack</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="using.html">Using Ports of Call</a></li>
+<li class="toctree-l1"><a class="reference internal" href="developing.html">Developing Ports of Call</a></li>
+<li class="toctree-l1"><a class="reference internal" href="sphinx-howto.html">How to Use Sphinx for Writing Docs</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">Ports-of-Call</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">Building Ports of Call</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../_sources/src/building.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="building-ports-of-call">
+<span id="building"></span><h1>Building Ports of Call<a class="headerlink" href="#building-ports-of-call" title="Link to this heading"></a></h1>
+<p>Since Ports of Call is header only, there is no build step. However,
+it can be included in your project in multiple ways: it can be
+pre-installed, or used in-tree in a larger project.</p>
+<section id="installation">
+<h2>Installation<a class="headerlink" href="#installation" title="Link to this heading"></a></h2>
+<p>Clone Ports of call and install it with:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>git<span class="w"> </span>clone<span class="w"> </span>git@github.com:lanl/ports-of-call.git
+mkdir<span class="w"> </span>-p<span class="w"> </span>ports-of-call/build
+<span class="nb">cd</span><span class="w"> </span>ports-of-call/build
+cmake<span class="w"> </span>-DCMAKE_INSTALL_PREFIX<span class="o">=</span>/path/to/install/directory<span class="w"> </span>..
+make<span class="w"> </span>install
+</pre></div>
+</div>
+</section>
+<section id="including-in-tree">
+<h2>Including in-tree<a class="headerlink" href="#including-in-tree" title="Link to this heading"></a></h2>
+<p>If you want to include Ports of Call in a project in-tree, you can
+easily just include the two header files. Alternatively, our <code class="docutils literal notranslate"><span class="pre">cmake</span></code>
+build system supports in-tree builds. Simply add the repository as a
+subdirectory in your project. <cite>ports-of-call</cite> defines the CMake target
+<code class="docutils literal notranslate"><span class="pre">ports-of-call::ports-of-call</span></code>, which sets the appropriate include paths.</p>
+<p>For in-tree builds, you can define exactly one of the preprocessor macros
+<code class="docutils literal notranslate"><span class="pre">PORTABILITY_STRATEGY_KOKKOS</span></code>, <code class="docutils literal notranslate"><span class="pre">PORTABILITY_STRATEGY_CUDA</span></code> or <code class="docutils literal notranslate"><span class="pre">PORTABILITY_STRATEGY_NONE</span></code>.
+If none are set, the default is <code class="docutils literal notranslate"><span class="pre">PORTABILITY_STRATEGY_NONE</span></code>.</p>
+<p>Note that it is the users repsonsibility to ensure that the appropriate
+portability strategy is set. Furthermore, <cite>ports-of-call</cite> does not engage in
+any dependency resolution, so the user is further required to ensure that
+the appropriate dependencies are available when building.</p>
+</section>
+<section id="cmake">
+<h2>CMake<a class="headerlink" href="#cmake" title="Link to this heading"></a></h2>
+<p>The prefered apporach for integratting into your project is is to use
+the CMake <cite>find_package</cite> pattern. If <cite>ports-of-call</cite> has been installed and
+is visible to the environment</p>
+</section>
+<section id="spack">
+<h2>Spack<a class="headerlink" href="#spack" title="Link to this heading"></a></h2>
+<p>Ports of call is available within <a class="reference external" href="https://spack.io/">Spack</a>.  If you have spack
+installed, simply call</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>spack<span class="w"> </span>install<span class="w"> </span>ports-of-call
+</pre></div>
+</div>
+<p>We also provide a spackage for Ports of Call within the
+the source repository. To use it, call:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>spack<span class="w"> </span>repo<span class="w"> </span>add<span class="w"> </span>ports-of-call/spack-repo
+spack<span class="w"> </span>install<span class="w"> </span>ports-of-call
+</pre></div>
+</div>
+<p>The spack repo supports one variant, <code class="docutils literal notranslate"><span class="pre">+doc</span></code>, which adds tooling for
+building the docs.</p>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="../index.html" class="btn btn-neutral float-left" title="Ports of Call: Utilities for Performance Portability" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="using.html" class="btn btn-neutral float-right" title="Using Ports of Call" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2021-2022, Triad National Security.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  
+<div class="rst-versions" data-toggle="rst-versions" role="note" aria-label="versions">
+  <span class="rst-current-version" data-toggle="rst-current-version">
+    <span class="fa fa-book"> Other Versions</span>
+    v: v1.7.0
+    <span class="fa fa-caret-down"></span>
+  </span>
+  <div class="rst-other-versions">
+    <dl>
+      <dt>Tags</dt>
+      <dd><a href="../../v1.0.0/src/building.html">v1.0.0</a></dd>
+      <dd><a href="../../v1.1.0/src/building.html">v1.1.0</a></dd>
+      <dd><a href="../../v1.2.0/src/building.html">v1.2.0</a></dd>
+      <dd><a href="../../v1.3.0/src/building.html">v1.3.0</a></dd>
+      <dd><a href="../../v1.4.0/src/building.html">v1.4.0</a></dd>
+      <dd><a href="../../v1.4.1/src/building.html">v1.4.1</a></dd>
+      <dd><a href="../../v1.4.2/src/building.html">v1.4.2</a></dd>
+      <dd><a href="../../v1.5.1/src/building.html">v1.5.1</a></dd>
+      <dd><a href="../../v1.5.2/src/building.html">v1.5.2</a></dd>
+      <dd><a href="../../v1.6.0/src/building.html">v1.6.0</a></dd>
+      <dd><a href="building.html">v1.7.0</a></dd>
+      <dd><a href="../../v1.7.1/src/building.html">v1.7.1</a></dd>
+      <dd><a href="../../v2.0.0/src/building.html">v2.0.0</a></dd>
+      <dd><a href="../../v2.0.1/src/building.html">v2.0.1</a></dd>
+    </dl>
+    <dl>
+      <dt>Branches</dt>
+      <dd><a href="../../main/src/building.html">main</a></dd>
+      <dd><a href="../../bkk_span/src/building.html">bkk_span</a></dd>
+      <dd><a href="../../fortran/src/building.html">fortran</a></dd>
+      <dd><a href="../../jmm/formatting-automation/src/building.html">jmm/formatting-automation</a></dd>
+      <dd><a href="../../jmm/portable-class-lambda/src/building.html">jmm/portable-class-lambda</a></dd>
+      <dd><a href="../../jmm/portable-variant/src/building.html">jmm/portable-variant</a></dd>
+      <dd><a href="../../mauneyc/templated_md/src/building.html">mauneyc/templated_md</a></dd>
+    </dl>
+  </div>
+</div><script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>
