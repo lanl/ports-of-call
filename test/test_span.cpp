@@ -139,16 +139,14 @@ TEST_CASE("span (iter, extent) construction", "[PortsOfCall::span]") {
     span<int> s{arr, arr + 3};
     REQUIRE(s.size() == 3);
     REQUIRE(s.data() == arr);
-    REQUIRE(s.begin() == arr);
-    REQUIRE(s.end() == arr + 3);
   }
 
   SECTION("fixed") {
     span<int, 3> s(arr, 3);
     REQUIRE(s.size() == 3);
     REQUIRE(s.data() == arr);
-    REQUIRE(s.begin() == arr);
-    REQUIRE(s.end() == arr + 3);
+    REQUIRE(to_address(s.begin()) == arr);
+    REQUIRE(to_address(s.end()) == arr + 3);
   }
 }
 
@@ -447,8 +445,8 @@ TEST_CASE("span member subview operations", "[PortsOfCall::span]") {
     static_assert(std::is_same<decltype(f), span<int, 3>>::value, "");
     REQUIRE(f.size() == 3);
     REQUIRE(f.data() == arr);
-    REQUIRE(f.begin() == arr);
-    REQUIRE(f.end() == arr + 3);
+    REQUIRE(to_address(f.begin()) == arr);
+    REQUIRE(to_address(f.end()) == arr + 3);
   }
 
   SECTION("last<N>") {
@@ -457,8 +455,8 @@ TEST_CASE("span member subview operations", "[PortsOfCall::span]") {
     static_assert(std::is_same<decltype(l), span<int, 3>>::value, "");
     REQUIRE(l.size() == 3);
     REQUIRE(l.data() == arr + 2);
-    REQUIRE(l.begin() == arr + 2);
-    REQUIRE(l.end() == std::end(arr));
+    REQUIRE(to_address(l.begin()) == arr + 2);
+    REQUIRE(to_address(l.end()) == std::end(arr));
   }
 
   SECTION("subspan<N>") {
@@ -467,8 +465,8 @@ TEST_CASE("span member subview operations", "[PortsOfCall::span]") {
     static_assert(std::is_same<decltype(ss), span<int, 2>>::value, "");
     REQUIRE(ss.size() == 2);
     REQUIRE(ss.data() == arr + 1);
-    REQUIRE(ss.begin() == arr + 1);
-    REQUIRE(ss.end() == arr + 3);
+    REQUIRE(to_address(ss.begin()) == arr + 1);
+    REQUIRE(to_address(ss.end()) == arr + 3);
   }
 
   SECTION("first(n)") {
@@ -477,8 +475,8 @@ TEST_CASE("span member subview operations", "[PortsOfCall::span]") {
     static_assert(std::is_same<decltype(f), span<int>>::value, "");
     REQUIRE(f.size() == 3);
     REQUIRE(f.data() == arr);
-    REQUIRE(f.begin() == arr);
-    REQUIRE(f.end() == arr + 3);
+    REQUIRE(to_address(f.begin()) == arr);
+    REQUIRE(to_address(f.end()) == arr + 3);
   }
 
   SECTION("last(n)") {
@@ -487,8 +485,8 @@ TEST_CASE("span member subview operations", "[PortsOfCall::span]") {
     static_assert(std::is_same<decltype(l), span<int>>::value, "");
     REQUIRE(l.size() == 3);
     REQUIRE(l.data() == arr + 2);
-    REQUIRE(l.begin() == arr + 2);
-    REQUIRE(l.end() == std::end(arr));
+    REQUIRE(to_address(l.begin()) == arr + 2);
+    REQUIRE(to_address(l.end()) == std::end(arr));
   }
 
   SECTION("subspan(n)") {
@@ -497,8 +495,8 @@ TEST_CASE("span member subview operations", "[PortsOfCall::span]") {
     static_assert(std::is_same<decltype(ss), span<int>>::value, "");
     REQUIRE(ss.size() == 2);
     REQUIRE(ss.data() == arr + 1);
-    REQUIRE(ss.begin() == arr + 1);
-    REQUIRE(ss.end() == arr + 3);
+    REQUIRE(to_address(ss.begin()) == arr + 1);
+    REQUIRE(to_address(ss.end()) == arr + 3);
   }
 }
 

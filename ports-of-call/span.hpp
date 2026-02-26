@@ -21,11 +21,13 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
+#include <iterator>
 #include <type_traits>
 
 #include "robust_utils.hpp"
 
 #if defined(__cpp_lib_span) // do we already have std::span?
+#define PORTS_OF_CALL_USES_STD_SPAN
 
 #include <span>
 namespace PortsOfCall::span {
@@ -35,6 +37,9 @@ using std::span;
 } // namespace PortsOfCall::span
 
 #else
+#ifdef PORTS_OF_CALL_USES_STD_SPAN
+#undef PORTS_OF_CALL_USES_STD_SPAN
+#endif
 
 #define span_REQUIRES(...) typename std::enable_if<((__VA_ARGS__)), int>::type = 0
 
@@ -154,6 +159,134 @@ struct is_complete<T, decltype(sizeof(T))> : std::true_type {};
 
 } // namespace detail
 
+template <class T>
+constexpr T *to_address(T *p) noexcept {
+  static_assert(!std::is_function_v<T>);
+  return p;
+}
+
+// convert a "fancy pointer" (e.g. iterator) to a raw pointer. taken from
+// https://en.cppreference.com/w/cpp/memory/to_address.html
+template <class T>
+constexpr auto to_address(const T &p) noexcept {
+  return to_address(p.operator->());
+}
+
+// quick implementation of contiguous_iterator:
+// https://en.cppreference.com/w/cpp/iterator/contiguous_iterator.html
+// `contiguous_iterator` is a super-set of every pointer to complete types
+// (that is, it's an over-engineered raw pointer)
+template <class T>
+class contiguous_iterator {
+  using interator_category = std::random_access_iterator_tag;
+  using value_type = typename std::remove_cv<T>::type;
+  using difference_type = std::ptrdiff_t;
+  using pointer = T *;
+  using reference = T &;
+
+  // Contiguous iterators must return a non-proxy reference
+  static_assert(std::is_reference<reference>::value,
+                "Reference must be an lvalue reference");
+
+ private:
+  pointer ptr;
+
+ public:
+  constexpr contiguous_iterator() : ptr(nullptr) {}
+  explicit constexpr contiguous_iterator(pointer p) : ptr(p) {}
+  template <class U>
+  constexpr contiguous_iterator(const contiguous_iterator<U> &u) : ptr(u.ptr) {}
+  template <class U>
+  constexpr contiguous_iterator &operator=(const contiguous_iterator<U> &u) {
+    if (this != &u) ptr = u.ptr;
+    return *this;
+  }
+
+  constexpr reference operator*() const { return *ptr; }
+  constexpr pointer operator->() const { return ptr; }
+
+  // inc/dec
+  constexpr contiguous_iterator &operator++() {
+    ++ptr;
+    return *this;
+  }
+  constexpr contiguous_iterator operator++(int) {
+    auto tmp = *this;
+    ++ptr;
+    return tmp;
+  }
+  constexpr contiguous_iterator &operator--() {
+    --ptr;
+    return *this;
+  }
+  constexpr contiguous_iterator operator--(int) {
+    auto tmp = *this;
+    ++ptr;
+    return tmp;
+  }
+  constexpr contiguous_iterator &operator+=(difference_type n) {
+    ptr += n;
+    return *this;
+  }
+  constexpr contiguous_iterator &operator-=(difference_type n) {
+    ptr -= n;
+    return *this;
+  }
+  constexpr reference operator[](difference_type n) const { return *(ptr + n); }
+
+  // comp
+  constexpr bool operator==(const contiguous_iterator &other) const {
+    return ptr == other.ptr;
+  }
+  constexpr bool operator!=(const contiguous_iterator &other) const {
+    return ptr != other.ptr;
+  }
+  constexpr bool operator<(const contiguous_iterator &other) const {
+    return ptr < other.ptr;
+  }
+  constexpr bool operator>(const contiguous_iterator &other) const {
+    return ptr > other.ptr;
+  }
+  constexpr bool operator<=(const contiguous_iterator &other) const {
+    return ptr <= other.ptr;
+  }
+  constexpr bool operator>=(const contiguous_iterator &other) const {
+    return ptr >= other.ptr;
+  }
+
+  friend constexpr contiguous_iterator operator+(contiguous_iterator it,
+                                                 difference_type n) {
+    return contiguous_iterator(it.ptr + n);
+  }
+  friend constexpr contiguous_iterator operator+(difference_type n,
+                                                 contiguous_iterator it) {
+    return contiguous_iterator(it.ptr + n);
+  }
+  friend constexpr difference_type operator-(const contiguous_iterator &a,
+                                             const contiguous_iterator &b) {
+    return a.ptr - b.ptr;
+  }
+  friend constexpr contiguous_iterator operator-(contiguous_iterator it,
+                                                 difference_type n) {
+    return contiguous_iterator(it.ptr - n);
+  }
+};
+
+} // namespace PortsOfCall::span
+
+// specialization for stl
+namespace std {
+template <class T>
+struct iterator_traits<PortsOfCall::span::contiguous_iterator<T>> {
+  using interator_category = std::random_access_iterator_tag;
+  using value_type = typename std::remove_cv<T>::type;
+  using difference_type = std::ptrdiff_t;
+  using pointer = T *;
+  using reference = T &;
+};
+} // namespace std
+
+namespace PortsOfCall::span {
 template <class ElementType, std::size_t Extent>
 class span {
   static_assert(std::is_object<ElementType>::value,
@@ -177,7 +310,8 @@ class span {
   using const_pointer = const element_type *;
   using reference = element_type &;
   using const_reference = const element_type &;
-  using iterator = pointer;
+  //  using iterator = pointer;
+  using iterator = contiguous_iterator<element_type>;
   using reverse_iterator = std::reverse_iterator<iterator>;
 
   static constexpr size_type extent = Extent;
@@ -359,9 +493,9 @@ class span {
   // --[span.element_access]
 
   // [span.iterators]--
-  constexpr iterator begin() const noexcept { return data(); }
+  constexpr iterator begin() const noexcept { return iterator(data()); }
 
-  constexpr iterator end() const noexcept { return data() + size(); }
+  constexpr iterator end() const noexcept { return iterator(data()) + size(); }
 
   constexpr reverse_iterator rbegin() const noexcept { return reverse_iterator(end()); }
 

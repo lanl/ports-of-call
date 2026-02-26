@@ -54,6 +54,8 @@ if (PORTS_OF_CALL_TEST_PORTABILITY_STRATEGY STREQUAL "Kokkos")
 elseif (PORTS_OF_CALL_TEST_PORTABILITY_STRATEGY STREQUAL "Cuda")
   message(FATAL_ERROR "Cuda tests not yet fully supported")
   target_compile_definitions(portsofcall_iface INTERFACE PORTABILITY_STRATEGY_CUDA)
+else()
+  target_compile_definitions(portsofcall_iface INTERFACE PORTABILITY_STRATEGY_NONE)
 endif()
 
 if(NOT PORTS_OF_CALL_SILENCE_WARNINGS)
