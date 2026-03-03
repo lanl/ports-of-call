@@ -140,9 +140,6 @@ config_summary_header("Ports-of-Call" "ports-of-call" 48)
 
 config_summary_block("CMake Options")
 config_summary_variable("CMAKE_BUILD_TYPE")
-config_summary_variable("CMAKE_C_COMPILER") # Does PoC use C or only C++?
-config_summary_variable("CMAKE_C_COMPILER_VERSION")
-config_summary_variable("CMAKE_C_FLAGS")
 config_summary_variable("CMAKE_CXX_COMPILER")
 config_summary_variable("CMAKE_CXX_COMPILER_VERSION")
 config_summary_variable("CMAKE_CXX_FLAGS")
