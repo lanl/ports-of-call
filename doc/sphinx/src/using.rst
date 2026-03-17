@@ -250,6 +250,17 @@ is a simple ``constexpr`` implementation of ``std::accumulate`` from the STL.
 Ports-of-Call also provides a ``constexpr`` implementation of ``std::plus``
 (which is the default operator for ``accumulate``).
 
+The function
+
+.. code-block:: cpp
+  PORTABLE_FUNCTION expm1(float x)
+
+and 
+.. code-block:: cpp
+  PORTABLE_FUNCTION expm1(double x)
+
+compute $\exp(x) - 1$
+
 macros_arrays.hpp
 ^^^^^^^^^^^^^^^^^^^
 
