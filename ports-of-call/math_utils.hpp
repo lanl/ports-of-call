@@ -15,6 +15,11 @@
 #ifndef PORTS_OF_CALL_MATH_UTILS_HPP_
 #define PORTS_OF_CALL_MATH_UTILS_HPP_
 
+
+#ifdef PORTABILITY_STRATEGY_KOKKOS
+#include <Kokkos_Core.hpp>
+#endif
+
 #include <cmath>
 #include <limits>
 #include <ports-of-call/portability.hpp>
@@ -86,6 +91,36 @@ PORTABLE_FUNCTION constexpr Value accumulate(IterB begin, IterE end, Value accum
   }
   return accum;
 }
+
+// expm1
+
+
+
+
+
+PORTABLE_INLINE_FUNCTION
+float expm1(float x) {
+#ifdef PORTABILITY_STRATEGY_KOKKOS
+  return Kokkos::expm1(x);
+#elif defined(PORTABILITY_STRATEGY_CUDA)
+  return ::expm1f(x);
+#else
+  return std::expm1(x);
+#endif
+}
+
+PORTABLE_INLINE_FUNCTION
+double expm1(double x) {
+#ifdef PORTABILITY_STRATEGY_KOKKOS
+  return Kokkos::expm1(x);
+#elif defined(_WITH_CUDA_)
+  return expm1(x);
+#else
+  return std::expm1(x);
+#endif
+}
+
+
 
 } // namespace Math
 } // namespace PortsOfCall
