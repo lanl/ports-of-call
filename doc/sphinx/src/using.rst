@@ -253,11 +253,11 @@ Ports-of-Call also provides a ``constexpr`` implementation of ``std::plus``
 The function
 
 .. code-block:: cpp
-  PORTABLE_FUNCTION expm1(float x)
+  PORTABLE_FORCEINLINE_FUNCTION float expm1(float x)
 
 and 
 .. code-block:: cpp
-  PORTABLE_FUNCTION expm1(double x)
+  PORTABLE_FORCEINLINE_FUNCTION double expm1(double x)
 
 compute :math:`\exp(x) - 1`
 
