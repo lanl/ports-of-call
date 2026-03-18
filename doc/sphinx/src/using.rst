@@ -259,7 +259,7 @@ and
 .. code-block:: cpp
   PORTABLE_FUNCTION expm1(double x)
 
-compute $\exp(x) - 1$
+compute :math:`\exp(x) - 1`
 
 macros_arrays.hpp
 ^^^^^^^^^^^^^^^^^^^
