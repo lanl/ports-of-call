@@ -405,3 +405,27 @@ not be thrown on device.
 
 .. _`mpark variant`:  https://github.com/mpark/variant
 .. _`variant`: https://en.cppreference.com/w/cpp/utility/variant.html
+
+
+portable_memory.hpp
+^^^^^^^^^^^^^^^^^^^
+
+``PortsOfCall::SlabArenaPool`` is a portable memory pool capable of fast allocations on host or device memory.
+The pool works by allocating "slabs" of memory that start at a user-specified size but then grow at a fixed factor as 
+more memory is requested. 
+During an allocation call, the requested number of bytes are rounded up to the nearest fixed-block size (which are arranged in powers of 2). 
+If there is a free and already allocated block of that size, a valid pointer is returned. 
+If there is not a free block, then a new one is carved out of the remaining space in the current slab and a valid pointer is returned.
+Finally, if the allocation request would exceed the remaining space in the slab, a new slab is created with a size slightly larger than the last slab, and then a new block is created from that slab, and a valid pointer is returned.
+When the pointer is freed, the block that backed that allocation request is added to the list of available blocks.
+The time for allocation and freeing is thus O(1), so long as a new slab is not needed.
+Note that, because new slabs are added, the size of the pool can grow throughout the lifetime of the program.
+Each allocation also contains a small header that contains some information including a sentinal value that is checked for correctness.
+
+``PortsOfCall::PoolAllocator`` is a ``std::allocator`` compatible allocator that interfaces with the memory pool. 
+After initializing the memory pool, host codes should use the ``PoolAllocator`` to allocate and free memory from the pool.
+``PoolAllocator`` should only be used on host.
+
+``PortsOfCall::BumpAllocator`` is a simple, portable bump allocator that can be used either on host or on device from within a kernel.
+The memory backing ``BumpAllocator`` should have been allocated before entering a kernel and passed to the ``BumpAllocator`` constructor as a pointer.
+When used on device, unmanaged Views can be created by requesting allocations from the ``BumpAllocator``.
