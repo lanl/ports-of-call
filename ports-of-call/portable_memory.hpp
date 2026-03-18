@@ -281,7 +281,7 @@ private:
     Header* h = reinterpret_cast<Header*>(static_cast<std::byte*>(p) - sizeof(Header));
     assert(h != nullptr);
     assert(h->sentinel == sentinel);
-    assert(h->idx = idx);
+    assert(h->idx == idx);
 
     return p;
   }
