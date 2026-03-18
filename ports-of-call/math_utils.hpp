@@ -98,23 +98,23 @@ PORTABLE_FUNCTION constexpr Value accumulate(IterB begin, IterE end, Value accum
 
 
 
-PORTABLE_FORCEINLINE_FUNCTION constexpr float expm1(float x) {
+PORTABLE_FORCEINLINE_FUNCTION float expm1(float x) {
 #ifdef PORTABILITY_STRATEGY_KOKKOS
   return Kokkos::expm1(x);
-#elif defined(PORTABILITY_STRATEGY_CUDA)
-  return ::expm1f(x);
-#else
+#elif defined(PORTABILITY_STRATEGY_NONE)
   return std::expm1(x);
+#else
+  return expm1f(x);
 #endif
 }
 
-PORTABLE_FORCEINLINE_FUNCTION constexpr double expm1(double x) {
+PORTABLE_FORCEINLINE_FUNCTION double expm1(double x) {
 #ifdef PORTABILITY_STRATEGY_KOKKOS
   return Kokkos::expm1(x);
-#elif defined(_WITH_CUDA_)
-  return expm1(x);
-#else
+#elif defined(PORTABILITY_STRATEGY_NONE)
   return std::expm1(x);
+#else
+  return expm1(x);
 #endif
 }
 
