@@ -270,7 +270,7 @@ class bad_variant_access : public std::exception {
 };
 
 [[noreturn]] V_GPU_FUNCTION inline void throw_bad_variant_access() {
-#if defined(__HIP_DEVICE_COMPILE__) ||                                                 \
+#if defined(__HIP_DEVICE_COMPILE__) ||                                                   \
     (defined(__clang__) && defined(__CUDA__) && defined(__CUDA_ARCH__))
   __assert_fail(nullptr, nullptr, 0, nullptr);
   PORTABLE_BUILTIN_UNREACHABLE;
