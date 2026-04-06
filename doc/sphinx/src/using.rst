@@ -21,8 +21,7 @@ To include Ports of Call in your project, simply include the directory
 5. ``_WITH_KOKKOS_``: Defined if Kokkos is enabled.
 6. ``_WITH_CUDA_``: Defined when Cuda is enabled
 7. ``Real``: a typedef to double (default) or float (if you define ``SINGLE_PRECISION_ENABLED``)
-8. ``PORTABLE_MALLOC()``, ``PORTABLE_FREE()``: A wrapper for kokkos_malloc or cudaMalloc, or raw malloc and equivalent free.
-9. ``PORTABLE_FENCE()``: A wrapper for ``kokkos::fence`` or ``cudaDeviceSynchronize()``
+8. ``PORTABLE_FENCE()``: A wrapper for ``kokkos::fence`` or ``cudaDeviceSynchronize()``
 
 At compile time, you define
 ``PORTABILITY_STRATEGY_{KOKKOS,CUDA,NONE}`` (if you don't define it,
@@ -36,8 +35,22 @@ portability.hpp
 ^^^^^^^^^^^^^^^^
 
 ``portability.hpp`` provides the above-mentioned macros for decorating
-functions. Also provides loop abstractions that can be leveraged by a
-code. These loop abstractions are of the form:
+functions. It also provides several additional abstractions:
+
+.. cpp:function:: PortsOfCall::portableMalloc(Exec e, std::size_t size_bytes)
+
+and
+
+.. cpp:function:: template<typename T> PortsOfCall::portableFree(Exec e, T *ptr)
+
+allocate and free memory respectively, where the enum ``Exec`` may be
+either ``PortsOfCall::Exec::Host`` or
+``PortsOfCall::Exec::Device``. The ``Exec`` argument is
+optional. These are also the backend for macros ``PORTABLE_MALLOC``
+and ``PORTABLE_FREE``.
+
+``portability.hpp`` also provides loop abstractions that can be
+leveraged by a code. These loop abstractions are of the form:
 
 .. cpp:function:: template <PortsOfCall::Exec E = PortsOfCall::Exec::Device, typename Function> void portableFor(const char *name, int start, int stop, Function function)
 
@@ -52,12 +65,8 @@ functor that takes one index, e.g., an index in an array. For example:
   });
 
 The optional template parameter ``E`` selects the execution space to
-launch on. The default is ``PortsOfCall::Exec::Device``, which preserves
-the historical behavior. Under Kokkos, ``PortsOfCall::Exec::Device``
-maps to ``Kokkos::DefaultExecutionSpace`` and ``PortsOfCall::Exec::Host``
-maps to ``Kokkos::DefaultHostExecutionSpace``.
-
-For example, to force a loop onto the host execution space:
+launch on and is defined above as the same enum. For example, to force
+a loop onto the host execution space:
 
 .. code-block:: cpp
 
