@@ -18,6 +18,8 @@
 
 // This file was generated in part with generative AI
 
+#include <cstdlib>
+
 #include <string>
 #include <string_view>
 #include <type_traits>
@@ -53,9 +55,6 @@
 #define PORTABLE_FORCEINLINE_FUNCTION KOKKOS_FORCEINLINE_FUNCTION
 #define PORTABLE_LAMBDA KOKKOS_LAMBDA
 #define _WITH_KOKKOS_
-// The following is a malloc on default memory space
-#define PORTABLE_MALLOC(size) Kokkos::kokkos_malloc<>(size)
-#define PORTABLE_FREE(ptr) Kokkos::kokkos_free<>(ptr)
 // Do we want to include additional terms here (for memory spaces, etc.)?
 #define PORTABLE_FENCE(...) Kokkos::fence(__VA_ARGS__)
 #else
@@ -67,12 +66,6 @@
 #define PORTABLE_INLINE_FUNCTION __host__ __device__ inline
 #define PORTABLE_FORCEINLINE_FUNCTION __host__ __device__ POC_ALWAYS_INLINE
 #define PORTABLE_LAMBDA [=] __host__ __device__
-void *PORTABLE_MALLOC(size_t size) {
-  void *devPtr = nullptr;
-  cudaError_t e = cudaMalloc(&devPtr, size);
-  return devPtr;
-}
-void PORTABLE_FREE(void *ptr) { cudaError_t e = cudaFree(ptr); }
 #define PORTABLE_FENCE(...) cudaDeviceSynchronize()
 #define _WITH_CUDA_
 // It is worth noting here that we will not define
@@ -83,11 +76,11 @@ void PORTABLE_FREE(void *ptr) { cudaError_t e = cudaFree(ptr); }
 #define PORTABLE_INLINE_FUNCTION inline
 #define PORTABLE_FORCEINLINE_FUNCTION POC_ALWAYS_INLINE
 #define PORTABLE_LAMBDA [=]
-#define PORTABLE_MALLOC(size) malloc(size)
-#define PORTABLE_FREE(ptr) free(ptr)
 #define PORTABLE_FENCE(...)
 #endif
 #endif
+#define PORTABLE_MALLOC(...) PortsOfCall::portableMalloc(__VA_ARGS__)
+#define PORTABLE_FREE(...) PortsOfCall::portableFree(__VA_ARGS__)
 
 #ifndef SINGLE_PRECISION_ENABLED
 #define SINGLE_PRECISION_ENABLED 0
@@ -151,6 +144,60 @@ PORTABLE_INLINE_FUNCTION void snprintf(char *target, std::size_t size,
 #endif // __HIPCC__
   return;
 }
+
+template <Exec E>
+inline auto portableMalloc(std::size_t size_bytes) {
+  void *ret;
+#ifdef PORTABILITY_STRATEGY_KOKKOS
+  ret = Kokkos::kokkos_malloc<typename ExecSpace<E>::type::memory_space>(size_bytes);
+#elif defined(PORTABILITY_STRATEGY_CUDA)
+  if constexpr (space == Exec::Device) {
+    cudaError_t e = cudaMalloc(&ret, size_bytes);
+  } else {
+    ret = malloc(size_bytes);
+  }
+#else  // PORTABILITY_STRATEGY_NONE
+  ret = std::malloc(size_bytes);
+#endif // PORTABILITY STRATEGY
+  return ret;
+}
+inline auto portableMalloc(std::size_t size_bytes) {
+  return portableMalloc<Exec::Device>(size_bytes);
+}
+inline auto portableMalloc(Exec e, std::size_t size_bytes) {
+  if (e == Exec::Device) {
+    return portableMalloc<Exec::Device>(size_bytes);
+  } else { // if (e == Exec::Host) {
+    return portableMalloc<Exec::Host>(size_bytes);
+  }
+}
+
+template <Exec E, typename T>
+void portableFree(T *p) {
+#ifdef PORTABILITY_STRATEGY_KOKKOS
+  Kokkos::kokkos_free<typename ExecSpace<E>::type::memory_space>(p);
+#elif defined(PORTABILITY_STRATEGY_CUDA)
+  if constexpr (space == Exec::Device) {
+    cudaError_t e = cudaFree(p);
+  } else {
+    std::free(p);
+  }
+#else  // PORTABILITY_STRATEGY_NONE
+  std::free(p);
+#endif // PORTABILITY STRATEGY
+}
+template <typename T>
+void portableFree(T *p) {
+  portableFree<Exec::Device>(p);
+}
+template <typename T>
+void portableFree(Exec e, T *p) {
+  if (e == Exec::Device) {
+    portableFree<Exec::Device>(p);
+  } else { // Exec::Host
+    portableFree<Exec::Host>(p);
+  }
+}
 } // namespace PortsOfCall
 
 template <typename T>
@@ -161,7 +208,7 @@ void portableCopyToDevice(T *const to, T const *const from, size_t const size_by
   using HS = Kokkos::HostSpace;
   Kokkos::View<const T *, HS, UM> from_v(from, length);
   Kokkos::View<T *, UM> to_v(to, length);
-  deep_copy(to_v, from_v);
+  Kokkos::deep_copy(to_v, from_v);
 #elif defined(PORTABILITY_STRATEGY_CUDA)
   cudaMemcpy(to, from, size_bytes, cudaMemcpyHostToDevice);
 #else
@@ -180,7 +227,7 @@ void portableCopyToHost(T *const to, T const *const from, size_t const size_byte
   using HS = Kokkos::HostSpace;
   Kokkos::View<const T *, UM> from_v(from, length);
   Kokkos::View<T *, HS, UM> to_v(to, length);
-  deep_copy(to_v, from_v);
+  Kokkos::deep_copy(to_v, from_v);
 #elif defined(PORTABILITY_STRATEGY_CUDA)
   cudaMemcpy(to, from, size_bytes, cudaMemcpyDeviceToHost);
 #else
@@ -190,9 +237,19 @@ void portableCopyToHost(T *const to, T const *const from, size_t const size_byte
 #endif
   return;
 }
+template <typename T>
+void portableCopy(PortsOfCall::Exec e, T *const to, T const *const from,
+                  size_t const size_bytes) {
+  if (e == PortsOfCall::Exec::Device) {
+    portableCopyToDevice(to, from, size_bytes);
+  } else { // host
+    portableCopyToHost(to, from, size_bytes);
+  }
+}
 
 template <PortsOfCall::Exec E = PortsOfCall::Exec::Device, typename Function>
-void portableFor([[maybe_unused]] const char *name, int start, int stop, Function function) {
+void portableFor([[maybe_unused]] const char *name, int start, int stop,
+                 Function function) {
 #ifdef PORTABILITY_STRATEGY_KOKKOS
   using policy = Kokkos::RangePolicy<typename PortsOfCall::ExecSpace<E>::type>;
   Kokkos::parallel_for(name, policy(start, stop), function);
