@@ -18,3 +18,5 @@ detail.  Why is this change required?  What problem does it solve?-->
 - [ ] Install test passes.
 - [ ] Docs build.
 - [ ] If preparing for a new release, update the version in cmake.
+- [ ] If ML was used, make sure to add a disclaimer at the top of a file indicating ML was used to assist in generating the file.
+- [ ] If Agentic AI was used, have the AI generate a "proposed changes" markdown file and store it in the `plan_histories` folder, with a filename the same as the MR number.
