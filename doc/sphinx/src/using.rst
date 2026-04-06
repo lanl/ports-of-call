@@ -39,7 +39,7 @@ portability.hpp
 functions. Also provides loop abstractions that can be leveraged by a
 code. These loop abstractions are of the form:
 
-.. cpp:function:: void portableFor(const char *name, int start, int stop, Function Function)
+.. cpp:function:: template <PortsOfCall::Exec E = PortsOfCall::Exec::Device, typename Function> void portableFor(const char *name, int start, int stop, Function function)
 
 where ``Function`` is a template parameter and should be set to a
 functor that takes one index, e.g., an index in an array. For example:
@@ -51,12 +51,27 @@ functor that takes one index, e.g., an index in an array. For example:
       printf("hello from thread %d\n", i);
   });
 
+The optional template parameter ``E`` selects the execution space to
+launch on. The default is ``PortsOfCall::Exec::Device``, which preserves
+the historical behavior. Under Kokkos, ``PortsOfCall::Exec::Device``
+maps to ``Kokkos::DefaultExecutionSpace`` and ``PortsOfCall::Exec::Host``
+maps to ``Kokkos::DefaultHostExecutionSpace``.
+
+For example, to force a loop onto the host execution space:
+
+.. code-block:: cpp
+
+  portableFor<PortsOfCall::Exec::Host>("ExampleHost", 0, 5,
+    PORTABLE_LAMBDA(int i) {
+      printf("hello from host thread %d\n", i);
+  });
+
 ``start`` is inclusive, ``stop`` is exclusive. Up to five-dimensional
 ``portableFor`` loops are available. For example:
 
 .. code-block:: cpp
 
-  template <typename Function>
+  template <PortsOfCall::Exec E = PortsOfCall::Exec::Device, typename Function>
   void portableFor(const char *name, int startb, int stopb, int starta, int stopa,
     int startz, int stopz, int starty, int stopy, int startx,
     int stopx, Function function) {
@@ -66,7 +81,7 @@ limited. The syntax is:
 
 .. code-block::
 
-  template <typename Function, typename T>
+  template <PortsOfCall::Exec E = PortsOfCall::Exec::Device, typename Function, typename T>
   void portableReduce(const char *name, int starta, int stopa, int startz,
     int stopz, int starty, int stopy, int startx, int stopx,
     Function function, T &reduced) {
@@ -75,6 +90,24 @@ where ``Function`` now takes as many indices are required and
 ``reduced`` as arguments. Note that a ``portableReduce()`` is blocking (i.e. a
 device synchronization step is performed) while `portableFor()` may not be,
 possibly requiring a ``PORTABLE_FENCE`` to avoid any race conditions.
+
+As with ``portableFor``, the optional ``E`` template parameter can be
+used to select host or device execution explicitly. For example:
+
+.. code-block:: cpp
+
+  int sum = 0;
+  portableReduce<PortsOfCall::Exec::Host>(
+    "HostReduce", 0, 5,
+    PORTABLE_LAMBDA(int i, int &local_sum) {
+      local_sum += i;
+    }, sum);
+
+When selecting ``PortsOfCall::Exec::Host``, the lambda or functor and
+the memory it touches must be valid on host. When selecting
+``PortsOfCall::Exec::Device``, device-accessible storage should be used,
+for example memory returned by ``PORTABLE_MALLOC()`` under device
+backends.
 
 Also provided are host to device and device to host memory transfers of the form:
 
