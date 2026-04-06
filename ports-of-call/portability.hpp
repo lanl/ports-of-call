@@ -16,6 +16,8 @@
 // permit others to do so.
 // ========================================================================================
 
+// This file was generated in part with generative AI
+
 #include <string>
 #include <string_view>
 #include <type_traits>

@@ -449,3 +449,7 @@ not be thrown on device.
 
 .. _`mpark variant`:  https://github.com/mpark/variant
 .. _`variant`: https://en.cppreference.com/w/cpp/utility/variant.html
+
+.. note::
+
+  This file was generated in part with generative AI.

@@ -11,6 +11,8 @@
 // copies to the public, perform publicly and display publicly, and to
 // permit others to do so.
 
+// This file was generated in part with generative AI
+
 #include <ports-of-call/portability.hpp>
 #include <ports-of-call/portable_arrays.hpp>
 #include <vector>
