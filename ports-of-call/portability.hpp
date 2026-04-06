@@ -344,6 +344,15 @@ void portableFor([[maybe_unused]] const char *name, int startb, int stopb, int s
 #endif
 }
 
+template <typename... Args>
+void portableFor([[maybe_unused]] const char *name, PortsOfCall::Exec e, Args &&...args) {
+  if (e == PortsOfCall::Exec::Device) {
+    portableFor<PortsOfCall::Exec::Device>(name, std::forward<Args>(args)...);
+  } else { // host
+    portableFor<PortsOfCall::Exec::Host>(name, std::forward<Args>(args)...);
+  }
+}
+
 template <PortsOfCall::Exec E = PortsOfCall::Exec::Device, typename Function, typename T>
 void portableReduce([[maybe_unused]] const char *name, int start, int stop,
                     Function function, T &reduced) {
@@ -440,6 +449,16 @@ void portableReduce([[maybe_unused]] const char *name, int startb, int stopb, in
     }
   }
 #endif
+}
+
+template <typename... Args>
+void portableReduce([[maybe_unused]] const char *name, PortsOfCall::Exec e,
+                    Args &&...args) {
+  if (e == PortsOfCall::Exec::Device) {
+    portableReduce<PortsOfCall::Exec::Device>(name, std::forward<Args>(args)...);
+  } else { // host
+    portableReduce<PortsOfCall::Exec::Host>(name, std::forward<Args>(args)...);
+  }
 }
 
 #endif // PORTABILITY_HPP

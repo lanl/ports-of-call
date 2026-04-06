@@ -198,12 +198,13 @@ TEST_CASE("portableFor and portableReduce accept an explicit execution-space sel
     std::vector<int> values(N, 0);
     int *const values_ptr = values.data();
 
-    portableFor<PortsOfCall::Exec::Host>(
-        "fill on host", 0, N, PORTABLE_LAMBDA(const int i) { values_ptr[i] = i + 1; });
+    portableFor(
+        "fill on host", PortsOfCall::Exec::Host, 0, N,
+        PORTABLE_LAMBDA(const int i) { values_ptr[i] = i + 1; });
 
     int sum = 0;
-    portableReduce<PortsOfCall::Exec::Host>(
-        "sum on host", 0, N,
+    portableReduce(
+        "sum on host", PortsOfCall::Exec::Host, 0, N,
         PORTABLE_LAMBDA(const int i, int &local) { local += values_ptr[i]; }, sum);
 
     REQUIRE(sum == (N * (N + 1)) / 2);
