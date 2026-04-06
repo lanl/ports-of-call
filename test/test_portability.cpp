@@ -186,3 +186,54 @@ TEST_CASE("PORTABLE_FENCE properly synchronizes execution after a portableFor",
   // free device memory
   PORTABLE_FREE(d_data);
 }
+
+TEST_CASE("portableFor and portableReduce accept an explicit execution-space selector",
+          "[portableFor][portableReduce]") {
+  constexpr int N = 32;
+  constexpr size_t Nb = N * sizeof(int);
+
+  SECTION("Host execution selector uses host-accessible storage") {
+    std::vector<int> values(N, 0);
+    int *const values_ptr = values.data();
+
+    portableFor<PortsOfCall::Exec::Host>(
+        "fill on host", 0, N, PORTABLE_LAMBDA(const int i) { values_ptr[i] = i + 1; });
+
+    int sum = 0;
+    portableReduce<PortsOfCall::Exec::Host>(
+        "sum on host", 0, N,
+        PORTABLE_LAMBDA(const int i, int &local) { local += values_ptr[i]; }, sum);
+
+    REQUIRE(sum == (N * (N + 1)) / 2);
+  }
+
+  SECTION("Device execution selector uses portable storage") {
+    int *const values_ptr = static_cast<int *>(PORTABLE_MALLOC(Nb));
+
+    portableFor<PortsOfCall::Exec::Device>(
+        "fill on device", 0, N, PORTABLE_LAMBDA(const int i) { values_ptr[i] = i + 1; });
+
+    PORTABLE_FENCE("Fence after explicit device fill");
+
+    int sum = 0;
+    portableReduce<PortsOfCall::Exec::Device>(
+        "sum on device", 0, N,
+        PORTABLE_LAMBDA(const int i, int &local) { local += values_ptr[i]; }, sum);
+
+    REQUIRE(sum == (N * (N + 1)) / 2);
+
+    portableFor<PortsOfCall::Exec::Device>(
+        "adjust on device", 0, N, PORTABLE_LAMBDA(const int i) { values_ptr[i] += 1; });
+
+    PORTABLE_FENCE("Fence after explicit device adjust");
+
+    sum = 0;
+    portableReduce<PortsOfCall::Exec::Device>(
+        "sum adjusted device values", 0, N,
+        PORTABLE_LAMBDA(const int i, int &local) { local += values_ptr[i]; }, sum);
+
+    REQUIRE(sum == (N * (N + 1)) / 2 + N);
+
+    PORTABLE_FREE(values_ptr);
+  }
+}
