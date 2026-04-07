@@ -37,40 +37,42 @@ portability.hpp
 ``portability.hpp`` provides the above-mentioned macros for decorating
 functions. It also provides several additional abstractions:
 
-.. cpp:function:: PortsOfCall::portableMalloc(Exec e, std::size_t size_bytes)
+.. cpp:function:: template <typename E>PortsOfCall::portableMalloc(E e, std::size_t size_bytes)
 
 and
 
-.. cpp:function:: template<typename T> PortsOfCall::portableFree(Exec e, T *ptr)
+.. cpp:function:: template<typename E, typename T> PortsOfCall::portableFree(E e, T *ptr)
 
-allocate and free memory respectively, where the enum ``Exec`` may be
-either ``PortsOfCall::Exec::Host`` or
-``PortsOfCall::Exec::Device``. The ``Exec`` argument is
-optional. These are also the backend for macros ``PORTABLE_MALLOC``
+allocate and free memory respectively, where the type ``E`` determines
+the space where data is allocated and may be
+``PortsOfCall::Exec::Host``, ``PortsOfCall::Exec::Device``, or any
+type allowed by your backend. The selection of memory/execution space
+is optional, and defaults to ``PortsOfCall::Exec::Device``.
+
+These are also the backend for macros ``PORTABLE_MALLOC``
 and ``PORTABLE_FREE``.
 
 ``portability.hpp`` also provides loop abstractions that can be
 leveraged by a code. These loop abstractions are of the form:
 
-.. cpp:function:: template <PortsOfCall::Exec E = PortsOfCall::Exec::Device, typename Function> void portableFor(const char *name, int start, int stop, Function function)
+.. cpp:function:: template <typename E, typename Function> void portableFor(const char *name, E e, int start, int stop, Function function)
 
 where ``Function`` is a template parameter and should be set to a
 functor that takes one index, e.g., an index in an array. For example:
 
 .. code-block:: cpp
 
-  portableFor("Example", 0, 5,
+  portableFor("Example host", PortsOfCall::Exec::Host, 0, 5,
     PORTABLE_LAMBDA(int i) {
       printf("hello from thread %d\n", i);
   });
 
 The optional template parameter ``E`` selects the execution space to
-launch on and is defined above as the same enum. For example, to force
-a loop onto the host execution space:
+launch on and is defined above. It is optional, and defaults to device:
 
 .. code-block:: cpp
 
-  portableFor<PortsOfCall::Exec::Host>("ExampleHost", 0, 5,
+  portableFor("Example device", 0, 5,
     PORTABLE_LAMBDA(int i) {
       printf("hello from host thread %d\n", i);
   });
@@ -80,8 +82,8 @@ a loop onto the host execution space:
 
 .. code-block:: cpp
 
-  template <PortsOfCall::Exec E = PortsOfCall::Exec::Device, typename Function>
-  void portableFor(const char *name, int startb, int stopb, int starta, int stopa,
+  template <typename E, typename Function>
+  void portableFor(const char *name, E e, int startb, int stopb, int starta, int stopa,
     int startz, int stopz, int starty, int stopy, int startx,
     int stopx, Function function) {
 
@@ -90,8 +92,8 @@ limited. The syntax is:
 
 .. code-block::
 
-  template <PortsOfCall::Exec E = PortsOfCall::Exec::Device, typename Function, typename T>
-  void portableReduce(const char *name, int starta, int stopa, int startz,
+  template <typename E, typename Function, typename T>
+  void portableReduce(const char *name, E e, int starta, int stopa, int startz,
     int stopz, int starty, int stopy, int startx, int stopx,
     Function function, T &reduced) {
 
@@ -100,14 +102,14 @@ where ``Function`` now takes as many indices are required and
 device synchronization step is performed) while `portableFor()` may not be,
 possibly requiring a ``PORTABLE_FENCE`` to avoid any race conditions.
 
-As with ``portableFor``, the optional ``E`` template parameter can be
+As with ``portableFor``, the optional ``E`` argument can be
 used to select host or device execution explicitly. For example:
 
 .. code-block:: cpp
 
   int sum = 0;
-  portableReduce<PortsOfCall::Exec::Host>(
-    "HostReduce", 0, 5,
+  portableReduce(
+    "HostReduce", PortsOfCall::Exec::Host(), 0, 5,
     PORTABLE_LAMBDA(int i, int &local_sum) {
       local_sum += i;
     }, sum);
