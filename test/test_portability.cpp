@@ -1,4 +1,4 @@
-// © (or copyright) 2019-2024. Triad National Security, LLC. All rights
+// © (or copyright) 2019-2026. Triad National Security, LLC. All rights
 // reserved.  This program was produced under U.S. Government contract
 // 89233218CNA000001 for Los Alamos National Laboratory (LANL), which is
 // operated by Triad National Security, LLC for the U.S.  Department of
@@ -10,6 +10,8 @@
 // in this material to reproduce, prepare derivative works, distribute
 // copies to the public, perform publicly and display publicly, and to
 // permit others to do so.
+
+// This file was generated in part with generative AI
 
 #include <ports-of-call/portability.hpp>
 #include <ports-of-call/portable_arrays.hpp>
@@ -185,4 +187,58 @@ TEST_CASE("PORTABLE_FENCE properly synchronizes execution after a portableFor",
 
   // free device memory
   PORTABLE_FREE(d_data);
+}
+
+TEST_CASE("portableFor and portableReduce accept an explicit execution-space selector",
+          "[portableFor][portableReduce]") {
+  constexpr int N = 32;
+  constexpr size_t Nb = N * sizeof(int);
+
+  SECTION("Host execution selector uses host-accessible storage") {
+    std::vector<int> values(N, 0);
+    int *const values_ptr = values.data();
+
+    portableFor(
+        "fill on host", PortsOfCall::Exec::Host(), 0, N,
+        PORTABLE_LAMBDA(const int i) { values_ptr[i] = i + 1; });
+
+    int sum = 0;
+    portableReduce(
+        "sum on host", PortsOfCall::Exec::Host(), 0, N,
+        PORTABLE_LAMBDA(const int i, int &local) { local += values_ptr[i]; }, sum);
+
+    REQUIRE(sum == (N * (N + 1)) / 2);
+  }
+
+  SECTION("Device execution selector uses portable storage") {
+    int *const values_ptr = static_cast<int *>(PORTABLE_MALLOC(Nb));
+
+    portableFor(
+        "fill on device", PortsOfCall::Exec::Device(), 0, N,
+        PORTABLE_LAMBDA(const int i) { values_ptr[i] = i + 1; });
+
+    PORTABLE_FENCE("Fence after explicit device fill");
+
+    int sum = 0;
+    portableReduce(
+        "sum on device", PortsOfCall::Exec::Device(), 0, N,
+        PORTABLE_LAMBDA(const int i, int &local) { local += values_ptr[i]; }, sum);
+
+    REQUIRE(sum == (N * (N + 1)) / 2);
+
+    portableFor(
+        "adjust on device", PortsOfCall::Exec::Device(), 0, N,
+        PORTABLE_LAMBDA(const int i) { values_ptr[i] += 1; });
+
+    PORTABLE_FENCE("Fence after explicit device adjust");
+
+    sum = 0;
+    portableReduce(
+        "sum adjusted device values", PortsOfCall::Exec::Device(), 0, N,
+        PORTABLE_LAMBDA(const int i, int &local) { local += values_ptr[i]; }, sum);
+
+    REQUIRE(sum == (N * (N + 1)) / 2 + N);
+
+    PORTABLE_FREE(values_ptr);
+  }
 }

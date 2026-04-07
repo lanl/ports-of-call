@@ -21,8 +21,7 @@ To include Ports of Call in your project, simply include the directory
 5. ``_WITH_KOKKOS_``: Defined if Kokkos is enabled.
 6. ``_WITH_CUDA_``: Defined when Cuda is enabled
 7. ``Real``: a typedef to double (default) or float (if you define ``SINGLE_PRECISION_ENABLED``)
-8. ``PORTABLE_MALLOC()``, ``PORTABLE_FREE()``: A wrapper for kokkos_malloc or cudaMalloc, or raw malloc and equivalent free.
-9. ``PORTABLE_FENCE()``: A wrapper for ``kokkos::fence`` or ``cudaDeviceSynchronize()``
+8. ``PORTABLE_FENCE()``: A wrapper for ``kokkos::fence`` or ``cudaDeviceSynchronize()``
 
 At compile time, you define
 ``PORTABILITY_STRATEGY_{KOKKOS,CUDA,NONE}`` (if you don't define it,
@@ -36,19 +35,46 @@ portability.hpp
 ^^^^^^^^^^^^^^^^
 
 ``portability.hpp`` provides the above-mentioned macros for decorating
-functions. Also provides loop abstractions that can be leveraged by a
-code. These loop abstractions are of the form:
+functions. It also provides several additional abstractions:
 
-.. cpp:function:: void portableFor(const char *name, int start, int stop, Function Function)
+.. cpp:function:: template <typename E>PortsOfCall::portableMalloc(E e, std::size_t size_bytes)
+
+and
+
+.. cpp:function:: template<typename E, typename T> PortsOfCall::portableFree(E e, T *ptr)
+
+allocate and free memory respectively, where the type ``E`` determines
+the space where data is allocated and may be
+``PortsOfCall::Exec::Host``, ``PortsOfCall::Exec::Device``, or any
+type allowed by your backend. The selection of memory/execution space
+is optional, and defaults to ``PortsOfCall::Exec::Device``.
+
+These are also the backend for macros ``PORTABLE_MALLOC``
+and ``PORTABLE_FREE``.
+
+``portability.hpp`` also provides loop abstractions that can be
+leveraged by a code. These loop abstractions are of the form:
+
+.. cpp:function:: template <typename E, typename Function> void portableFor(const char *name, E e, int start, int stop, Function function)
 
 where ``Function`` is a template parameter and should be set to a
 functor that takes one index, e.g., an index in an array. For example:
 
 .. code-block:: cpp
 
-  portableFor("Example", 0, 5,
+  portableFor("Example host", PortsOfCall::Exec::Host, 0, 5,
     PORTABLE_LAMBDA(int i) {
       printf("hello from thread %d\n", i);
+  });
+
+The optional template parameter ``E`` selects the execution space to
+launch on and is defined above. It is optional, and defaults to device:
+
+.. code-block:: cpp
+
+  portableFor("Example device", 0, 5,
+    PORTABLE_LAMBDA(int i) {
+      printf("hello from host thread %d\n", i);
   });
 
 ``start`` is inclusive, ``stop`` is exclusive. Up to five-dimensional
@@ -56,8 +82,8 @@ functor that takes one index, e.g., an index in an array. For example:
 
 .. code-block:: cpp
 
-  template <typename Function>
-  void portableFor(const char *name, int startb, int stopb, int starta, int stopa,
+  template <typename E, typename Function>
+  void portableFor(const char *name, E e, int startb, int stopb, int starta, int stopa,
     int startz, int stopz, int starty, int stopy, int startx,
     int stopx, Function function) {
 
@@ -66,8 +92,8 @@ limited. The syntax is:
 
 .. code-block::
 
-  template <typename Function, typename T>
-  void portableReduce(const char *name, int starta, int stopa, int startz,
+  template <typename E, typename Function, typename T>
+  void portableReduce(const char *name, E e, int starta, int stopa, int startz,
     int stopz, int starty, int stopy, int startx, int stopx,
     Function function, T &reduced) {
 
@@ -75,6 +101,24 @@ where ``Function`` now takes as many indices are required and
 ``reduced`` as arguments. Note that a ``portableReduce()`` is blocking (i.e. a
 device synchronization step is performed) while `portableFor()` may not be,
 possibly requiring a ``PORTABLE_FENCE`` to avoid any race conditions.
+
+As with ``portableFor``, the optional ``E`` argument can be
+used to select host or device execution explicitly. For example:
+
+.. code-block:: cpp
+
+  int sum = 0;
+  portableReduce(
+    "HostReduce", PortsOfCall::Exec::Host(), 0, 5,
+    PORTABLE_LAMBDA(int i, int &local_sum) {
+      local_sum += i;
+    }, sum);
+
+When selecting ``PortsOfCall::Exec::Host``, the lambda or functor and
+the memory it touches must be valid on host. When selecting
+``PortsOfCall::Exec::Device``, device-accessible storage should be used,
+for example memory returned by ``PORTABLE_MALLOC()`` under device
+backends.
 
 Also provided are host to device and device to host memory transfers of the form:
 
@@ -416,3 +460,7 @@ not be thrown on device.
 
 .. _`mpark variant`:  https://github.com/mpark/variant
 .. _`variant`: https://en.cppreference.com/w/cpp/utility/variant.html
+
+.. note::
+
+  This file was generated in part with generative AI.
