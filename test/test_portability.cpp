@@ -199,12 +199,12 @@ TEST_CASE("portableFor and portableReduce accept an explicit execution-space sel
     int *const values_ptr = values.data();
 
     portableFor(
-        "fill on host", PortsOfCall::Exec::Host, 0, N,
+        "fill on host", PortsOfCall::Exec::Host(), 0, N,
         PORTABLE_LAMBDA(const int i) { values_ptr[i] = i + 1; });
 
     int sum = 0;
     portableReduce(
-        "sum on host", PortsOfCall::Exec::Host, 0, N,
+        "sum on host", PortsOfCall::Exec::Host(), 0, N,
         PORTABLE_LAMBDA(const int i, int &local) { local += values_ptr[i]; }, sum);
 
     REQUIRE(sum == (N * (N + 1)) / 2);

@@ -79,7 +79,7 @@
 #define PORTABLE_FENCE(...)
 #endif
 #endif
-#define PORTABLE_MALLOC(...) PortsOfCall::portableMalloc(__VA_ARGS__)
+#define PORTABLE_MALLOC(...) PortsOfCall::portableMalloc<>(__VA_ARGS__)
 #define PORTABLE_FREE(...) PortsOfCall::portableFree(__VA_ARGS__)
 
 #ifndef SINGLE_PRECISION_ENABLED
@@ -105,22 +105,15 @@ constexpr bool EXECUTION_IS_HOST{false};
 constexpr bool EXECUTION_IS_HOST{true};
 #endif
 
-enum class Exec { Device, Host };
-
+namespace Exec {
 #ifdef PORTABILITY_STRATEGY_KOKKOS
-template <Exec E>
-struct ExecSpace;
-
-template <>
-struct ExecSpace<Exec::Device> {
-  using type = Kokkos::DefaultExecutionSpace;
-};
-
-template <>
-struct ExecSpace<Exec::Host> {
-  using type = Kokkos::DefaultHostExecutionSpace;
-};
-#endif
+using Device = Kokkos::DefaultExecutionSpace;
+using Host = Kokkos::DefaultHostExecutionSpace;
+#else  // otherwise
+struct Device {};
+struct Host {};
+#endif // PORTABILITY_STRATEGY_KOKKOS
+} // namespace Exec
 
 // portable printf
 #define PORTABLE_MAX_NUM_CHAR (2048)
@@ -145,39 +138,35 @@ PORTABLE_INLINE_FUNCTION void snprintf(char *target, std::size_t size,
   return;
 }
 
-template <Exec E>
-inline auto portableMalloc(std::size_t size_bytes) {
+template <typename E>
+inline auto portableMalloc([[maybe_unused]] E e, std::size_t size_bytes) {
   void *ret;
 #ifdef PORTABILITY_STRATEGY_KOKKOS
-  ret = Kokkos::kokkos_malloc<typename ExecSpace<E>::type::memory_space>(size_bytes);
+  ret = Kokkos::kokkos_malloc<typename E::memory_space>(size_bytes);
 #elif defined(PORTABILITY_STRATEGY_CUDA)
-  if constexpr (space == Exec::Device) {
+  if constexpr (std::is_same_v < E, Exec::Device) {
     cudaError_t e = cudaMalloc(&ret, size_bytes);
-  } else {
+  } else if constexpr (std::is_same_v < E, Exec::Host) {
     ret = malloc(size_bytes);
+  } else {
+    throw
   }
 #else  // PORTABILITY_STRATEGY_NONE
   ret = std::malloc(size_bytes);
 #endif // PORTABILITY STRATEGY
   return ret;
 }
+template <typename E = Exec::Device>
 inline auto portableMalloc(std::size_t size_bytes) {
-  return portableMalloc<Exec::Device>(size_bytes);
-}
-inline auto portableMalloc(Exec e, std::size_t size_bytes) {
-  if (e == Exec::Device) {
-    return portableMalloc<Exec::Device>(size_bytes);
-  } else { // if (e == Exec::Host) {
-    return portableMalloc<Exec::Host>(size_bytes);
-  }
+  return portableMalloc(E(), size_bytes);
 }
 
-template <Exec E, typename T>
-void portableFree(T *p) {
+template <typename E, typename T>
+void portableFree([[maybe_unused]] E e, T *p) {
 #ifdef PORTABILITY_STRATEGY_KOKKOS
-  Kokkos::kokkos_free<typename ExecSpace<E>::type::memory_space>(p);
+  Kokkos::kokkos_free<typename E::memory_space>(p);
 #elif defined(PORTABILITY_STRATEGY_CUDA)
-  if constexpr (space == Exec::Device) {
+  if constexpr (std::is_same_v<E, Device>) {
     cudaError_t e = cudaFree(p);
   } else {
     std::free(p);
@@ -188,18 +177,12 @@ void portableFree(T *p) {
 }
 template <typename T>
 void portableFree(T *p) {
-  portableFree<Exec::Device>(p);
+  portableFree(Exec::Device(), p);
 }
-template <typename T>
-void portableFree(Exec e, T *p) {
-  if (e == Exec::Device) {
-    portableFree<Exec::Device>(p);
-  } else { // Exec::Host
-    portableFree<Exec::Host>(p);
-  }
-}
+
 } // namespace PortsOfCall
 
+// TODO(JMM): Pass in exec space here later
 template <typename T>
 void portableCopyToDevice(T *const to, T const *const from, size_t const size_bytes) {
   auto const length = size_bytes / sizeof(T);
@@ -237,21 +220,12 @@ void portableCopyToHost(T *const to, T const *const from, size_t const size_byte
 #endif
   return;
 }
-template <typename T>
-void portableCopy(PortsOfCall::Exec e, T *const to, T const *const from,
-                  size_t const size_bytes) {
-  if (e == PortsOfCall::Exec::Device) {
-    portableCopyToDevice(to, from, size_bytes);
-  } else { // host
-    portableCopyToHost(to, from, size_bytes);
-  }
-}
 
-template <PortsOfCall::Exec E = PortsOfCall::Exec::Device, typename Function>
+template <typename E = PortsOfCall::Exec::Device, typename Function>
 void portableFor([[maybe_unused]] const char *name, int start, int stop,
                  Function function) {
 #ifdef PORTABILITY_STRATEGY_KOKKOS
-  using policy = Kokkos::RangePolicy<typename PortsOfCall::ExecSpace<E>::type>;
+  using policy = Kokkos::RangePolicy<E>;
   Kokkos::parallel_for(name, policy(start, stop), function);
 #else
   for (int i = start; i < stop; i++) {
@@ -260,12 +234,11 @@ void portableFor([[maybe_unused]] const char *name, int start, int stop,
 #endif
 }
 
-template <PortsOfCall::Exec E = PortsOfCall::Exec::Device, typename Function>
+template <typename E = PortsOfCall::Exec::Device, typename Function>
 void portableFor([[maybe_unused]] const char *name, int starty, int stopy, int startx,
                  int stopx, Function function) {
 #ifdef PORTABILITY_STRATEGY_KOKKOS
-  using Policy2D =
-      Kokkos::MDRangePolicy<typename PortsOfCall::ExecSpace<E>::type, Kokkos::Rank<2>>;
+  using Policy2D = Kokkos::MDRangePolicy<E, Kokkos::Rank<2>>;
   Kokkos::parallel_for(name, Policy2D({starty, startx}, {stopy, stopx}), function);
 #else
   for (int iy = starty; iy < stopy; iy++) {
@@ -276,12 +249,11 @@ void portableFor([[maybe_unused]] const char *name, int starty, int stopy, int s
 #endif
 }
 
-template <PortsOfCall::Exec E = PortsOfCall::Exec::Device, typename Function>
+template <typename E = PortsOfCall::Exec::Device, typename Function>
 void portableFor([[maybe_unused]] const char *name, int startz, int stopz, int starty,
                  int stopy, int startx, int stopx, Function function) {
 #ifdef PORTABILITY_STRATEGY_KOKKOS
-  using Policy3D =
-      Kokkos::MDRangePolicy<typename PortsOfCall::ExecSpace<E>::type, Kokkos::Rank<3>>;
+  using Policy3D = Kokkos::MDRangePolicy<E, Kokkos::Rank<3>>;
   Kokkos::parallel_for(name, Policy3D({startz, starty, startx}, {stopz, stopy, stopx}),
                        function);
 #else
@@ -295,13 +267,12 @@ void portableFor([[maybe_unused]] const char *name, int startz, int stopz, int s
 #endif
 }
 
-template <PortsOfCall::Exec E = PortsOfCall::Exec::Device, typename Function>
+template <typename E = PortsOfCall::Exec::Device, typename Function>
 void portableFor([[maybe_unused]] const char *name, int starta, int stopa, int startz,
                  int stopz, int starty, int stopy, int startx, int stopx,
                  Function function) {
 #ifdef PORTABILITY_STRATEGY_KOKKOS
-  using Policy4D =
-      Kokkos::MDRangePolicy<typename PortsOfCall::ExecSpace<E>::type, Kokkos::Rank<4>>;
+  using Policy4D = Kokkos::MDRangePolicy<E, Kokkos::Rank<4>>;
   Kokkos::parallel_for(
       name, Policy4D({starta, startz, starty, startx}, {stopa, stopz, stopy, stopx}),
       function);
@@ -318,13 +289,12 @@ void portableFor([[maybe_unused]] const char *name, int starta, int stopa, int s
 #endif
 }
 
-template <PortsOfCall::Exec E = PortsOfCall::Exec::Device, typename Function>
+template <typename E = PortsOfCall::Exec::Device, typename Function>
 void portableFor([[maybe_unused]] const char *name, int startb, int stopb, int starta,
                  int stopa, int startz, int stopz, int starty, int stopy, int startx,
                  int stopx, Function function) {
 #ifdef PORTABILITY_STRATEGY_KOKKOS
-  using Policy5D =
-      Kokkos::MDRangePolicy<typename PortsOfCall::ExecSpace<E>::type, Kokkos::Rank<5>>;
+  using Policy5D = Kokkos::MDRangePolicy<E, Kokkos::Rank<5>>;
   Kokkos::parallel_for(name,
                        Policy5D({startb, starta, startz, starty, startx},
                                 {stopb, stopa, stopz, stopy, stopx}),
@@ -344,20 +314,18 @@ void portableFor([[maybe_unused]] const char *name, int startb, int stopb, int s
 #endif
 }
 
-template <typename... Args>
-void portableFor([[maybe_unused]] const char *name, PortsOfCall::Exec e, Args &&...args) {
-  if (e == PortsOfCall::Exec::Device) {
-    portableFor<PortsOfCall::Exec::Device>(name, std::forward<Args>(args)...);
-  } else { // host
-    portableFor<PortsOfCall::Exec::Host>(name, std::forward<Args>(args)...);
-  }
+template <typename E, typename = std::enable_if_t<!std::is_arithmetic_v<E>>,
+          typename... Args>
+void portableFor([[maybe_unused]] const char *name, [[maybe_unused]] E e,
+                 Args &&...args) {
+  portableFor<E>(name, std::forward<Args>(args)...);
 }
 
-template <PortsOfCall::Exec E = PortsOfCall::Exec::Device, typename Function, typename T>
+template <typename E = PortsOfCall::Exec::Device, typename Function, typename T>
 void portableReduce([[maybe_unused]] const char *name, int start, int stop,
                     Function function, T &reduced) {
 #ifdef PORTABILITY_STRATEGY_KOKKOS
-  using Policy = Kokkos::RangePolicy<typename PortsOfCall::ExecSpace<E>::type>;
+  using Policy = Kokkos::RangePolicy<E>;
   Kokkos::parallel_reduce(name, Policy(start, stop), function, reduced);
 #else
   for (int i = start; i < stop; i++) {
@@ -366,12 +334,11 @@ void portableReduce([[maybe_unused]] const char *name, int start, int stop,
 #endif
 }
 
-template <PortsOfCall::Exec E = PortsOfCall::Exec::Device, typename Function, typename T>
+template <typename E = PortsOfCall::Exec::Device, typename Function, typename T>
 void portableReduce([[maybe_unused]] const char *name, int starty, int stopy, int startx,
                     int stopx, Function function, T &reduced) {
 #ifdef PORTABILITY_STRATEGY_KOKKOS
-  using Policy2D =
-      Kokkos::MDRangePolicy<typename PortsOfCall::ExecSpace<E>::type, Kokkos::Rank<2>>;
+  using Policy2D = Kokkos::MDRangePolicy<E, Kokkos::Rank<2>>;
   Kokkos::parallel_reduce(name, Policy2D({starty, startx}, {stopy, stopx}), function,
                           reduced);
 #else
@@ -383,12 +350,11 @@ void portableReduce([[maybe_unused]] const char *name, int starty, int stopy, in
 #endif
 }
 
-template <PortsOfCall::Exec E = PortsOfCall::Exec::Device, typename Function, typename T>
+template <typename E = PortsOfCall::Exec::Device, typename Function, typename T>
 void portableReduce([[maybe_unused]] const char *name, int startz, int stopz, int starty,
                     int stopy, int startx, int stopx, Function function, T &reduced) {
 #ifdef PORTABILITY_STRATEGY_KOKKOS
-  using Policy3D =
-      Kokkos::MDRangePolicy<typename PortsOfCall::ExecSpace<E>::type, Kokkos::Rank<3>>;
+  using Policy3D = Kokkos::MDRangePolicy<E, Kokkos::Rank<3>>;
   Kokkos::parallel_reduce(name, Policy3D({startz, starty, startx}, {stopz, stopy, stopx}),
                           function, reduced);
 #else
@@ -402,13 +368,12 @@ void portableReduce([[maybe_unused]] const char *name, int startz, int stopz, in
 #endif
 }
 
-template <PortsOfCall::Exec E = PortsOfCall::Exec::Device, typename Function, typename T>
+template <typename E = PortsOfCall::Exec::Device, typename Function, typename T>
 void portableReduce([[maybe_unused]] const char *name, int starta, int stopa, int startz,
                     int stopz, int starty, int stopy, int startx, int stopx,
                     Function function, T &reduced) {
 #ifdef PORTABILITY_STRATEGY_KOKKOS
-  using Policy4D =
-      Kokkos::MDRangePolicy<typename PortsOfCall::ExecSpace<E>::type, Kokkos::Rank<4>>;
+  using Policy4D = Kokkos::MDRangePolicy<E, Kokkos::Rank<4>>;
   Kokkos::parallel_reduce(
       name, Policy4D({starta, startz, starty, startx}, {stopa, stopz, stopy, stopx}),
       function, reduced);
@@ -425,13 +390,12 @@ void portableReduce([[maybe_unused]] const char *name, int starta, int stopa, in
 #endif
 }
 
-template <PortsOfCall::Exec E = PortsOfCall::Exec::Device, typename Function, typename T>
+template <typename E = PortsOfCall::Exec::Device, typename Function, typename T>
 void portableReduce([[maybe_unused]] const char *name, int startb, int stopb, int starta,
                     int stopa, int startz, int stopz, int starty, int stopy, int startx,
                     int stopx, Function function, T &reduced) {
 #ifdef PORTABILITY_STRATEGY_KOKKOS
-  using Policy5D =
-      Kokkos::MDRangePolicy<typename PortsOfCall::ExecSpace<E>::type, Kokkos::Rank<5>>;
+  using Policy5D = Kokkos::MDRangePolicy<E, Kokkos::Rank<5>>;
   Kokkos::parallel_reduce(name,
                           Policy5D({startb, starta, startz, starty, startx},
                                    {stopb, stopa, stopz, stopy, stopx}),
@@ -451,14 +415,11 @@ void portableReduce([[maybe_unused]] const char *name, int startb, int stopb, in
 #endif
 }
 
-template <typename... Args>
-void portableReduce([[maybe_unused]] const char *name, PortsOfCall::Exec e,
+template <typename E, typename = std::enable_if_t<!std::is_arithmetic_v<E>>,
+          typename... Args>
+void portableReduce([[maybe_unused]] const char *name, [[maybe_unused]] E e,
                     Args &&...args) {
-  if (e == PortsOfCall::Exec::Device) {
-    portableReduce<PortsOfCall::Exec::Device>(name, std::forward<Args>(args)...);
-  } else { // host
-    portableReduce<PortsOfCall::Exec::Host>(name, std::forward<Args>(args)...);
-  }
+  portableReduce<E>(name, std::forward<Args>(args)...);
 }
 
 #endif // PORTABILITY_HPP
