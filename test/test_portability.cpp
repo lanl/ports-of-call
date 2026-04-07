@@ -213,26 +213,28 @@ TEST_CASE("portableFor and portableReduce accept an explicit execution-space sel
   SECTION("Device execution selector uses portable storage") {
     int *const values_ptr = static_cast<int *>(PORTABLE_MALLOC(Nb));
 
-    portableFor<PortsOfCall::Exec::Device>(
-        "fill on device", 0, N, PORTABLE_LAMBDA(const int i) { values_ptr[i] = i + 1; });
+    portableFor(
+        "fill on device", PortsOfCall::Exec::Device(), 0, N,
+        PORTABLE_LAMBDA(const int i) { values_ptr[i] = i + 1; });
 
     PORTABLE_FENCE("Fence after explicit device fill");
 
     int sum = 0;
-    portableReduce<PortsOfCall::Exec::Device>(
-        "sum on device", 0, N,
+    portableReduce(
+        "sum on device", PortsOfCall::Exec::Device(), 0, N,
         PORTABLE_LAMBDA(const int i, int &local) { local += values_ptr[i]; }, sum);
 
     REQUIRE(sum == (N * (N + 1)) / 2);
 
-    portableFor<PortsOfCall::Exec::Device>(
-        "adjust on device", 0, N, PORTABLE_LAMBDA(const int i) { values_ptr[i] += 1; });
+    portableFor(
+        "adjust on device", PortsOfCall::Exec::Device(), 0, N,
+        PORTABLE_LAMBDA(const int i) { values_ptr[i] += 1; });
 
     PORTABLE_FENCE("Fence after explicit device adjust");
 
     sum = 0;
-    portableReduce<PortsOfCall::Exec::Device>(
-        "sum adjusted device values", 0, N,
+    portableReduce(
+        "sum adjusted device values", PortsOfCall::Exec::Device(), 0, N,
         PORTABLE_LAMBDA(const int i, int &local) { local += values_ptr[i]; }, sum);
 
     REQUIRE(sum == (N * (N + 1)) / 2 + N);
