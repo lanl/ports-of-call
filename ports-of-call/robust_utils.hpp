@@ -18,6 +18,7 @@
 #define PORTS_OF_CALL_ROBUST_UTILS_HPP_
 
 #include <algorithm>
+#include <concepts>
 #include <cmath>
 #include <limits>
 #include <ports-of-call/portability.hpp>
