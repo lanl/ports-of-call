@@ -418,9 +418,10 @@ C++20.
 span.hpp
 
 
-``PortsOfCall::span`` is implements ``std::span`` for C++17 (uses native implmentation in C++20) 
-as a view over contiguous data. ``span`` may have compile-time static extent, or a dynamic extent. 
-``span`` provides iterator functions similar to containers.
+``PortsOfCall::span`` is implements ``std::span`` for C++17 as a view
+over contiguous data. ``span`` may have compile-time static extent, or
+a dynamic extent.  ``span`` provides iterator functions similar to
+containers.
 
 .. code-block:: cpp
   
@@ -434,7 +435,10 @@ as a view over contiguous data. ``span`` may have compile-time static extent, or
 ``span::subspan`` returns a span over a subrange. Element access uses ``span::operator[]``. For 
 more information, see `C++ reference page <https://en.cppreference.com/w/cpp/container/span>`_.
 
+.. note::
 
+  Note that now that we rely on C++20, ``PortsOfCall::span`` may
+  eventually be replaced by ``std::span``.
 
 static_vector.hpp
 ^^^^^^^^^^^^^^^^^
