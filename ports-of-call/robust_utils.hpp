@@ -43,7 +43,7 @@ template <typename T = Real>
   requires(std::integral<T> || std::floating_point<T>)
 PORTABLE_FORCEINLINE_FUNCTION constexpr bool is_normal_or_zero(const T val,
                                                                const T factor = T{1}) {
-  return (val == T{0}) || is_normal(val, factor);
+  return  is_normal(val, factor) || (val == T{0});
 }
 
 template <typename T = Real>
