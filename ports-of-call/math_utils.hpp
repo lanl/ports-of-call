@@ -12,6 +12,8 @@
 // publicly and display publicly, and to permit others to do so.
 //------------------------------------------------------------------------------
 
+// This file created with the assistance of generative AI
+
 #ifndef PORTS_OF_CALL_MATH_UTILS_HPP_
 #define PORTS_OF_CALL_MATH_UTILS_HPP_
 

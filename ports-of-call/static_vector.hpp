@@ -9,6 +9,8 @@
 #include <iterator>
 #include <type_traits>
 
+// This file created with the assistance of generative AI
+
 namespace PortsOfCall {
 
 /* The static_vector has an interface modeled after std::vector, but it uses
