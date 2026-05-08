@@ -25,9 +25,8 @@
 namespace PortsOfCall {
 namespace Robust {
 
-template <typename T = Real,
-          typename std::enable_if<std::is_integral<T>::value ||
-                                  std::is_floating_point<T>::value>::type * = nullptr>
+template <typename T = Real>
+  requires(std::integral<T> || std::floating_point<T>)
 PORTABLE_FORCEINLINE_FUNCTION constexpr bool is_normal(const T val,
                                                        const T factor = T{1}) {
   if constexpr (std::is_integral_v<T>) {
@@ -39,9 +38,8 @@ PORTABLE_FORCEINLINE_FUNCTION constexpr bool is_normal(const T val,
   }
 }
 
-template <typename T = Real,
-          typename std::enable_if<std::is_integral<T>::value ||
-                                  std::is_floating_point<T>::value>::type * = nullptr>
+template <typename T = Real>
+  requires(std::integral<T> || std::floating_point<T>)
 PORTABLE_FORCEINLINE_FUNCTION constexpr bool is_normal_or_zero(const T val,
                                                                const T factor = T{1}) {
   return (val == T{0}) || is_normal(val, factor);

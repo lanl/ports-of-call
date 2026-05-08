@@ -182,6 +182,8 @@ robust_utils.hpp
 robustness, especially around floating point numbers. The available
 functionality is contained in the namespace ``PortsOfCall::Robust`` and includes:
 
+* ``constexpr bool is_normal(const T val, const T )`` returns whether or not a number is normal
+* ``constexpr bool is_normal_or_zero(const T val)`` returns whether or not a float is normal or zero
 * ``constexpr auto SMALL<T>()`` returns a small number of type ``T``.
 * ``constexpr auto EPS<T>()`` returns a value of type ``T`` close to machine epsilon.
 * ``constexpr auto min_exp_arg<T>()`` returns the smallest safe value of type ``T`` to pass into an exponent.
