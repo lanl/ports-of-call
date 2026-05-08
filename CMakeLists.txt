@@ -65,7 +65,7 @@ target_include_directories(
   ${POCLIB} INTERFACE $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
                       $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
 
-target_compile_features(${POCLIB} INTERFACE cxx_std_17)
+target_compile_features(${POCLIB} INTERFACE cxx_std_20)
 
 # TESTING
 # ----------------------------------------
