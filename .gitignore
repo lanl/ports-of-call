@@ -20,3 +20,4 @@ simple_test_cuda
 __pycache__
 .aider*
 extern
+.codex
