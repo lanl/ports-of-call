@@ -68,8 +68,8 @@ TEST_CASE("power", "[math_utils]") {
 TEST_CASE("expm1", "[math_utils]") {
   using Catch::Matchers::WithinRel;
   using PortsOfCall::Math::expm1;
-  CHECK_THAT(expm1(0.0),WithinRel(0.0));
+  CHECK_THAT(expm1(0.0), WithinRel(0.0));
   double reference = std::exp(1.0) - 1.0;
-  CHECK_THAT(expm1(1.0),WithinRel(reference));
-  CHECK_THAT(expm1(1e-15)/1e-15,WithinRel(1.0));
+  CHECK_THAT(expm1(1.0), WithinRel(reference));
+  CHECK_THAT(expm1(1e-15) / 1e-15, WithinRel(1.0));
 }

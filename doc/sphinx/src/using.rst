@@ -182,6 +182,8 @@ robust_utils.hpp
 robustness, especially around floating point numbers. The available
 functionality is contained in the namespace ``PortsOfCall::Robust`` and includes:
 
+* ``constexpr bool is_normal(const T val, const T )`` returns whether or not a number is normal
+* ``constexpr bool is_normal_or_zero(const T val)`` returns whether or not a float is normal or zero
 * ``constexpr auto SMALL<T>()`` returns a small number of type ``T``.
 * ``constexpr auto EPS<T>()`` returns a value of type ``T`` close to machine epsilon.
 * ``constexpr auto min_exp_arg<T>()`` returns the smallest safe value of type ``T`` to pass into an exponent.
@@ -416,9 +418,10 @@ C++20.
 span.hpp
 
 
-``PortsOfCall::span`` is implements ``std::span`` for C++17 (uses native implmentation in C++20) 
-as a view over contiguous data. ``span`` may have compile-time static extent, or a dynamic extent. 
-``span`` provides iterator functions similar to containers.
+``PortsOfCall::span`` is implements ``std::span`` for C++17 as a view
+over contiguous data. ``span`` may have compile-time static extent, or
+a dynamic extent.  ``span`` provides iterator functions similar to
+containers.
 
 .. code-block:: cpp
   
@@ -432,7 +435,10 @@ as a view over contiguous data. ``span`` may have compile-time static extent, or
 ``span::subspan`` returns a span over a subrange. Element access uses ``span::operator[]``. For 
 more information, see `C++ reference page <https://en.cppreference.com/w/cpp/container/span>`_.
 
+.. note::
 
+  Note that now that we rely on C++20, ``PortsOfCall::span`` may
+  eventually be replaced by ``std::span``.
 
 static_vector.hpp
 ^^^^^^^^^^^^^^^^^

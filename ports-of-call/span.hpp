@@ -2,7 +2,7 @@
 #define PORTS_OF_CALL_SPAN_HH_
 
 // ========================================================================================
-// © (or copyright) 2019-2024. Triad National Security, LLC. All rights
+// © (or copyright) 2019-2026. Triad National Security, LLC. All rights
 // reserved.  This program was produced under U.S. Government contract
 // 89233218CNA000001 for Los Alamos National Laboratory (LANL), which is
 // operated by Triad National Security, LLC for the U.S.  Department of
@@ -26,24 +26,12 @@
 
 #include "robust_utils.hpp"
 
-#if defined(__cpp_lib_span) // do we already have std::span?
-#define PORTS_OF_CALL_USES_STD_SPAN
-
-#include <span>
-namespace PortsOfCall::span {
-
-using std::span;
-
-} // namespace PortsOfCall::span
-
-#else
-#ifdef PORTS_OF_CALL_USES_STD_SPAN
-#undef PORTS_OF_CALL_USES_STD_SPAN
-#endif
-
 #define span_REQUIRES(...) typename std::enable_if<((__VA_ARGS__)), int>::type = 0
 
 #define span_EXPECTS(...) assert((__VA_ARGS__))
+
+// TODO(JMM): Check if C++20 span is ok on device with C++20. If it is
+// not, continue to use ports-of-call span
 
 namespace PortsOfCall::span {
 
@@ -600,5 +588,4 @@ class tuple_element<I, PortsOfCall::span::span<ElementType, Extent>> {
 
 } // end namespace std
 
-#endif // __cpp_lib_span
 #endif // PORTS_OF_CALL_SPAN_HH_
