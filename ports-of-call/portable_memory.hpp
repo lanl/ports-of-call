@@ -24,11 +24,10 @@
 #include <mutex>
 #include <new>
 #include <type_traits>
-#include <unordered_map>
 #include <utility>
 #include <vector>
 
-#include "ports-of-call/portable_errors.hpp"
+#include <ports-of-call/portable_errors.hpp>
 
 namespace PortsOfCall {
 
@@ -53,6 +52,19 @@ class SlabArenaPool {
 
   SlabArenaPool(const SlabArenaPool &) = delete;
   SlabArenaPool &operator=(const SlabArenaPool &) = delete;
+
+  void configure(std::size_t min_slab_bytes, double growth_factor) {
+    std::lock_guard<std::mutex> lock(mutex_);
+
+    if (!slabs_.empty()) {
+      throw std::runtime_error(
+          "Cannot configure SlabArenaPool after allocations have occurred");
+    }
+
+    min_slab_bytes_ = std::max(min_slab_bytes, std::size_t(64 << 10));
+    next_slab_bytes_ = min_slab_bytes_;
+    growth_factor_ = growth_factor;
+  }
 
   void *alloc_bytes(std::size_t request,
                     std::size_t alignment = alignof(std::max_align_t)) {
