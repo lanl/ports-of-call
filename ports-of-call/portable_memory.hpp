@@ -18,11 +18,13 @@
 
 #include <array>
 #include <cassert>
+#include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <limits>
 #include <mutex>
 #include <new>
+#include <stdexcept>
 #include <type_traits>
 #include <utility>
 #include <vector>
@@ -42,9 +44,8 @@ class SlabArenaPool {
   }
 
   explicit SlabArenaPool(std::size_t min_slab_bytes = 8ull << 20 /* 8 Mib */,
-                         double growth_factor = 0.25)
-      : min_slab_bytes_(std::max(min_slab_bytes, std::size_t(64 << 10))),
-        next_slab_bytes_(min_slab_bytes_), growth_factor_(growth_factor) {
+                         double growth_factor = 0.25) {
+    configure(min_slab_bytes, growth_factor);
     free_heads_.fill(nullptr);
   }
 
@@ -56,6 +57,10 @@ class SlabArenaPool {
   void configure(std::size_t min_slab_bytes, double growth_factor) {
     std::lock_guard<std::mutex> lock(mutex_);
 
+    if (!std::isfinite(growth_factor) || growth_factor < 0.0) {
+      throw std::invalid_argument(
+          "SlabArenaPool growth_factor must be finite and non-negative");
+    }
     if (!slabs_.empty()) {
       throw std::runtime_error(
           "Cannot configure SlabArenaPool after allocations have occurred");
@@ -64,6 +69,30 @@ class SlabArenaPool {
     min_slab_bytes_ = std::max(min_slab_bytes, std::size_t(64 << 10));
     next_slab_bytes_ = min_slab_bytes_;
     growth_factor_ = growth_factor;
+    // free_heads_.fill(nullptr)?
+  }
+
+  static std::size_t
+  max_allocation_bytes(std::size_t alignment = alignof(std::max_align_t)) noexcept {
+    if (!is_power_of_two(alignment)) {
+      return 0;
+    }
+
+    alignment = std::max(alignment, alignof(std::max_align_t));
+
+    const std::size_t padding = alignment - 1;
+
+    if (sizeof(Header) > std::numeric_limits<std::size_t>::max() - padding) {
+      return 0;
+    }
+
+    const std::size_t overhead = sizeof(Header) + padding;
+
+    if (overhead >= max_block_bytes()) {
+      return 0;
+    }
+
+    return max_block_bytes() - overhead;
   }
 
   void *alloc_bytes(std::size_t request,
@@ -71,17 +100,37 @@ class SlabArenaPool {
     if (request == 0) {
       request = 1;
     }
+    if (!is_power_of_two(alignment)) {
+      throw std::invalid_argument("SlabArenaPool alignment must be a power of two");
+    }
 
     alignment = std::max(alignment, alignof(std::max_align_t));
 
-    const std::size_t need = request + sizeof(Header) + (alignment - 1);
+    const std::size_t padding = alignment - 1;
+
+    std::size_t need = request;
+    if (need > std::numeric_limits<std::size_t>::max() - sizeof(Header)) {
+      throw std::bad_alloc{};
+    }
+
+    need += sizeof(Header);
+
+    if (need > std::numeric_limits<std::size_t>::max() - padding) {
+      throw std::bad_alloc{};
+    }
+
+    need += padding;
+
+    if (need > max_block_bytes()) {
+      throw std::bad_alloc{};
+    }
 
     const std::uint32_t idx = get_block_index(need);
     const std::size_t block_bytes = block_size(idx);
 
     std::lock_guard<std::mutex> lock(mutex_);
 
-    if (void *p = pop_block(idx)) {
+    if (void *p = pop_block(idx, request, alignment)) {
       return p;
     }
 
@@ -101,8 +150,10 @@ class SlabArenaPool {
 
     Header *h = reinterpret_cast<Header *>(static_cast<std::byte *>(p) - sizeof(Header));
     assert(h != nullptr);
-    assert(h->sentinel == sentinel);
-    push_block(p, h->idx);
+    assert(h->sentinel == sentinel_);
+    assert(h->idx < num_blocks);
+    assert(h->block_start != nullptr);
+    push_block(h->block_start, h->idx);
   }
 
   void release_all() {
@@ -121,6 +172,7 @@ class SlabArenaPool {
     slabs_.clear();
     current_slab_ = 0;
     free_heads_.fill(nullptr);
+    next_slab_bytes_ = min_slab_bytes_;
   }
 
   // Profiling functions for tuning slab sizes
@@ -148,7 +200,8 @@ class SlabArenaPool {
     std::uint32_t idx = 0;
     std::uint32_t reserved = 0;
     std::size_t block_bytes = 0;
-    std::uint64_t sentinel = sentinel;
+    std::byte *block_start = nullptr;
+    std::uint64_t sentinel = sentinel_;
   };
 
   struct FreeNode {
@@ -161,7 +214,7 @@ class SlabArenaPool {
     std::size_t offset = 0;
   };
 
-  static constexpr std::uint64_t sentinel = 0x656D7070726F7473ull;
+  static constexpr std::uint64_t sentinel_ = 0x656D7070726F7473ull;
 
   // Power-of-two block sizes from 16 B to 1 GiB.
   static constexpr std::uint32_t min_size = 4;
@@ -179,7 +232,6 @@ class SlabArenaPool {
   std::size_t next_slab_bytes_ = 8ull << 20;
   double growth_factor_ = 0.25;
 
- private:
   static std::size_t align_up(std::size_t x, std::size_t a) {
     return (x + (a - 1)) & ~(a - 1);
   }
@@ -187,6 +239,10 @@ class SlabArenaPool {
   static std::uintptr_t align_up_ptr(std::uintptr_t x, std::size_t a) {
     return (x + (a - 1)) & ~(std::uintptr_t(a - 1));
   }
+
+  static constexpr std::size_t max_block_bytes() { return std::size_t(1) << max_size; }
+
+  static bool is_power_of_two(std::size_t x) { return x != 0 && ((x & (x - 1)) == 0); }
 
   static std::uint32_t get_block_index(std::size_t bytes_needed) {
     std::size_t block = 16;
@@ -222,7 +278,7 @@ class SlabArenaPool {
     void *raw = PORTABLE_MALLOC(slab_bytes);
 #endif
     if (!raw) {
-      PORTABLE_ALWAYS_ABORT("Kokkos malloc failed\n");
+      throw std::bad_alloc{};
     }
 
     try {
@@ -233,7 +289,7 @@ class SlabArenaPool {
 #else
       PORTABLE_FREE(raw);
 #endif
-      PORTABLE_ALWAYS_ABORT("Could not push_back to the slabs vector?");
+      throw;
     }
     current_slab_ = slabs_.size() - 1;
 
@@ -243,12 +299,27 @@ class SlabArenaPool {
     next_slab_bytes_ = slab_bytes + bump;
   }
 
-  void *bump_slab(std::size_t block_bytes, std::size_t request, std::size_t alignment,
-                  std::uint32_t idx) {
-    Slab &slab = slabs_[current_slab_];
-    assert(slab.offset + block_bytes <= slab.bytes);
+  std::size_t get_next_slab(std::size_t slab_bytes) const noexcept {
+    if (growth_factor_ == 0.0) return slab_bytes;
+    constexpr std::size_t max_size_t = std::numeric_limits<std::size_t>::max();
+    constexpr std::size_t min_bump = std::size_t{64} << 10;
 
-    std::byte *const block_start = slab.base + slab.offset;
+    if (max_size_t - slab_bytes < min_bump) return max_size_t;
+
+    // the growth factor could be too big for size_t, so we do it in long double
+    const long double new_size = static_cast<long double>(slab_bytes) *
+                                 (1.0L + static_cast<long double>(growth_factor_));
+    if (new_size >= static_cast<long double>(max_size_t)) return max_size_t;
+
+    // make sure the next slab grows by at least 64 KiB
+    return std::max(static_cast<std::size_t>(new_size), slab_bytes + min_bump);
+  }
+
+  void *make_allocation(std::byte *block_start, std::size_t block_bytes,
+                        std::size_t request, std::size_t alignment, std::uint32_t idx) {
+    assert(block_start != nullptr);
+    assert(idx < num_blocks);
+    assert(block_bytes == block_size(idx));
 
     const std::uintptr_t raw_user =
         reinterpret_cast<std::uintptr_t>(block_start) + sizeof(Header);
@@ -260,35 +331,54 @@ class SlabArenaPool {
     const std::byte *const block_end = block_start + block_bytes;
     const std::byte *const user_end = user_ptr + request;
     assert(user_end <= block_end);
+    assert(reinterpret_cast<std::uintptr_t>(user_ptr) % alignment == 0);
 
     h->idx = idx;
     h->reserved = 0;
     h->block_bytes = block_bytes;
-    h->sentinel = sentinel;
+    h->block_start = block_start;
+    h->sentinel = sentinel_;
 
-    slab.offset += block_bytes;
     return static_cast<void *>(user_ptr);
   }
 
-  void *pop_block(std::uint32_t idx) {
+  void *bump_slab(std::size_t block_bytes, std::size_t request, std::size_t alignment,
+                  std::uint32_t idx) {
+    Slab &slab = slabs_[current_slab_];
+    assert(slab.offset + block_bytes <= slab.bytes);
+
+    std::byte *const block_start = slab.base + slab.offset;
+    slab.offset += block_bytes;
+
+    return make_allocation(block_start, block_bytes, request, alignment, idx);
+  }
+
+  void *pop_block(std::uint32_t idx, std::size_t request, std::size_t alignment) {
+    assert(idx < num_blocks);
     FreeNode *head = free_heads_[idx];
     if (!head) {
       return nullptr;
     }
 
     free_heads_[idx] = head->next;
-    void *p = static_cast<void *>(head);
 
-    Header *h = reinterpret_cast<Header *>(static_cast<std::byte *>(p) - sizeof(Header));
-    assert(h != nullptr);
-    assert(h->sentinel == sentinel);
-    assert(h->idx == idx);
+    auto *block_start = reinterpret_cast<std::byte *>(head);
 
-    return p;
+    return make_allocation(block_start, block_size(idx), request, alignment, idx);
+
+    // void *p = static_cast<void *>(head);
+
+    // Header *h = reinterpret_cast<Header *>(static_cast<std::byte *>(p) -
+    // sizeof(Header)); assert(h != nullptr); assert(h->sentinel == sentinel);
+    // assert(h->idx == idx);
+
+    // return p;
   }
 
-  void push_block(void *p, std::uint32_t idx) noexcept {
-    auto *node = static_cast<FreeNode *>(p);
+  void push_block(std::byte *block_start, std::uint32_t idx) noexcept {
+    assert(block_start != nullptr);
+    assert(idx < num_blocks);
+    auto *node = reinterpret_cast<FreeNode *>(block_start);
     node->next = free_heads_[idx];
     free_heads_[idx] = node;
   }
@@ -336,7 +426,7 @@ class PoolAllocator {
   Pool *pool() const noexcept { return pool_; }
 
   [[nodiscard]] size_type max_size() const noexcept {
-    return std::numeric_limits<size_type>::max() / sizeof(T);
+    return Pool::max_allocation_bytes(alignof(T)) / sizeof(T);
   }
 
   template <class U, class... Args>
