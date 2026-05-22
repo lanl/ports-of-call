@@ -12,6 +12,8 @@
 // publicly and display publicly, and to permit others to do so.
 //------------------------------------------------------------------------------
 
+// This file created with the assistance of generative AI
+
 #ifndef PORTS_OF_CALL_MATH_UTILS_HPP_
 #define PORTS_OF_CALL_MATH_UTILS_HPP_
 
@@ -31,10 +33,8 @@ namespace Math {
 // exponents.  For sufficiently large integer powers std::pow may be faster, but testing
 // indicates that the following implementation is significantly faster (roughly a factor
 // of two or better) up to powers of at least 100.
-template <typename BaseT, typename ExponentT,
-          typename std::enable_if<std::is_arithmetic_v<std::decay_t<BaseT>> &&
-                                  std::is_integral_v<std::decay_t<ExponentT>>>::type * =
-              nullptr>
+template <typename BaseT, typename ExponentT>
+  requires(Robust::arithmetic_like<BaseT> && Robust::integral_like<ExponentT>)
 PORTABLE_FORCEINLINE_FUNCTION constexpr auto power(BaseT base, ExponentT exponent) {
   using PowT = decltype(std::pow(base, exponent));
   if (!Robust::check_nonnegative(exponent) || exponent > ExponentT{100}) {
@@ -51,10 +51,8 @@ PORTABLE_FORCEINLINE_FUNCTION constexpr auto power(BaseT base, ExponentT exponen
 }
 // Faster implementation of std::pow() for non-negative arithmetic bases and
 // floating-point exponents
-template <typename BaseT, typename ExponentT,
-          typename std::enable_if<std::is_arithmetic_v<std::decay_t<BaseT>> &&
-                                  std::is_floating_point_v<std::decay_t<ExponentT>>>::type
-              * = nullptr>
+template <typename BaseT, typename ExponentT>
+  requires(Robust::arithmetic_like<BaseT> && Robust::floating_point_like<ExponentT>)
 PORTABLE_FORCEINLINE_FUNCTION constexpr auto power(BaseT const &base,
                                                    ExponentT const &exponent) {
   if (!Robust::check_nonnegative(base)) {
@@ -65,10 +63,8 @@ PORTABLE_FORCEINLINE_FUNCTION constexpr auto power(BaseT const &base,
                                   : std::exp(exponent * std::log(base));
 }
 // Overload for non-arithmetic bases or exponents
-template <typename BaseT, typename ExponentT,
-          typename std::enable_if<not std::is_arithmetic_v<std::decay_t<BaseT>> ||
-                                  not std::is_arithmetic_v<std::decay_t<ExponentT>>>::type
-              * = nullptr>
+template <typename BaseT, typename ExponentT>
+  requires(!Robust::arithmetic_like<BaseT> || !Robust::arithmetic_like<ExponentT>)
 PORTABLE_FORCEINLINE_FUNCTION constexpr auto power(BaseT const &base,
                                                    ExponentT const &exponent) {
   return std::pow(base, exponent);

@@ -4,9 +4,12 @@
 #include "ports-of-call/portability.hpp"
 
 #include <cassert>
+#include <concepts>
 #include <initializer_list>
 #include <iterator>
 #include <type_traits>
+
+// This file created with the assistance of generative AI
 
 namespace PortsOfCall {
 
@@ -61,8 +64,8 @@ class static_vector {
     PORTABLE_FUNCTION constexpr iterator_type(Element_ *it) : it_{it} {}
 
     // const iterator from non-const iterator
-    template <typename U = value_type,
-              std::enable_if_t<std::is_const<U>::value> * = nullptr>
+    template <typename U = value_type>
+      requires std::is_const_v<U>
     PORTABLE_FUNCTION constexpr iterator_type(iterator_type<std::remove_const_t<U>> it)
         : it_{it.it_} {}
 
@@ -71,8 +74,8 @@ class static_vector {
 
     // non-const iterator from const iterator...generally dangerous
     // (used for convinience in static_vector implementation)
-    template <typename U = value_type,
-              std::enable_if_t<not std::is_const<U>::value> * = nullptr>
+    template <typename U = value_type>
+      requires(!std::is_const_v<U>)
     PORTABLE_FUNCTION constexpr iterator_type(iterator_type<std::add_const_t<U>> it)
         : it_{const_cast<U *>(it.it_)} {}
 
@@ -155,7 +158,7 @@ class static_vector {
       return *(this->it_ + n);
     }
 
-    template <typename IntT, std::enable_if_t<std::is_integral<IntT>::value> * = nullptr>
+    template <std::integral IntT>
     PORTABLE_FUNCTION friend constexpr void advance(iterator_type &it, IntT n) {
       it += n;
     }

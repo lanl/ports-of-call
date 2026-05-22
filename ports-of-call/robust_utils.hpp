@@ -18,13 +18,28 @@
 #define PORTS_OF_CALL_ROBUST_UTILS_HPP_
 
 #include <algorithm>
-#include <concepts>
 #include <cmath>
+#include <concepts>
 #include <limits>
 #include <ports-of-call/portability.hpp>
 
 namespace PortsOfCall {
 namespace Robust {
+
+template <typename T>
+concept nonnegative_testable = requires(const T value) {
+  { value >= 0 } -> std::convertible_to<bool>;
+};
+
+template <typename T>
+concept arithmetic_like =
+    std::integral<std::decay_t<T>> || std::floating_point<std::decay_t<T>>;
+
+template <typename T>
+concept integral_like = std::integral<std::decay_t<T>>;
+
+template <typename T>
+concept floating_point_like = std::floating_point<std::decay_t<T>>;
 
 template <typename T = Real>
   requires(std::integral<T> || std::floating_point<T>)
@@ -43,7 +58,7 @@ template <typename T = Real>
   requires(std::integral<T> || std::floating_point<T>)
 PORTABLE_FORCEINLINE_FUNCTION constexpr bool is_normal_or_zero(const T val,
                                                                const T factor = T{1}) {
-  return  is_normal(val, factor) || (val == T{0});
+  return is_normal(val, factor) || (val == T{0});
 }
 
 template <typename T = Real>
@@ -83,8 +98,8 @@ PORTABLE_FORCEINLINE_FUNCTION int sgn(const T &val) {
 
 template <typename A, typename B>
 PORTABLE_FORCEINLINE_FUNCTION auto ratio(const A &a, const B &b) {
-const B mask = static_cast<B>(std::abs(b) < SMALL<B>());
-const B denom = mask * sgn(b) * SMALL<B>() + (1 - mask) * b;
+  const B mask = static_cast<B>(std::abs(b) < SMALL<B>());
+  const B denom = mask * sgn(b) * SMALL<B>() + (1 - mask) * b;
   return a / denom;
 }
 
@@ -96,13 +111,13 @@ PORTABLE_FORCEINLINE_FUNCTION T safe_arg_exp(const T &x) {
 }
 
 // type-safe check against 0
-template <typename T, std::enable_if_t<std::is_unsigned<T>::value, bool> = true>
-PORTABLE_FUNCTION constexpr bool check_nonnegative(const T) {
-  return true;
-}
-template <typename T, std::enable_if_t<!std::is_unsigned<T>::value, bool> = true>
+template <nonnegative_testable T>
 PORTABLE_FUNCTION constexpr bool check_nonnegative(const T t) {
-  return t >= 0;
+  if constexpr (std::unsigned_integral<T>) {
+    return true;
+  } else {
+    return t >= 0;
+  }
 }
 
 } // namespace Robust
