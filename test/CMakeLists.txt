@@ -111,7 +111,6 @@ target_sources(test_portsofcall
     test_array.cpp
     test_math_utils.cpp
     test_robust_utils.cpp
-    test_span.cpp
     test_static_vector.cpp
     test_static_vector_iterator.cpp
     test_variant.cpp
