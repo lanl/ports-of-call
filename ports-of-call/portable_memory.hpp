@@ -55,15 +55,35 @@ class SlabArenaPool {
  public:
   using memory_space = MemorySpace;
 
+  // Process-wide singleton pool for this memory space.
+  //
+  // The singleton is a Meyers singleton, so it is constructed lazily on first
+  // use with the default configuration (8 MiB minimum slab, 0.25 growth). To
+  // size it differently, call instance().configure(...) *before* the first
+  // allocation -- configure() throws once any slab has been allocated.
+  //
+  // Lifetime note: a function-local static is destroyed at program exit, which
+  // for Kokkos builds happens *after* Kokkos::finalize(). Freeing slabs at that
+  // point (kokkos_free) aborts. To avoid this we register a finalize hook the
+  // first time the singleton is created so its slabs are released while Kokkos
+  // is still live; release_all() is idempotent, so the eventual destructor call
+  // becomes a harmless no-op. instance() must therefore first be called while
+  // Kokkos is initialized (true for any allocation performed inside main()).
   static SlabArenaPool &instance() {
     static SlabArenaPool pool;
+#ifdef PORTABILITY_STRATEGY_KOKKOS
+    static const bool registered = []() {
+      Kokkos::push_finalize_hook([]() { instance().release_all(); });
+      return true;
+    }();
+    (void)registered;
+#endif
     return pool;
   }
 
-  explicit SlabArenaPool(std::size_t min_slab_bytes = 8ull << 20 /* 8 Mib */,
+  explicit SlabArenaPool(std::size_t min_slab_bytes = 8ull << 20 /* 8 MiB */,
                          double growth_factor = 0.25) {
     configure(min_slab_bytes, growth_factor);
-    free_heads_.fill(nullptr);
   }
 
   ~SlabArenaPool() { release_all(); }
@@ -172,7 +192,8 @@ class SlabArenaPool {
         return;
       }
 
-      if ((h->idx >= num_blocks) || (h->block_start == nullptr)) {
+      if ((h->idx >= num_blocks) || (h->block_start == nullptr) ||
+          (h->block_bytes != block_size(h->idx))) {
         PORTABLE_ALWAYS_ABORT("SlabArenaPool corrupted block metadata");
         return;
       }
@@ -181,14 +202,14 @@ class SlabArenaPool {
       h->sentinel = 0;
       push_block(block_start, idx);
     } else {
-      auto it = live_blocks_.find(p);
-      if (it == live_blocks_.end()) {
+      auto it = meta_.live_blocks.find(p);
+      if (it == meta_.live_blocks.end()) {
         PORTABLE_ALWAYS_ABORT("SlabArenaPool called with unknown pointer");
         return;
       }
       std::byte *const block_start = it->second.block_start;
       const std::uint32_t idx = it->second.idx;
-      live_blocks_.erase(it);
+      meta_.live_blocks.erase(it);
       push_block(block_start, idx);
     }
   }
@@ -196,11 +217,14 @@ class SlabArenaPool {
   void release_all() {
     std::lock_guard<std::mutex> lock(mutex_);
 
-    live_blocks_.clear();
-    for (auto &stack : free_blocks_) {
-      stack.clear();
+    if constexpr (host_accessible_) {
+      meta_.free_heads.fill(nullptr);
+    } else {
+      meta_.live_blocks.clear();
+      for (auto &stack : meta_.free_blocks) {
+        stack.clear();
+      }
     }
-    free_heads_.fill(nullptr);
 
     for (auto &slab : slabs_) {
       if (slab.base != nullptr) {
@@ -235,6 +259,157 @@ class SlabArenaPool {
   std::size_t current_slab_remaining() const {
     std::lock_guard<std::mutex> lock(mutex_);
     return remaining_in_current_slab();
+  }
+
+  // -------------------------------------------------------------------------
+  // Device scratch support
+  //
+  // A common device pattern is to reserve one equally sized, aligned "slice"
+  // of scratch per logical instance (e.g. one per team/thread) out of a single
+  // pooled allocation, then sub-allocate arrays within each slice on device.
+  // ScratchLayout describes the sub-arrays, reserve_device_scratch() carves the
+  // pooled block, and DeviceBump does the device-side sub-allocation.
+  // -------------------------------------------------------------------------
+
+  // Describes a set of sub-arrays packed into one per-instance slice. Offsets
+  // are computed host-side and are stable for the life of the layout.
+  struct ScratchLayout {
+    struct Field {
+      std::size_t offset = 0;
+      std::size_t bytes = 0;
+      std::size_t align = 0;
+    };
+
+    // Append an array of n T's, returning its field id. Offset is aligned to
+    // alignof(T) within the slice.
+    template <class T>
+    int add_array(std::size_t n) {
+      const std::size_t a = alignof(T);
+      cursor_ = align_up(cursor_, a);
+      const std::size_t off = cursor_;
+      const std::size_t sz = n * sizeof(T);
+      fields_.push_back(Field{off, sz, a});
+      cursor_ = off + sz;
+      max_align_ = std::max(max_align_, a);
+      return static_cast<int>(fields_.size() - 1);
+    }
+
+    const Field &operator[](int id) const {
+      return fields_[static_cast<std::size_t>(id)];
+    }
+
+    // Size of one instance slice, rounded up so the next slice stays aligned.
+    std::size_t bytes_per_instance() const { return align_up(cursor_, max_align_); }
+
+    std::size_t alignment() const { return max_align_; }
+
+   private:
+    std::vector<Field> fields_;
+    std::size_t cursor_ = 0;
+    std::size_t max_align_ = alignof(std::max_align_t);
+  };
+
+  // Result of a scratch reservation: a single pooled block partitioned into
+  // `instances` slices of `bytes_per_instance` each. Free with
+  // free_bytes(reservation.base).
+  struct Reservation {
+    void *base = nullptr;
+    std::size_t instances = 0;
+    std::size_t bytes_per_instance = 0;
+    std::size_t total_bytes = 0;
+
+#ifdef PORTABILITY_STRATEGY_KOKKOS
+    Kokkos::View<std::byte *, memory_space, Kokkos::MemoryTraits<Kokkos::Unmanaged>>
+    view() const {
+      return Kokkos::View<std::byte *, memory_space,
+                          Kokkos::MemoryTraits<Kokkos::Unmanaged>>(
+          static_cast<std::byte *>(base), total_bytes);
+    }
+#endif
+  };
+
+  // Device-callable bump allocator over a single slice of scratch memory.
+  struct DeviceBump {
+    std::byte *base = nullptr;
+    std::size_t capacity = 0;
+    std::size_t offset = 0;
+
+    DeviceBump() = default;
+
+    PORTABLE_INLINE_FUNCTION
+    DeviceBump(void *p, std::size_t bytes)
+        : base(static_cast<std::byte *>(p)), capacity(bytes), offset(0) {}
+
+    PORTABLE_INLINE_FUNCTION
+    std::size_t align_up_local(std::size_t x, std::size_t a) const {
+      return (x + (a - 1)) & ~(a - 1);
+    }
+
+    PORTABLE_INLINE_FUNCTION
+    void *alloc_bytes(std::size_t bytes, std::size_t alignment) {
+      const std::size_t pos = align_up_local(offset, alignment);
+      if (pos + bytes > capacity) {
+        return nullptr;
+      }
+      void *p = base + pos;
+      offset = pos + bytes;
+      return p;
+    }
+
+    template <class T>
+    PORTABLE_INLINE_FUNCTION T *alloc(std::size_t n) {
+      return static_cast<T *>(alloc_bytes(n * sizeof(T), alignof(T)));
+    }
+
+    // Retained spelling for existing callers.
+    template <class T>
+    PORTABLE_INLINE_FUNCTION T *allocate(std::size_t n) {
+      return alloc<T>(n);
+    }
+
+    PORTABLE_INLINE_FUNCTION
+    void reset() { offset = 0; }
+  };
+
+  // Reserve `instances` slices sized/aligned to hold `layout`.
+  Reservation reserve_device_scratch(const ScratchLayout &layout, std::size_t instances,
+                                     std::size_t alignment = alignof(std::max_align_t)) {
+    return reserve_device_scratch(layout.bytes_per_instance(), instances,
+                                  std::max(alignment, layout.alignment()));
+  }
+
+  // Reserve `instances` slices of (at least) `bytes_per_instance` each. Each
+  // slice is aligned to `alignment`; the returned stride (bytes_per_instance)
+  // is rounded up so every slice base is aligned.
+  Reservation reserve_device_scratch(std::size_t bytes_per_instance,
+                                     std::size_t instances,
+                                     std::size_t alignment = alignof(std::max_align_t)) {
+    if (!is_power_of_two(alignment)) {
+      throw std::invalid_argument(
+          "reserve_device_scratch alignment must be a power of two");
+    }
+    if (instances == 0) {
+      instances = 1;
+    }
+    if (bytes_per_instance == 0) {
+      bytes_per_instance = 1;
+    }
+
+    const std::size_t stride = align_up(bytes_per_instance, alignment);
+    if (stride < bytes_per_instance) { // align_up wrapped
+      throw std::bad_alloc{};
+    }
+    if (stride > std::numeric_limits<std::size_t>::max() / instances) {
+      throw std::bad_alloc{};
+    }
+    const std::size_t total = stride * instances;
+
+    Reservation r;
+    r.base = alloc_bytes(total, alignment);
+    r.instances = instances;
+    r.bytes_per_instance = stride;
+    r.total_bytes = total;
+    return r;
   }
 
  private:
@@ -279,12 +454,24 @@ class SlabArenaPool {
   std::vector<Slab> slabs_;
   std::size_t current_slab_ = 0;
 
-  // Used for host accessible memory spaces
-  std::array<FreeNode *, num_blocks> free_heads_{};
+  // Free-list metadata is strategy-specific, and only one strategy is ever used
+  // for a given memory space. Carrying both wastes per-instance memory, so we
+  // select the relevant one at compile time via host_accessible_.
 
-  // Used for non-host accessible memory spaces
-  std::array<std::vector<std::byte *>, num_blocks> free_blocks_{};
-  std::unordered_map<void *, BlockRecord> live_blocks_;
+  // Host-accessible spaces embed a Header in each block and thread an intrusive
+  // free list through the freed blocks themselves.
+  struct HostMeta {
+    std::array<FreeNode *, num_blocks> free_heads{};
+  };
+
+  // Non-host-accessible spaces cannot touch device memory from the host, so
+  // free-block starts and live-allocation records are tracked host-side.
+  struct DeviceMeta {
+    std::array<std::vector<std::byte *>, num_blocks> free_blocks{};
+    std::unordered_map<void *, BlockRecord> live_blocks;
+  };
+
+  std::conditional_t<host_accessible_, HostMeta, DeviceMeta> meta_;
 
   std::size_t min_slab_bytes_ = 8ull << 20;
   std::size_t next_slab_bytes_ = 8ull << 20;
@@ -397,12 +584,13 @@ class SlabArenaPool {
     if constexpr (host_accessible_) {
       auto *const h = reinterpret_cast<Header *>(user_ptr - sizeof(Header));
       h->idx = idx;
-      h->reserved = 0;
+      h->reserved = 0; // explicit padding; kept for 8-byte field alignment
+      h->block_bytes = block_bytes;
       h->block_start = block_start;
       h->sentinel = sentinel_;
     } else {
-      const auto &[it, inserted] = live_blocks_.emplace(static_cast<void *>(user_ptr),
-                                                        BlockRecord{block_start, idx});
+      const auto &[it, inserted] = meta_.live_blocks.emplace(
+          static_cast<void *>(user_ptr), BlockRecord{block_start, idx});
       if (!inserted) {
         throw std::runtime_error("SlabArenaPool: duplicate allocation pointer");
       }
@@ -416,8 +604,18 @@ class SlabArenaPool {
     Slab &slab = slabs_[current_slab_];
     assert(block_bytes <= slab.bytes - slab.offset);
 
+    // Free-list capacity invariant (device strategy):
+    //   For non-host-accessible spaces the free list lives in a host-side
+    //   std::vector that must never allocate inside the noexcept free path
+    //   (push_block). We guarantee capacity here, at bump time: every block
+    //   that is ever bump-allocated from a slab reserves one free-list slot for
+    //   itself up front. A block can only be freed after it was bump-allocated,
+    //   so the number of live+freed blocks of a class never exceeds the number
+    //   of reserve() calls made for that class -> push_block can always
+    //   push_back without reallocating. The abort in push_block is a defensive
+    //   backstop for this invariant, not an expected path.
     if constexpr (!host_accessible_) {
-      auto &stack = free_blocks_[idx];
+      auto &stack = meta_.free_blocks[idx];
       if (stack.capacity() == stack.size()) {
         stack.reserve(stack.size() + 1);
       }
@@ -439,18 +637,18 @@ class SlabArenaPool {
   void *pop_block(std::uint32_t idx, std::size_t request, std::size_t alignment) {
     assert(idx < num_blocks);
     if constexpr (host_accessible_) {
-      FreeNode *head = free_heads_[idx];
+      FreeNode *head = meta_.free_heads[idx];
       if (!head) {
         return nullptr;
       }
 
-      free_heads_[idx] = head->next;
+      meta_.free_heads[idx] = head->next;
 
       auto *const block_start = reinterpret_cast<std::byte *>(head);
 
       return make_allocation(block_start, block_size(idx), request, alignment, idx);
     } else {
-      auto &stack = free_blocks_[idx];
+      auto &stack = meta_.free_blocks[idx];
       if (stack.empty()) return nullptr;
       std::byte *const block_start = stack.back();
       stack.pop_back();
@@ -469,10 +667,12 @@ class SlabArenaPool {
     assert(idx < num_blocks);
     if constexpr (host_accessible_) {
       auto *node = reinterpret_cast<FreeNode *>(block_start);
-      node->next = free_heads_[idx];
-      free_heads_[idx] = node;
+      node->next = meta_.free_heads[idx];
+      meta_.free_heads[idx] = node;
     } else {
-      auto &stack = free_blocks_[idx];
+      auto &stack = meta_.free_blocks[idx];
+      // Capacity was reserved up front in bump_slab() (see invariant there);
+      // this must never reallocate inside the noexcept free path.
       if (stack.size() == stack.capacity()) {
         PORTABLE_ALWAYS_ABORT("SlabArenaPool free-list capacity exceeded");
       }
@@ -552,43 +752,6 @@ class PoolAllocator {
     friend class PoolAllocator;
 
     Pool *pool_;
-  };
-
-  // Device compatible bump allocator
-  struct BumpAllocator {
-    std::byte *base = nullptr;
-    std::size_t capacity = 0;
-    std::size_t offset = 0;
-
-    BumpAllocator() = default;
-
-    PORTABLE_INLINE_FUNCTION
-    BumpAllocator(void *p, std::size_t bytes)
-        : base(static_cast<std::byte *>(p)), capacity(bytes), offset(0) {}
-
-    PORTABLE_INLINE_FUNCTION
-    std::size_t align_up(std::size_t x, std::size_t a) const {
-      return (x + (a - 1)) & ~(a - 1);
-    }
-
-    PORTABLE_INLINE_FUNCTION
-    void *alloc_bytes(std::size_t bytes, std::size_t alignment) {
-      const std::size_t pos = align_up(offset, alignment);
-      if (pos + bytes > capacity) {
-        return nullptr;
-      }
-      void *p = base + pos;
-      offset = pos + bytes;
-      return p;
-    }
-
-    template <class T>
-    PORTABLE_INLINE_FUNCTION T *allocate(std::size_t n) {
-      return static_cast<T *>(alloc_bytes(n * sizeof(T), alignof(T)));
-    }
-
-    PORTABLE_INLINE_FUNCTION
-    void reset() { offset = 0; }
   };
 } // namespace PortsOfCall
 #endif // _PORTABLE_MEMORY_HPP_
