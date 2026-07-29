@@ -1,5 +1,5 @@
 # ------------------------------------------------------------------------------#
-# © 2021-2022. Triad National Security, LLC. All rights reserved.  This program
+# © 2021-2026. Triad National Security, LLC. All rights reserved.  This program
 # was produced under U.S. Government contract 89233218CNA000001 for Los Alamos
 # National Laboratory (LANL), which is operated by Triad National Security, LLC
 # for the U.S.  Department of Energy/National Nuclear Security Administration.
@@ -17,7 +17,7 @@ cmake_minimum_required(VERSION 3.14)
 # ----------------------------------------
 
 # define project and version
-set(PORTS_OF_CALL_VERSION 2.0.1)
+set(PORTS_OF_CALL_VERSION 3.0.0)
 project(ports-of-call VERSION ${PORTS_OF_CALL_VERSION} LANGUAGES CXX)
 
 # CMAKE WARMUP
@@ -65,7 +65,7 @@ target_include_directories(
   ${POCLIB} INTERFACE $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
                       $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>)
 
-target_compile_features(${POCLIB} INTERFACE cxx_std_17)
+target_compile_features(${POCLIB} INTERFACE cxx_std_20)
 
 # TESTING
 # ----------------------------------------

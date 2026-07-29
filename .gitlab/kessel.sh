@@ -1,10 +1,11 @@
-export DEPLOYMENT_VERSION_CURRENT_DEFAULT="2026-01-07"
+export DEPLOYMENT_VERSION_CURRENT_DEFAULT="2026-07-07"
 export DEPLOYMENT_VERSION_DEFAULT="${DEPLOYMENT_VERSION_DEFAULT:-$DEPLOYMENT_VERSION_CURRENT_DEFAULT}"
 SCRIPT_PATH=${BASH_SOURCE[0]:-${(%):-%x}}
 PARENT_DIR="$( cd "$( dirname "${SCRIPT_PATH}" )" &>/dev/null && pwd )"
 
 if [ -n "$DEPLOYMENT_MR" ]; then
-  export DEPLOYMENT_VERSION=${DEPLOYMENT_VERSION:-mr/$DEPLOYMENT_MR/$DEPLOYMENT_VERSION_DEFAULT}
+  DEPLOYMENT_MR_ID=$(printf "%08d\n" "${DEPLOYMENT_MR}")
+  export DEPLOYMENT_VERSION=${DEPLOYMENT_VERSION:-mr/$DEPLOYMENT_MR_ID/$DEPLOYMENT_VERSION_DEFAULT}
 else
   export DEPLOYMENT_VERSION=${DEPLOYMENT_VERSION:-$DEPLOYMENT_VERSION_DEFAULT}
 fi
@@ -26,7 +27,7 @@ fi
 _KESSEL_WORKFLOW_DEPLOYMENT="$KESSEL_WORKFLOW_DEPLOYMENT"
 export KESSEL_WORKFLOW_DEPLOYMENT="${KESSEL_WORKFLOW_DEPLOYMENT:-${TMPDIR:-/tmp}/$USER-ci-envs}"
 
-if [ "$SYSTEM_NAME" == "darwin" ] || [ "$SYSTEM_NAME" == "rocinante" ]; then
+if [ "$SYSTEM_NAME" == "darwin" ] || [ "$SYSTEM_NAME" == "rocinante" ] || [ "$SYSTEM_NAME" == "venadito" ]; then
   export KESSEL_DEPLOYMENT=${KESSEL_DEPLOYMENT:-/usr/projects/xcap/oss/deployments/$DEPLOYMENT_VERSION/$SYSTEM_NAME}
 elif [ "$SYSTEM_NAME" == "rzadams" ] || [ "$SYSTEM_NAME" == "rzvernal" ] || [ "$SYSTEM_NAME" == "elcapitan" ] || [ "$SYSTEM_NAME" == "tuolumne" ]; then
   export KESSEL_DEPLOYMENT=${KESSEL_DEPLOYMENT:-/usr/workspace/xcap/oss/deployments/$DEPLOYMENT_VERSION/$SYSTEM_NAME}
@@ -42,18 +43,13 @@ else
     source "$KESSEL_DEPLOYMENT/activate.sh"
     clone-deployment "$KESSEL_WORKFLOW_DEPLOYMENT"
   fi
-  if [ "$(uname -s)" = "Darwin" ]; then
-    _KESSEL_WORKFLOW_DEPLOYMENT_OWNER=$(stat -f %u "$KESSEL_WORKFLOW_DEPLOYMENT")
-  else
-    _KESSEL_WORKFLOW_DEPLOYMENT_OWNER=$(stat -c %u "$KESSEL_WORKFLOW_DEPLOYMENT")
-  fi
-  if [ -z "$_KESSEL_WORKFLOW_DEPLOYMENT" ] && [ "$_KESSEL_WORKFLOW_DEPLOYMENT_OWNER" -ne "$(id -u)" ]; then
-    unset _KESSEL_WORKFLOW_DEPLOYMENT_OWNER
-    unset _KESSEL_WORKFLOW_DEPLOYMENT
+  if [ ! -d "$KESSEL_WORKFLOW_DEPLOYMENT" ]; then
+    echo "ERROR: $KESSEL_WORKFLOW_DEPLOYMENT does not exist!" >&2
+    return 1
+  elif [ -z "$_KESSEL_WORKFLOW_DEPLOYMENT" ] && [ ! -O "$KESSEL_WORKFLOW_DEPLOYMENT" ]; then
     echo "ERROR: $KESSEL_WORKFLOW_DEPLOYMENT not owned by $USER!" >&2
     return 1
   else
-    unset _KESSEL_WORKFLOW_DEPLOYMENT_OWNER
     source "$KESSEL_WORKFLOW_DEPLOYMENT/activate.sh"
   fi
 fi

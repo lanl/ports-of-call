@@ -2,7 +2,7 @@
 #define _PORTABILITY_HPP_
 
 // ========================================================================================
-// © (or copyright) 2019-2024. Triad National Security, LLC. All rights
+// © (or copyright) 2019-2026. Triad National Security, LLC. All rights
 // reserved.  This program was produced under U.S. Government contract
 // 89233218CNA000001 for Los Alamos National Laboratory (LANL), which is
 // operated by Triad National Security, LLC for the U.S.  Department of
@@ -15,6 +15,10 @@
 // copies to the public, perform publicly and display publicly, and to
 // permit others to do so.
 // ========================================================================================
+
+// This file was generated in part with generative AI
+
+#include <cstdlib>
 
 #include <string>
 #include <string_view>
@@ -51,9 +55,6 @@
 #define PORTABLE_FORCEINLINE_FUNCTION KOKKOS_FORCEINLINE_FUNCTION
 #define PORTABLE_LAMBDA KOKKOS_LAMBDA
 #define _WITH_KOKKOS_
-// The following is a malloc on default memory space
-#define PORTABLE_MALLOC(size) Kokkos::kokkos_malloc<>(size)
-#define PORTABLE_FREE(ptr) Kokkos::kokkos_free<>(ptr)
 // Do we want to include additional terms here (for memory spaces, etc.)?
 #define PORTABLE_FENCE(...) Kokkos::fence(__VA_ARGS__)
 #else
@@ -65,12 +66,6 @@
 #define PORTABLE_INLINE_FUNCTION __host__ __device__ inline
 #define PORTABLE_FORCEINLINE_FUNCTION __host__ __device__ POC_ALWAYS_INLINE
 #define PORTABLE_LAMBDA [=] __host__ __device__
-void *PORTABLE_MALLOC(size_t size) {
-  void *devPtr = nullptr;
-  cudaError_t e = cudaMalloc(&devPtr, size);
-  return devPtr;
-}
-void PORTABLE_FREE(void *ptr) { cudaError_t e = cudaFree(ptr); }
 #define PORTABLE_FENCE(...) cudaDeviceSynchronize()
 #define _WITH_CUDA_
 // It is worth noting here that we will not define
@@ -81,11 +76,11 @@ void PORTABLE_FREE(void *ptr) { cudaError_t e = cudaFree(ptr); }
 #define PORTABLE_INLINE_FUNCTION inline
 #define PORTABLE_FORCEINLINE_FUNCTION POC_ALWAYS_INLINE
 #define PORTABLE_LAMBDA [=]
-#define PORTABLE_MALLOC(size) malloc(size)
-#define PORTABLE_FREE(ptr) free(ptr)
 #define PORTABLE_FENCE(...)
 #endif
 #endif
+#define PORTABLE_MALLOC(...) PortsOfCall::portableMalloc<>(__VA_ARGS__)
+#define PORTABLE_FREE(...) PortsOfCall::portableFree(__VA_ARGS__)
 
 #ifndef SINGLE_PRECISION_ENABLED
 #define SINGLE_PRECISION_ENABLED 0
@@ -109,6 +104,17 @@ constexpr bool EXECUTION_IS_HOST{false};
 #else
 constexpr bool EXECUTION_IS_HOST{true};
 #endif
+
+namespace Exec {
+#ifdef PORTABILITY_STRATEGY_KOKKOS
+using Device = Kokkos::DefaultExecutionSpace;
+using Host = Kokkos::DefaultHostExecutionSpace;
+#else  // otherwise
+struct Device {};
+struct Host {};
+#endif // PORTABILITY_STRATEGY_KOKKOS
+} // namespace Exec
+
 // portable printf
 #define PORTABLE_MAX_NUM_CHAR (2048)
 template <typename... Ts>
@@ -131,8 +137,52 @@ PORTABLE_INLINE_FUNCTION void snprintf(char *target, std::size_t size,
 #endif // __HIPCC__
   return;
 }
+
+template <typename E>
+inline auto portableMalloc([[maybe_unused]] E e, std::size_t size_bytes) {
+  void *ret;
+#ifdef PORTABILITY_STRATEGY_KOKKOS
+  ret = Kokkos::kokkos_malloc<typename E::memory_space>(size_bytes);
+#elif defined(PORTABILITY_STRATEGY_CUDA)
+  if constexpr (std::is_same_v < E, Exec::Device) {
+    cudaError_t e = cudaMalloc(&ret, size_bytes);
+  } else if constexpr (std::is_same_v < E, Exec::Host) {
+    ret = malloc(size_bytes);
+  } else {
+    throw
+  }
+#else  // PORTABILITY_STRATEGY_NONE
+  ret = std::malloc(size_bytes);
+#endif // PORTABILITY STRATEGY
+  return ret;
+}
+template <typename E = Exec::Device>
+inline auto portableMalloc(std::size_t size_bytes) {
+  return portableMalloc(E(), size_bytes);
+}
+
+template <typename E, typename T>
+void portableFree([[maybe_unused]] E e, T *p) {
+#ifdef PORTABILITY_STRATEGY_KOKKOS
+  Kokkos::kokkos_free<typename E::memory_space>(p);
+#elif defined(PORTABILITY_STRATEGY_CUDA)
+  if constexpr (std::is_same_v<E, Device>) {
+    cudaError_t e = cudaFree(p);
+  } else {
+    std::free(p);
+  }
+#else  // PORTABILITY_STRATEGY_NONE
+  std::free(p);
+#endif // PORTABILITY STRATEGY
+}
+template <typename T>
+void portableFree(T *p) {
+  portableFree(Exec::Device(), p);
+}
+
 } // namespace PortsOfCall
 
+// TODO(JMM): Pass in exec space here later
 template <typename T>
 void portableCopyToDevice(T *const to, T const *const from, size_t const size_bytes) {
   auto const length = size_bytes / sizeof(T);
@@ -141,7 +191,7 @@ void portableCopyToDevice(T *const to, T const *const from, size_t const size_by
   using HS = Kokkos::HostSpace;
   Kokkos::View<const T *, HS, UM> from_v(from, length);
   Kokkos::View<T *, UM> to_v(to, length);
-  deep_copy(to_v, from_v);
+  Kokkos::deep_copy(to_v, from_v);
 #elif defined(PORTABILITY_STRATEGY_CUDA)
   cudaMemcpy(to, from, size_bytes, cudaMemcpyHostToDevice);
 #else
@@ -160,7 +210,7 @@ void portableCopyToHost(T *const to, T const *const from, size_t const size_byte
   using HS = Kokkos::HostSpace;
   Kokkos::View<const T *, UM> from_v(from, length);
   Kokkos::View<T *, HS, UM> to_v(to, length);
-  deep_copy(to_v, from_v);
+  Kokkos::deep_copy(to_v, from_v);
 #elif defined(PORTABILITY_STRATEGY_CUDA)
   cudaMemcpy(to, from, size_bytes, cudaMemcpyDeviceToHost);
 #else
@@ -171,12 +221,13 @@ void portableCopyToHost(T *const to, T const *const from, size_t const size_byte
   return;
 }
 
-template <typename Function>
-void portableFor([[maybe_unused]] const char *name, int start, int stop,
-                 Function function) {
+template <typename E, typename Function,
+          typename = std::enable_if_t<!std::is_arithmetic_v<E>>>
+void portableFor([[maybe_unused]] const char *name, [[maybe_unused]] const E &e,
+                 int start, int stop, const Function &function) {
 #ifdef PORTABILITY_STRATEGY_KOKKOS
-  using policy = Kokkos::RangePolicy<>;
-  Kokkos::parallel_for(name, policy(start, stop), function);
+  using policy = Kokkos::RangePolicy<E>;
+  Kokkos::parallel_for(name, policy(e, start, stop), function);
 #else
   for (int i = start; i < stop; i++) {
     function(i);
@@ -184,12 +235,13 @@ void portableFor([[maybe_unused]] const char *name, int start, int stop,
 #endif
 }
 
-template <typename Function>
-void portableFor([[maybe_unused]] const char *name, int starty, int stopy, int startx,
-                 int stopx, Function function) {
+template <typename E, typename Function,
+          typename = std::enable_if_t<!std::is_arithmetic_v<E>>>
+void portableFor([[maybe_unused]] const char *name, [[maybe_unused]] const E &e,
+                 int starty, int stopy, int startx, int stopx, const Function &function) {
 #ifdef PORTABILITY_STRATEGY_KOKKOS
-  using Policy2D = Kokkos::MDRangePolicy<Kokkos::Rank<2>>;
-  Kokkos::parallel_for(name, Policy2D({starty, startx}, {stopy, stopx}), function);
+  using Policy2D = Kokkos::MDRangePolicy<E, Kokkos::Rank<2>>;
+  Kokkos::parallel_for(name, Policy2D(e, {starty, startx}, {stopy, stopx}), function);
 #else
   for (int iy = starty; iy < stopy; iy++) {
     for (int ix = startx; ix < stopx; ix++) {
@@ -199,12 +251,14 @@ void portableFor([[maybe_unused]] const char *name, int starty, int stopy, int s
 #endif
 }
 
-template <typename Function>
-void portableFor([[maybe_unused]] const char *name, int startz, int stopz, int starty,
-                 int stopy, int startx, int stopx, Function function) {
+template <typename E, typename Function,
+          typename = std::enable_if_t<!std::is_arithmetic_v<E>>>
+void portableFor([[maybe_unused]] const char *name, [[maybe_unused]] const E &e,
+                 int startz, int stopz, int starty, int stopy, int startx, int stopx,
+                 const Function &function) {
 #ifdef PORTABILITY_STRATEGY_KOKKOS
-  using Policy3D = Kokkos::MDRangePolicy<Kokkos::Rank<3>>;
-  Kokkos::parallel_for(name, Policy3D({startz, starty, startx}, {stopz, stopy, stopx}),
+  using Policy3D = Kokkos::MDRangePolicy<E, Kokkos::Rank<3>>;
+  Kokkos::parallel_for(name, Policy3D(e, {startz, starty, startx}, {stopz, stopy, stopx}),
                        function);
 #else
   for (int iz = startz; iz < stopz; iz++) {
@@ -217,14 +271,15 @@ void portableFor([[maybe_unused]] const char *name, int startz, int stopz, int s
 #endif
 }
 
-template <typename Function>
-void portableFor([[maybe_unused]] const char *name, int starta, int stopa, int startz,
-                 int stopz, int starty, int stopy, int startx, int stopx,
-                 Function function) {
+template <typename E = PortsOfCall::Exec::Device, typename Function,
+          typename = std::enable_if_t<!std::is_arithmetic_v<E>>>
+void portableFor([[maybe_unused]] const char *name, [[maybe_unused]] const E &e,
+                 int starta, int stopa, int startz, int stopz, int starty, int stopy,
+                 int startx, int stopx, const Function &function) {
 #ifdef PORTABILITY_STRATEGY_KOKKOS
-  using Policy4D = Kokkos::MDRangePolicy<Kokkos::Rank<4>>;
+  using Policy4D = Kokkos::MDRangePolicy<E, Kokkos::Rank<4>>;
   Kokkos::parallel_for(
-      name, Policy4D({starta, startz, starty, startx}, {stopa, stopz, stopy, stopx}),
+      name, Policy4D(e, {starta, startz, starty, startx}, {stopa, stopz, stopy, stopx}),
       function);
 #else
   for (int ia = starta; ia < stopa; ia++) {
@@ -239,14 +294,15 @@ void portableFor([[maybe_unused]] const char *name, int starta, int stopa, int s
 #endif
 }
 
-template <typename Function>
-void portableFor([[maybe_unused]] const char *name, int startb, int stopb, int starta,
-                 int stopa, int startz, int stopz, int starty, int stopy, int startx,
-                 int stopx, Function function) {
+template <typename E, typename Function,
+          typename = std::enable_if_t<!std::is_arithmetic_v<E>>>
+void portableFor([[maybe_unused]] const char *name, [[maybe_unused]] const E &e,
+                 int startb, int stopb, int starta, int stopa, int startz, int stopz,
+                 int starty, int stopy, int startx, int stopx, const Function &function) {
 #ifdef PORTABILITY_STRATEGY_KOKKOS
-  using Policy5D = Kokkos::MDRangePolicy<Kokkos::Rank<5>>;
+  using Policy5D = Kokkos::MDRangePolicy<E, Kokkos::Rank<5>>;
   Kokkos::parallel_for(name,
-                       Policy5D({startb, starta, startz, starty, startx},
+                       Policy5D(e, {startb, starta, startz, starty, startx},
                                 {stopb, stopa, stopz, stopy, stopx}),
                        function);
 #else
@@ -264,12 +320,19 @@ void portableFor([[maybe_unused]] const char *name, int startb, int stopb, int s
 #endif
 }
 
-template <typename Function, typename T>
-void portableReduce([[maybe_unused]] const char *name, int start, int stop,
-                    Function function, T &reduced) {
+template <typename Head, typename... Tail,
+          typename = std::enable_if_t<std::is_arithmetic_v<Head>>>
+void portableFor([[maybe_unused]] const char *name, Head &&h, Tail &&...tail) {
+  portableFor(name, PortsOfCall::Exec::Device(), h, std::forward<Tail>(tail)...);
+}
+
+template <typename E, typename Function, typename T,
+          typename = std::enable_if_t<!std::is_arithmetic_v<E>>>
+void portableReduce([[maybe_unused]] const char *name, [[maybe_unused]] const E &e,
+                    int start, int stop, const Function &function, T &reduced) {
 #ifdef PORTABILITY_STRATEGY_KOKKOS
-  using Policy = Kokkos::RangePolicy<>;
-  Kokkos::parallel_reduce(name, Policy(start, stop), function, reduced);
+  using Policy = Kokkos::RangePolicy<E>;
+  Kokkos::parallel_reduce(name, Policy(e, start, stop), function, reduced);
 #else
   for (int i = start; i < stop; i++) {
     function(i, reduced);
@@ -277,12 +340,14 @@ void portableReduce([[maybe_unused]] const char *name, int start, int stop,
 #endif
 }
 
-template <typename Function, typename T>
-void portableReduce([[maybe_unused]] const char *name, int starty, int stopy, int startx,
-                    int stopx, Function function, T &reduced) {
+template <typename E, typename Function, typename T,
+          typename = std::enable_if_t<!std::is_arithmetic_v<E>>>
+void portableReduce([[maybe_unused]] const char *name, [[maybe_unused]] const E &e,
+                    int starty, int stopy, int startx, int stopx,
+                    const Function &function, T &reduced) {
 #ifdef PORTABILITY_STRATEGY_KOKKOS
-  using Policy2D = Kokkos::MDRangePolicy<Kokkos::Rank<2>>;
-  Kokkos::parallel_reduce(name, Policy2D({starty, startx}, {stopy, stopx}), function,
+  using Policy2D = Kokkos::MDRangePolicy<E, Kokkos::Rank<2>>;
+  Kokkos::parallel_reduce(name, Policy2D(e, {starty, startx}, {stopy, stopx}), function,
                           reduced);
 #else
   for (int iy = starty; iy < stopy; iy++) {
@@ -293,12 +358,15 @@ void portableReduce([[maybe_unused]] const char *name, int starty, int stopy, in
 #endif
 }
 
-template <typename Function, typename T>
-void portableReduce([[maybe_unused]] const char *name, int startz, int stopz, int starty,
-                    int stopy, int startx, int stopx, Function function, T &reduced) {
+template <typename E, typename Function, typename T,
+          typename = std::enable_if_t<!std::is_arithmetic_v<E>>>
+void portableReduce([[maybe_unused]] const char *name, [[maybe_unused]] const E &e,
+                    int startz, int stopz, int starty, int stopy, int startx, int stopx,
+                    const Function &function, T &reduced) {
 #ifdef PORTABILITY_STRATEGY_KOKKOS
-  using Policy3D = Kokkos::MDRangePolicy<Kokkos::Rank<3>>;
-  Kokkos::parallel_reduce(name, Policy3D({startz, starty, startx}, {stopz, stopy, stopx}),
+  using Policy3D = Kokkos::MDRangePolicy<E, Kokkos::Rank<3>>;
+  Kokkos::parallel_reduce(name,
+                          Policy3D(e, {startz, starty, startx}, {stopz, stopy, stopx}),
                           function, reduced);
 #else
   for (int iz = startz; iz < stopz; iz++) {
@@ -311,14 +379,15 @@ void portableReduce([[maybe_unused]] const char *name, int startz, int stopz, in
 #endif
 }
 
-template <typename Function, typename T>
-void portableReduce([[maybe_unused]] const char *name, int starta, int stopa, int startz,
-                    int stopz, int starty, int stopy, int startx, int stopx,
-                    Function function, T &reduced) {
+template <typename E, typename Function, typename T,
+          typename = std::enable_if_t<!std::is_arithmetic_v<E>>>
+void portableReduce([[maybe_unused]] const char *name, [[maybe_unused]] const E &e,
+                    int starta, int stopa, int startz, int stopz, int starty, int stopy,
+                    int startx, int stopx, const Function &function, T &reduced) {
 #ifdef PORTABILITY_STRATEGY_KOKKOS
-  using Policy4D = Kokkos::MDRangePolicy<Kokkos::Rank<4>>;
+  using Policy4D = Kokkos::MDRangePolicy<E, Kokkos::Rank<4>>;
   Kokkos::parallel_reduce(
-      name, Policy4D({starta, startz, starty, startx}, {stopa, stopz, stopy, stopx}),
+      name, Policy4D(e, {starta, startz, starty, startx}, {stopa, stopz, stopy, stopx}),
       function, reduced);
 #else
   for (int ia = starta; ia < stopa; ia++) {
@@ -333,14 +402,16 @@ void portableReduce([[maybe_unused]] const char *name, int starta, int stopa, in
 #endif
 }
 
-template <typename Function, typename T>
-void portableReduce([[maybe_unused]] const char *name, int startb, int stopb, int starta,
-                    int stopa, int startz, int stopz, int starty, int stopy, int startx,
-                    int stopx, Function function, T &reduced) {
+template <typename E, typename Function, typename T,
+          typename = std::enable_if_t<!std::is_arithmetic_v<E>>>
+void portableReduce([[maybe_unused]] const char *name, [[maybe_unused]] const E &e,
+                    int startb, int stopb, int starta, int stopa, int startz, int stopz,
+                    int starty, int stopy, int startx, int stopx,
+                    const Function &function, T &reduced) {
 #ifdef PORTABILITY_STRATEGY_KOKKOS
-  using Policy5D = Kokkos::MDRangePolicy<Kokkos::Rank<5>>;
+  using Policy5D = Kokkos::MDRangePolicy<E, Kokkos::Rank<5>>;
   Kokkos::parallel_reduce(name,
-                          Policy5D({startb, starta, startz, starty, startx},
+                          Policy5D(e, {startb, starta, startz, starty, startx},
                                    {stopb, stopa, stopz, stopy, stopx}),
                           function, reduced);
 #else
@@ -356,6 +427,12 @@ void portableReduce([[maybe_unused]] const char *name, int startb, int stopb, in
     }
   }
 #endif
+}
+
+template <typename Head, typename... Tail,
+          typename = std::enable_if_t<std::is_arithmetic_v<Head>>>
+void portableReduce([[maybe_unused]] const char *name, Head &&h, Tail &&...tail) {
+  portableReduce(name, PortsOfCall::Exec::Device(), h, std::forward<Tail>(tail)...);
 }
 
 #endif // PORTABILITY_HPP
