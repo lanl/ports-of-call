@@ -687,7 +687,7 @@ TEST_CASE("device: pooled allocation honors alignment for device kernel use",
       "check_alignment", Kokkos::RangePolicy<ExecSpace>(0, 1), KOKKOS_LAMBDA(const int) {
         auto *p = static_cast<Aligned64 *>(raw);
         auto addr = reinterpret_cast<std::uintptr_t>(p);
-        ok() = (addr % alignof(Aligned64)) ? 1 : 0;
+        ok() = (addr % alignof(Aligned64) == 0) ? 1 : 0;
       });
 
   auto ok_h = Kokkos::create_mirror_view_and_copy(Kokkos::HostSpace(), ok);
