@@ -575,8 +575,8 @@ class SlabArenaPool {
     const std::uintptr_t aligned_user = align_up_ptr(raw_user, alignment);
 
     auto *const user_ptr = reinterpret_cast<std::byte *>(aligned_user);
-    const std::byte *const block_end = block_start + block_bytes;
-    const std::byte *const user_end = user_ptr + request;
+    [[maybe_unused]] const std::byte *const block_end = block_start + block_bytes;
+    [[maybe_unused]] const std::byte *const user_end = user_ptr + request;
     assert(user_end <= block_end);
     assert(reinterpret_cast<std::uintptr_t>(user_ptr) % alignment == 0);
 
