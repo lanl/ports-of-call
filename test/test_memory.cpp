@@ -70,7 +70,7 @@ bool is_aligned_bytes(void *p, std::size_t alignment) {
 
 } // namespace
 
-TEST_CASE("SlabArenaPool basic byte allocation/free/reuse", "[slab][bytes]") {
+TEST_CASE("SlabArenaPool basic byte allocation/free/reuse", "[pool][slab][bytes]") {
   HostPool pool(1 << 20);
 
   void *p1 = pool.alloc_bytes(1024, alignof(std::max_align_t));
@@ -85,7 +85,7 @@ TEST_CASE("SlabArenaPool basic byte allocation/free/reuse", "[slab][bytes]") {
   REQUIRE(p2 == p1);
 }
 
-TEST_CASE("SlabArenaPool returns aligned pointers", "[slab][alignment]") {
+TEST_CASE("SlabArenaPool returns aligned pointers", "[pool][slab][alignment]") {
   HostPool pool(1 << 20);
 
   void *p1 = pool.alloc_bytes(sizeof(double) * 17, alignof(double));
@@ -97,7 +97,8 @@ TEST_CASE("SlabArenaPool returns aligned pointers", "[slab][alignment]") {
   REQUIRE(is_aligned_bytes(p2, alignof(Aligned64)));
 }
 
-TEST_CASE("SlabArenaPool can allocate multiple blocks from one slab", "[slab][carve]") {
+TEST_CASE("SlabArenaPool can allocate multiple blocks from one slab",
+          "[pool][slab][carve]") {
   HostPool pool(1 << 20);
 
   const auto slabs_before = pool.slab_count();
@@ -118,7 +119,7 @@ TEST_CASE("SlabArenaPool can allocate multiple blocks from one slab", "[slab][ca
   REQUIRE(pool.slab_count() == std::max<std::size_t>(std::size_t{1}, slabs_before + 1));
 }
 
-TEST_CASE("SlabArenaPool grows by adding slabs when needed", "[slab][growth]") {
+TEST_CASE("SlabArenaPool grows by adding slabs when needed", "[pool][slab][growth]") {
   HostPool pool(64 << 10); // small slabs to force growth
 
   const auto slabs_before = pool.slab_count();
@@ -137,7 +138,7 @@ TEST_CASE("SlabArenaPool grows by adding slabs when needed", "[slab][growth]") {
   REQUIRE(slabs_after_second >= slabs_after_first);
 }
 
-TEST_CASE("Freed same-size byte allocations are reused", "[slab][freelist]") {
+TEST_CASE("Freed same-size byte allocations are reused", "[pool][slab][freelist]") {
   HostPool pool(1 << 20);
 
   void *p1 = pool.alloc_bytes(8192, 64);
@@ -158,7 +159,7 @@ TEST_CASE("Freed same-size byte allocations are reused", "[slab][freelist]") {
   REQUIRE(q2 == p1);
 }
 
-TEST_CASE("Odd-size tail-fit path can be reused", "[slab][odd]") {
+TEST_CASE("Odd-size tail-fit path can be reused", "[pool][slab][odd]") {
   // Small slab and coarse classing make it easier to hit tail-fit behavior.
   HostPool pool(4096);
 
@@ -183,7 +184,7 @@ TEST_CASE("Odd-size tail-fit path can be reused", "[slab][odd]") {
   pool.free_bytes(odd2);
 }
 
-TEST_CASE("release_all clears slabs and allows fresh reuse", "[slab][release]") {
+TEST_CASE("release_all clears slabs and allows fresh reuse", "[pool][slab][release]") {
   HostPool pool(64 << 10);
 
   void *p1 = pool.alloc_bytes(8192, 16);
@@ -204,7 +205,7 @@ TEST_CASE("release_all clears slabs and allows fresh reuse", "[slab][release]") 
 }
 
 TEST_CASE("PoolAllocator allocates typed storage with correct alignment",
-          "[allocator][typed]") {
+          "[pool][allocator][typed]") {
   HostPool pool(1 << 20);
   PortsOfCall::PoolAllocator<double, HostPool> alloc(pool);
 
@@ -223,7 +224,8 @@ TEST_CASE("PoolAllocator allocates typed storage with correct alignment",
   alloc.deallocate(p, 128);
 }
 
-TEST_CASE("PoolAllocator supports higher-alignment types", "[allocator][alignment]") {
+TEST_CASE("PoolAllocator supports higher-alignment types",
+          "[pool][allocator][alignment]") {
   HostPool pool(1 << 20);
   PortsOfCall::PoolAllocator<Aligned64, HostPool> alloc(pool);
 
@@ -235,7 +237,7 @@ TEST_CASE("PoolAllocator supports higher-alignment types", "[allocator][alignmen
 }
 
 TEST_CASE("PoolAllocator construct/destroy works for non-trivial types",
-          "[allocator][lifetime]") {
+          "[pool][allocator][lifetime]") {
   HostPool pool(1 << 20);
   PortsOfCall::PoolAllocator<NonTrivial, HostPool> alloc(pool);
 
@@ -262,7 +264,8 @@ TEST_CASE("PoolAllocator construct/destroy works for non-trivial types",
   alloc.deallocate(p, 3);
 }
 
-TEST_CASE("PoolAllocator rebind shares the same underlying pool", "[allocator][rebind]") {
+TEST_CASE("PoolAllocator rebind shares the same underlying pool",
+          "[pool][allocator][rebind]") {
   HostPool pool(1 << 20);
 
   PortsOfCall::PoolAllocator<double, HostPool> a(pool);
@@ -281,7 +284,7 @@ TEST_CASE("PoolAllocator rebind shares the same underlying pool", "[allocator][r
 }
 
 TEST_CASE("PoolAllocator deallocate can ignore count parameter",
-          "[allocator][deallocate]") {
+          "[pool][allocator][deallocate]") {
   HostPool pool(1 << 20);
   PortsOfCall::PoolAllocator<double, HostPool> alloc(pool);
 
@@ -293,7 +296,7 @@ TEST_CASE("PoolAllocator deallocate can ignore count parameter",
 }
 
 TEST_CASE("Freed typed allocations can be reused through PoolAllocator",
-          "[allocator][reuse]") {
+          "[pool][allocator][reuse]") {
   HostPool pool(1 << 20);
   PortsOfCall::PoolAllocator<double, HostPool> alloc(pool);
 
@@ -310,9 +313,229 @@ TEST_CASE("Freed typed allocations can be reused through PoolAllocator",
   alloc.deallocate(p2, 64);
 }
 
+TEST_CASE("SlabArenaPool release_all should reset next slab size",
+          "[pool][SlabArenaPool][release_all][growth]") {
+  HostPool pool;
+
+  constexpr std::size_t min_slab = 64 << 10;
+
+  pool.configure(min_slab, 1.0);
+
+  void *p = pool.alloc_bytes(1, alignof(std::max_align_t));
+
+  REQUIRE(pool.slab_count() == 1);
+  REQUIRE(pool.total_slab_bytes() == min_slab);
+
+  pool.free_bytes(p);
+  pool.release_all();
+
+  REQUIRE(pool.slab_count() == 0);
+  REQUIRE(pool.total_slab_bytes() == 0);
+
+  /*
+    Expected behavior after release_all():
+      The pool is empty, so the next allocation should start again from min_slab.
+
+    Current behavior:
+      next_slab_bytes_ was already grown to 128 KiB and release_all() does not
+      reset it, so the next slab is larger than min_slab.
+  */
+  void *q = pool.alloc_bytes(1, alignof(std::max_align_t));
+
+  REQUIRE(pool.slab_count() == 1);
+  REQUIRE(pool.total_slab_bytes() == min_slab);
+
+  pool.free_bytes(q);
+}
+
+TEST_CASE("SlabArenaPool should reject non-power-of-two alignments",
+          "[pool][SlabArenaPool][alignment][validation]") {
+  HostPool pool;
+  pool.configure(64 << 10, 0.0);
+
+  /*
+    The implementation uses this style of alignment:
+
+      (x + (a - 1)) & ~(a - 1)
+
+    That only works when a is a power of two.
+
+    Since alloc_bytes() is public and accepts a raw std::size_t alignment, it
+    should either:
+      1. reject non-power-of-two alignments, or
+      2. implement general alignment correctly.
+
+    This test encodes option 1.
+  */
+  REQUIRE_THROWS_AS(pool.alloc_bytes(16, 24), std::invalid_argument);
+}
+
+TEST_CASE("SlabArenaPool recomputes alignment when reusing freed blocks",
+          "[pool][alignment][free-list][regression]") {
+  HostPool pool;
+  pool.configure(64 << 10, 0.0);
+
+  std::vector<void *> ptrs;
+
+  for (int i = 0; i < 64; ++i) {
+    void *p = pool.alloc_bytes(80, 16);
+    REQUIRE(is_aligned_bytes(p, 16));
+    ptrs.push_back(p);
+  }
+
+  for (void *p : ptrs) {
+    pool.free_bytes(p);
+  }
+
+  constexpr std::size_t alignments[] = {16, 32, 64, 128, 256};
+
+  for (std::size_t alignment : alignments) {
+    void *q = pool.alloc_bytes(1, alignment);
+    REQUIRE(is_aligned_bytes(q, alignment));
+    pool.free_bytes(q);
+  }
+}
+
+TEST_CASE("SlabArenaPool reuses blocks while recomputing alignment",
+          "[pool][alignment][free-list]") {
+  HostPool pool;
+  pool.configure(64 << 10, 0.0);
+
+  std::vector<void *> candidates;
+
+  /*
+    Create several 16-byte-aligned allocations that fall into the same size class
+    as the later 64-byte-aligned allocation.
+
+    request=80, alignment=16 typically maps to the 128-byte size class.
+    request=1, alignment=64 also typically maps to the 128-byte size class.
+  */
+  for (int i = 0; i < 16; ++i) {
+    void *p = pool.alloc_bytes(80, 16);
+    REQUIRE(is_aligned_bytes(p, 16));
+    candidates.push_back(p);
+  }
+
+  /*
+    Free all candidates. The free list now contains block starts for the same
+    size class.
+  */
+  for (void *p : candidates) {
+    pool.free_bytes(p);
+  }
+
+  /*
+    Request stricter alignment from the same size class.
+
+    Correct behavior:
+      The allocator may reuse one of the same underlying blocks, but it must
+      recompute the user pointer so the returned address is 64-byte aligned.
+
+    Old buggy behavior:
+      It could return an old 16-byte-aligned user pointer directly.
+  */
+  void *q = pool.alloc_bytes(1, 64);
+
+  REQUIRE(is_aligned_bytes(q, 64));
+
+  pool.free_bytes(q);
+}
+TEST_CASE(
+    "SlabArenaPool recomputes user pointer when reusing block with stricter alignment",
+    "[pool][free-list][alignment]") {
+  HostPool pool;
+  pool.configure(64 << 10, 0.0);
+
+  void *p = pool.alloc_bytes(80, 16);
+  REQUIRE(is_aligned_bytes(p, 16));
+
+  pool.free_bytes(p);
+
+  void *q = pool.alloc_bytes(1, 64);
+
+  REQUIRE(is_aligned_bytes(q, 64));
+
+  pool.free_bytes(q);
+}
+
+struct alignas(64) OverAligned64 {
+  char bytes[64];
+};
+
+TEST_CASE("PoolAllocator returns correctly aligned storage for over-aligned types",
+          "[pool][alignment]") {
+  HostPool pool;
+  pool.configure(64 << 10, 0.0);
+
+  PortsOfCall::PoolAllocator<OverAligned64, HostPool> alloc(pool);
+
+  OverAligned64 *p = alloc.allocate(1);
+
+  REQUIRE(is_aligned_bytes(p, alignof(OverAligned64)));
+
+  alloc.deallocate(p, 1);
+}
+
+TEST_CASE("PoolAllocator preserves over-alignment after free-list reuse",
+          "[pool][alignment][free-list]") {
+  HostPool pool;
+  pool.configure(64 << 10, 0.0);
+
+  PortsOfCall::PoolAllocator<std::byte, HostPool> byte_alloc(pool);
+
+  void *p = byte_alloc.allocate(80);
+  byte_alloc.deallocate(static_cast<std::byte *>(p), 80);
+
+  PortsOfCall::PoolAllocator<OverAligned64, HostPool> aligned_alloc(pool);
+
+  OverAligned64 *q = aligned_alloc.allocate(1);
+
+  REQUIRE(is_aligned_bytes(q, alignof(OverAligned64)));
+
+  aligned_alloc.deallocate(q, 1);
+}
+#include <catch2/catch_test_macros.hpp>
+
+#include <limits>
+#include <stdexcept>
+
+TEST_CASE("SlabArenaPool rejects invalid growth factors", "[pool][growth-factor]") {
+
+  REQUIRE_THROWS_AS(HostPool(64 << 10, -0.25), std::invalid_argument);
+
+  REQUIRE_THROWS_AS(HostPool(64 << 10, std::numeric_limits<double>::infinity()),
+                    std::invalid_argument);
+
+  REQUIRE_THROWS_AS(HostPool(64 << 10, std::numeric_limits<double>::quiet_NaN()),
+                    std::invalid_argument);
+
+  HostPool pool;
+
+  REQUIRE_THROWS_AS(pool.configure(64 << 10, -0.25), std::invalid_argument);
+
+  REQUIRE_THROWS_AS(pool.configure(64 << 10, std::numeric_limits<double>::infinity()),
+                    std::invalid_argument);
+
+  REQUIRE_THROWS_AS(pool.configure(64 << 10, std::numeric_limits<double>::quiet_NaN()),
+                    std::invalid_argument);
+}
+
+TEST_CASE("PoolAllocator max_size reflects SlabArenaPool maximum block size",
+          "[pool][max_size]") {
+
+  HostPool pool;
+  PortsOfCall::PoolAllocator<std::byte, HostPool> alloc(pool);
+
+  const std::size_t max_n = alloc.max_size();
+
+  REQUIRE(max_n < (std::size_t{1} << 30));
+
+  REQUIRE_THROWS_AS(alloc.allocate(max_n + 1), std::bad_array_new_length);
+}
+
 #ifdef PORTABILITY_STRATEGY_KOKKOS
 TEST_CASE("device: pooled bytes can be wrapped in unmanaged View and written in kernel",
-          "[slab][device][view]") {
+          "[pool][slab][device][view]") {
   DevPool pool(1 << 20);
 
   constexpr int N = 256;
@@ -338,7 +561,7 @@ TEST_CASE("device: pooled bytes can be wrapped in unmanaged View and written in 
 }
 
 TEST_CASE("device: pooled allocation honors alignment for device kernel use",
-          "[slab][device][alignment]") {
+          "[pool][slab][device][alignment]") {
   DevPool pool(1 << 20);
 
   void *raw = pool.alloc_bytes(8 * sizeof(Aligned64), alignof(Aligned64));
@@ -361,7 +584,7 @@ TEST_CASE("device: pooled allocation honors alignment for device kernel use",
 }
 
 TEST_CASE("device: reserve_device_scratch gives one slice per logical instance",
-          "[slab][device][scratch]") {
+          "[pool][slab][device][scratch]") {
   DevPool pool(1 << 20);
 
   typename Pool::ScratchLayout layout;
@@ -411,7 +634,7 @@ TEST_CASE("device: reserve_device_scratch gives one slice per logical instance",
 }
 
 TEST_CASE("device: DeviceBump allocates disjoint arrays inside each slice",
-          "[slab][device][bump]") {
+          "[pool][slab][device][bump]") {
   DevPool pool(1 << 20);
 
   constexpr int instances = 128;
@@ -460,7 +683,7 @@ TEST_CASE("device: DeviceBump allocates disjoint arrays inside each slice",
 }
 
 TEST_CASE("device: PoolAllocator-backed unmanaged View works from device",
-          "[allocator][device]") {
+          "[pool][allocator][device]") {
   DevPool pool(1 << 20);
   PortsOfCall::PoolAllocator<double, DevPool> alloc(pool);
 
@@ -486,7 +709,7 @@ TEST_CASE("device: PoolAllocator-backed unmanaged View works from device",
 }
 
 TEST_CASE("device: freeing and reallocating same byte size remains usable",
-          "[slab][device][reuse]") {
+          "[pool][slab][device][reuse]") {
   DevPool pool(1 << 20);
 
   constexpr int N = 128;
@@ -513,5 +736,26 @@ TEST_CASE("device: freeing and reallocating same byte size remains usable",
   }
 
   pool.free_bytes(p2);
+}
+TEST_CASE("SlabArenaPool works with CudaSpace without host-touching device metadata",
+          "[pool][kokkos][cuda][device-memory]") {
+
+  DevPool pool;
+  pool.configure(64 << 10, 0.0);
+
+  void *p = pool.alloc_bytes(256, 64);
+
+  REQUIRE(p != nullptr);
+  REQUIRE(reinterpret_cast<std::uintptr_t>(p) % 64 == 0);
+
+  auto *device_ptr = static_cast<unsigned char *>(p);
+
+  Kokkos::parallel_for(
+      "write pooled device memory", Kokkos::RangePolicy<Kokkos::Cuda>(0, 256),
+      KOKKOS_LAMBDA(const int i) { device_ptr[i] = static_cast<unsigned char>(i); });
+
+  Kokkos::fence();
+
+  pool.free_bytes(p);
 }
 #endif
