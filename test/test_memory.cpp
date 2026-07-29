@@ -628,8 +628,7 @@ TEST_CASE("Singleton reuses freed blocks across allocator instances",
   HostPool::instance().release_all();
 }
 
-TEST_CASE("Singleton and local pools are independent instances",
-          "[pool][singleton]") {
+TEST_CASE("Singleton and local pools are independent instances", "[pool][singleton]") {
   HostPool::instance().release_all();
 
   // A stack-allocated pool must not be the singleton.
@@ -902,22 +901,25 @@ TEST_CASE("device: DevPool::instance returns the same object every call",
   a.release_all();
 }
 
-TEST_CASE("device: host and device singletons are distinct pools",
+TEST_CASE("device: host and device singletons match the memory-space topology",
           "[pool][singleton][device]") {
-  HostPool::instance().release_all();
-  DevPool::instance().release_all();
+  if constexpr (std::is_same_v<DevMemSpace, HostMemSpace>) {
+    REQUIRE(static_cast<void *>(&DevPool::instance()) ==
+            static_cast<void *>(&HostPool::instance()));
+  } else {
+    HostPool::instance().release_all();
+    DevPool::instance().release_all();
 
-  // The two memory-space specializations are different types, so their
-  // singletons are different objects with independent state.
-  void *hp = HostPool::instance().alloc_bytes(4096, 64);
-  REQUIRE(hp != nullptr);
-  REQUIRE(HostPool::instance().slab_count() >= 1);
+    void *hp = HostPool::instance().alloc_bytes(4096, 64);
+    REQUIRE(hp != nullptr);
+    REQUIRE(HostPool::instance().slab_count() >= 1);
 
-  // Allocating on the host singleton must not perturb the device singleton.
-  REQUIRE(DevPool::instance().slab_count() == 0);
+    // Allocating on the host singleton must not perturb the device singleton.
+    REQUIRE(DevPool::instance().slab_count() == 0);
 
-  HostPool::instance().free_bytes(hp);
-  HostPool::instance().release_all();
+    HostPool::instance().free_bytes(hp);
+    HostPool::instance().release_all();
+  }
 }
 
 TEST_CASE("device: default-constructed PoolAllocator binds to the device singleton",
