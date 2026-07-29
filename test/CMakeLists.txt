@@ -40,9 +40,7 @@ if (PORTS_OF_CALL_TEST_PORTABILITY_STRATEGY STREQUAL "Kokkos")
       FetchContent_Declare(
         Kokkos
         GIT_REPOSITORY https://github.com/kokkos/kokkos.git
-        # This is most recent but any version that supports C++17 is
-        # fine
-        GIT_TAG 4.3.01)
+        GIT_TAG 5.1.0)
       FetchContent_MakeAvailable(Kokkos)
     endif()
     set(Kokkos_VERSION "${Kokkos_VERSION}" PARENT_SCOPE)
