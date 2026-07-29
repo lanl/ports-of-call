@@ -533,6 +533,119 @@ TEST_CASE("PoolAllocator max_size reflects SlabArenaPool maximum block size",
   REQUIRE_THROWS_AS(alloc.allocate(max_n + 1), std::bad_array_new_length);
 }
 
+// ---------------------------------------------------------------------------
+// Singleton pathway
+//
+// SlabArenaPool::instance() is a Meyers singleton: a single, lazily
+// constructed pool per memory-space type. PoolAllocator's default constructor
+// binds to that singleton. Because the singleton is process-global shared
+// state that persists across Catch2 test cases, these tests normalize the
+// pool with release_all() rather than assuming a pristine pool, and they
+// always free what they allocate so later test cases start from a clean slate.
+// ---------------------------------------------------------------------------
+
+TEST_CASE("SlabArenaPool::instance returns the same object every call",
+          "[pool][singleton]") {
+  HostPool &a = HostPool::instance();
+  HostPool &b = HostPool::instance();
+
+  // Same underlying object: identical addresses.
+  REQUIRE(&a == &b);
+
+  // Mutating through one reference is visible through the other.
+  a.release_all();
+  REQUIRE(b.slab_count() == 0);
+
+  void *p = a.alloc_bytes(4096, alignof(std::max_align_t));
+  REQUIRE(p != nullptr);
+  REQUIRE(b.slab_count() == a.slab_count());
+  REQUIRE(b.slab_count() >= 1);
+
+  a.free_bytes(p);
+  a.release_all();
+}
+
+TEST_CASE("Default-constructed PoolAllocator binds to the singleton",
+          "[pool][singleton][allocator]") {
+  HostPool::instance().release_all();
+
+  // A default-constructed allocator should reference the singleton, not some
+  // other pool instance.
+  PortsOfCall::PoolAllocator<double, HostPool> alloc;
+  REQUIRE(alloc.pool() == &HostPool::instance());
+
+  double *p = alloc.allocate(64);
+  REQUIRE(p != nullptr);
+  REQUIRE(is_aligned(p));
+
+  // The allocation must have gone through the singleton.
+  REQUIRE(HostPool::instance().slab_count() >= 1);
+
+  alloc.deallocate(p, 64);
+  HostPool::instance().release_all();
+}
+
+TEST_CASE("Independently default-constructed allocators share the singleton",
+          "[pool][singleton][allocator]") {
+  HostPool::instance().release_all();
+
+  PortsOfCall::PoolAllocator<double, HostPool> a;
+  PortsOfCall::PoolAllocator<int, HostPool> b;
+
+  // Both bind to the same singleton, so they compare equal (is_always_equal is
+  // false, so equality is decided by the pool pointer).
+  REQUIRE(a.pool() == b.pool());
+  REQUIRE(a.pool() == &HostPool::instance());
+  REQUIRE(a == PortsOfCall::PoolAllocator<int, HostPool>(b));
+
+  // Memory allocated through one can be freed through the other since they
+  // share the same pool.
+  double *pd = a.allocate(8);
+  REQUIRE(pd != nullptr);
+
+  PortsOfCall::PoolAllocator<double, HostPool> a2(b); // rebind from b
+  a2.deallocate(pd, 8);
+
+  HostPool::instance().release_all();
+}
+
+TEST_CASE("Singleton reuses freed blocks across allocator instances",
+          "[pool][singleton][allocator][reuse]") {
+  HostPool::instance().release_all();
+
+  PortsOfCall::PoolAllocator<double, HostPool> a;
+  double *p1 = a.allocate(64);
+  REQUIRE(p1 != nullptr);
+  a.deallocate(p1, 64);
+
+  // A distinct, default-constructed allocator hits the same singleton free
+  // list and should hand back the same block.
+  PortsOfCall::PoolAllocator<double, HostPool> b;
+  double *p2 = b.allocate(64);
+  REQUIRE(p2 == p1);
+
+  b.deallocate(p2, 64);
+  HostPool::instance().release_all();
+}
+
+TEST_CASE("Singleton and local pools are independent instances",
+          "[pool][singleton]") {
+  HostPool::instance().release_all();
+
+  // A stack-allocated pool must not be the singleton.
+  HostPool local(1 << 20);
+  REQUIRE(&local != &HostPool::instance());
+
+  void *lp = local.alloc_bytes(4096, alignof(std::max_align_t));
+  REQUIRE(lp != nullptr);
+  REQUIRE(local.slab_count() >= 1);
+
+  // The local allocation must not have touched the singleton.
+  REQUIRE(HostPool::instance().slab_count() == 0);
+
+  local.free_bytes(lp);
+}
+
 #ifdef PORTABILITY_STRATEGY_KOKKOS
 TEST_CASE("device: pooled bytes can be wrapped in unmanaged View and written in kernel",
           "[pool][slab][device][view]") {
@@ -757,5 +870,104 @@ TEST_CASE("SlabArenaPool works with CudaSpace without host-touching device metad
   Kokkos::fence();
 
   pool.free_bytes(p);
+}
+
+// ---------------------------------------------------------------------------
+// Singleton pathway for the device (heterogeneous) memory space
+//
+// The device pool tracks live allocations in a host-side unordered_map keyed
+// by the returned pointer (no host-touchable header lives in device memory),
+// but the singleton semantics are identical: one shared pool per memory-space
+// type, reachable through instance() and through default-constructed
+// allocators. These tests normalize with release_all() to stay independent of
+// ordering against other test cases that use the device singleton.
+// ---------------------------------------------------------------------------
+
+TEST_CASE("device: DevPool::instance returns the same object every call",
+          "[pool][singleton][device]") {
+  DevPool &a = DevPool::instance();
+  DevPool &b = DevPool::instance();
+
+  REQUIRE(&a == &b);
+
+  a.release_all();
+  REQUIRE(b.slab_count() == 0);
+
+  void *p = a.alloc_bytes(4096, 64);
+  REQUIRE(p != nullptr);
+  REQUIRE(b.slab_count() == a.slab_count());
+  REQUIRE(b.slab_count() >= 1);
+
+  a.free_bytes(p);
+  a.release_all();
+}
+
+TEST_CASE("device: host and device singletons are distinct pools",
+          "[pool][singleton][device]") {
+  HostPool::instance().release_all();
+  DevPool::instance().release_all();
+
+  // The two memory-space specializations are different types, so their
+  // singletons are different objects with independent state.
+  void *hp = HostPool::instance().alloc_bytes(4096, 64);
+  REQUIRE(hp != nullptr);
+  REQUIRE(HostPool::instance().slab_count() >= 1);
+
+  // Allocating on the host singleton must not perturb the device singleton.
+  REQUIRE(DevPool::instance().slab_count() == 0);
+
+  HostPool::instance().free_bytes(hp);
+  HostPool::instance().release_all();
+}
+
+TEST_CASE("device: default-constructed PoolAllocator binds to the device singleton",
+          "[pool][singleton][device][allocator]") {
+  DevPool::instance().release_all();
+
+  PortsOfCall::PoolAllocator<double, DevPool> alloc;
+  REQUIRE(alloc.pool() == &DevPool::instance());
+
+  constexpr int N = 256;
+  double *ptr = alloc.allocate(N);
+  REQUIRE(ptr != nullptr);
+  REQUIRE(DevPool::instance().slab_count() >= 1);
+
+  // Write through the singleton-backed pointer from a device kernel to make
+  // sure the memory is genuinely usable on the device.
+  using view_type =
+      Kokkos::View<double *, DevMemSpace, Kokkos::MemoryTraits<Kokkos::Unmanaged>>;
+  view_type v(ptr, N);
+
+  Kokkos::parallel_for(
+      "singleton_device_write", Kokkos::RangePolicy<ExecSpace>(0, N),
+      KOKKOS_LAMBDA(const int i) { v(i) = 4.0 * i; });
+
+  auto v_h = Kokkos::create_mirror_view_and_copy(Kokkos::HostSpace(), v);
+  for (int i = 0; i < N; ++i) {
+    REQUIRE(v_h(i) == Approx(4.0 * i));
+  }
+
+  alloc.deallocate(ptr, N);
+  DevPool::instance().release_all();
+}
+
+TEST_CASE("device: singleton reuses freed blocks across allocator instances",
+          "[pool][singleton][device][reuse]") {
+  DevPool::instance().release_all();
+
+  PortsOfCall::PoolAllocator<int, DevPool> a;
+  constexpr int N = 128;
+  int *p1 = a.allocate(N);
+  REQUIRE(p1 != nullptr);
+  a.deallocate(p1, N);
+
+  // A distinct default-constructed allocator shares the singleton's free list
+  // (tracked host-side for the non-host-accessible space) and reuses the block.
+  PortsOfCall::PoolAllocator<int, DevPool> b;
+  int *p2 = b.allocate(N);
+  REQUIRE(p2 == p1);
+
+  b.deallocate(p2, N);
+  DevPool::instance().release_all();
 }
 #endif
