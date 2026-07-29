@@ -700,9 +700,9 @@ TEST_CASE("device: reserve_device_scratch gives one slice per logical instance",
           "[pool][slab][device][scratch]") {
   DevPool pool(1 << 20);
 
-  typename Pool::ScratchLayout layout;
-  const int a_id = layout.template add_array<double>(16);
-  const int b_id = layout.template add_array<int>(8);
+  DevPool::ScratchLayout layout;
+  const int a_id = layout.add_array<double>(16);
+  const int b_id = layout.add_array<int>(8);
 
   constexpr int instances = 64;
   auto reservation = pool.reserve_device_scratch(layout, instances, 64);
@@ -765,7 +765,7 @@ TEST_CASE("device: DeviceBump allocates disjoint arrays inside each slice",
       KOKKOS_LAMBDA(const int i) {
         std::byte *base = scratch.data() + std::size_t(i) * bytes_per_instance;
 
-        typename Pool::DeviceBump arena(base, bytes_per_instance);
+        DevPool::DeviceBump arena(base, bytes_per_instance);
 
         double *a = arena.template alloc<double>(32);
         int *b = arena.template alloc<int>(16);
