@@ -850,8 +850,8 @@ TEST_CASE("device: freeing and reallocating same byte size remains usable",
 
   pool.free_bytes(p2);
 }
-TEST_CASE("SlabArenaPool works with CudaSpace without host-touching device metadata",
-          "[pool][kokkos][cuda][device-memory]") {
+TEST_CASE("SlabArenaPool works with device space without host-touching device metadata",
+          "[pool][kokkos][device-memory]") {
 
   DevPool pool;
   pool.configure(64 << 10, 0.0);
@@ -864,7 +864,7 @@ TEST_CASE("SlabArenaPool works with CudaSpace without host-touching device metad
   auto *device_ptr = static_cast<unsigned char *>(p);
 
   Kokkos::parallel_for(
-      "write pooled device memory", Kokkos::RangePolicy<Kokkos::Cuda>(0, 256),
+      "write pooled device memory", Kokkos::RangePolicy<ExecSpace>(0, 256),
       KOKKOS_LAMBDA(const int i) { device_ptr[i] = static_cast<unsigned char>(i); });
 
   Kokkos::fence();
