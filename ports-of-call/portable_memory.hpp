@@ -179,7 +179,7 @@ class SlabArenaPool {
       const std::uint32_t idx = h->idx;
       std::byte *const block_start = h->block_start;
       h->sentinel = 0;
-      push_block(h->block_start, h->idx);
+      push_block(block_start, idx);
     } else {
       auto it = live_blocks_.find(p);
       if (it == live_blocks_.end()) {
@@ -479,10 +479,11 @@ class SlabArenaPool {
       stack.push_back(block_start);
     }
   };
+};
 
-  // A std::allocator compliant allocator
-  template <class T, class Pool>
-  class PoolAllocator {
+// A std::allocator compliant allocator
+template <class T, class Pool>
+class PoolAllocator {
    public:
     using value_type = T;
     using pointer = T *;
