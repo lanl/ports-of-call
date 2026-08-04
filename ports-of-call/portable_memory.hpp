@@ -22,6 +22,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <limits>
+#include <map>
 #include <mutex>
 #include <new>
 #include <stdexcept>
@@ -31,6 +32,16 @@
 #include <vector>
 
 #include <ports-of-call/portable_errors.hpp>
+
+// Maximum slab block size, expressed as a base-2 exponent (2^N bytes). Requests
+// whose padded size exceeds this take the large-request cache path. Defaults to
+// 30 (1 GiB), the historical maximum block size. Define it before including
+// this header (e.g. -DPORTS_OF_CALL_MAX_SLAB_BLOCK_LOG2=24) to shrink the slab
+// ceiling -- useful so large-path tests exercise the cache without allocating
+// more than 1 GiB per block.
+#ifndef PORTS_OF_CALL_MAX_SLAB_BLOCK_LOG2
+#define PORTS_OF_CALL_MAX_SLAB_BLOCK_LOG2 30
+#endif
 
 namespace PortsOfCall {
 
@@ -54,6 +65,47 @@ template <class MemorySpace = void>
 class SlabArenaPool {
  public:
   using memory_space = MemorySpace;
+
+  // Tunables for the large-request cache (requests above the maximum slab block
+  // size). See configure_large_allocations().
+  struct LargeAllocationConfig {
+    // Maximum total capacity retained in the free large-block cache. 0 disables
+    // retention (freed large blocks go straight back to the backend).
+    std::size_t max_cached_bytes = 8ull << 30;
+    // Maximum number of free cached blocks.
+    std::size_t max_cached_blocks = 16;
+    // Blocks larger than this are returned to the backend on free rather than
+    // cached.
+    std::size_t max_single_cached_bytes = 4ull << 30;
+    // Relative oversize tolerance for reuse, as an integer fraction:
+    // slack <= need * numerator / denominator.
+    std::size_t max_oversize_numerator = 1;
+    std::size_t max_oversize_denominator = 4;
+    // Absolute minimum slack permitted during matching, so tight relative
+    // tolerances near the threshold do not reject otherwise-good reuse.
+    std::size_t min_oversize_bytes = 64ull << 20;
+    // Granularity to which new backend allocations are rounded up.
+    std::size_t allocation_granularity_bytes = 64ull << 20;
+  };
+
+  struct LargeAllocationStats {
+    std::uint64_t requests = 0;
+    std::uint64_t cache_hits = 0;
+    std::uint64_t cache_misses = 0;
+    std::uint64_t backend_allocations = 0;
+    std::uint64_t backend_deallocations = 0;
+    std::uint64_t direct_frees = 0;
+    std::uint64_t evictions = 0;
+    std::uint64_t allocation_retries_succeeded = 0;
+
+    std::size_t active_capacity_bytes = 0;
+    std::size_t active_blocks = 0;
+    std::size_t cached_bytes = 0;
+    std::size_t cached_blocks = 0;
+
+    std::size_t peak_active_capacity_bytes = 0;
+    std::size_t peak_cached_bytes = 0;
+  };
 
   // Process-wide singleton pool for this memory space.
   //
@@ -108,6 +160,19 @@ class SlabArenaPool {
     growth_factor_ = growth_factor;
   }
 
+  // Largest slab-served block, in bytes. Requests whose padded size exceeds
+  // this take the large-request path. Exposed so callers and tests can size
+  // requests relative to the (build-configurable) slab ceiling.
+  static constexpr std::size_t max_slab_block_bytes() noexcept {
+    return std::size_t(1) << max_size;
+  }
+
+  // Largest request (in bytes) that alloc_bytes can accept for a given
+  // alignment. Requests up to max_block_bytes() are served by the slab path;
+  // anything larger now goes to the large-request cache, so the effective
+  // ceiling is bounded only by the overflow checks in alloc_bytes rather than
+  // by the maximum slab block size. This lets PoolAllocator-backed containers
+  // grow past 1 GiB and reach the large path.
   static std::size_t
   max_allocation_bytes(std::size_t alignment = alignof(std::max_align_t)) noexcept {
     if (!is_power_of_two(alignment)) {
@@ -124,11 +189,9 @@ class SlabArenaPool {
 
     const std::size_t overhead = overhead_bytes() + padding;
 
-    if (overhead >= max_block_bytes()) {
-      return 0;
-    }
-
-    return max_block_bytes() - overhead;
+    // alloc_bytes rejects (request + overhead) that overflows size_t; report
+    // the largest request that survives that check.
+    return std::numeric_limits<std::size_t>::max() - overhead;
   }
 
   void *alloc_bytes(std::size_t request,
@@ -158,13 +221,18 @@ class SlabArenaPool {
     need += padding;
 
     if (need > max_block_bytes()) {
-      throw std::bad_alloc{};
+      // Requests that cannot be served by any power-of-two slab class take the
+      // separate large-request path. `need` already folds in the header
+      // overhead and alignment padding, so it is the true minimum number of
+      // backend bytes required.
+      return alloc_large(request, alignment, need);
     }
 
     const std::uint32_t idx = get_block_index(need);
     const std::size_t block_bytes = block_size(idx);
 
     std::lock_guard<std::mutex> lock(mutex_);
+    any_allocation_ = true;
 
     if (void *p = pop_block(idx, request, alignment)) {
       return p;
@@ -182,13 +250,26 @@ class SlabArenaPool {
       return;
     }
 
-    std::lock_guard<std::mutex> lock(mutex_);
-
     if constexpr (host_accessible_) {
+      // The kind and (for large blocks) the backend metadata live in the
+      // in-band header, so classification needs no lock and no map lookup --
+      // the small fast path stays free of ordered-container operations.
       Header *h =
           reinterpret_cast<Header *>(static_cast<std::byte *>(p) - sizeof(Header));
       if ((h == nullptr) || (h->sentinel != sentinel_)) {
         PORTABLE_ALWAYS_ABORT("SlabArenaPool corrupted header");
+        return;
+      }
+
+      if (h->kind == AllocationKind::LargePool) {
+        std::byte *const backend_base = h->block_start;
+        const std::size_t capacity = h->block_bytes;
+        h->sentinel = 0;
+        {
+          std::lock_guard<std::mutex> lock(mutex_);
+          live_large_.erase(p);
+        }
+        free_large_after_unregister(backend_base, capacity);
         return;
       }
 
@@ -200,45 +281,130 @@ class SlabArenaPool {
       const std::uint32_t idx = h->idx;
       std::byte *const block_start = h->block_start;
       h->sentinel = 0;
+
+      std::lock_guard<std::mutex> lock(mutex_);
       push_block(block_start, idx);
     } else {
-      auto it = meta_.live_blocks.find(p);
-      if (it == meta_.live_blocks.end()) {
-        PORTABLE_ALWAYS_ABORT("SlabArenaPool called with unknown pointer");
-        return;
+      // Non-host-accessible spaces cannot embed a readable header, so both the
+      // small live-block map and the large active registry are consulted.
+      std::byte *backend_base = nullptr;
+      std::size_t capacity = 0;
+      {
+        std::lock_guard<std::mutex> lock(mutex_);
+
+        auto lit = live_large_.find(p);
+        if (lit != live_large_.end()) {
+          backend_base = static_cast<std::byte *>(lit->second.base_ptr);
+          capacity = lit->second.capacity_bytes;
+          live_large_.erase(lit);
+        } else {
+          auto it = meta_.live_blocks.find(p);
+          if (it == meta_.live_blocks.end()) {
+            PORTABLE_ALWAYS_ABORT("SlabArenaPool called with unknown pointer");
+            return;
+          }
+          std::byte *const block_start = it->second.block_start;
+          const std::uint32_t idx = it->second.idx;
+          meta_.live_blocks.erase(it);
+          push_block(block_start, idx);
+          return;
+        }
       }
-      std::byte *const block_start = it->second.block_start;
-      const std::uint32_t idx = it->second.idx;
-      meta_.live_blocks.erase(it);
-      push_block(block_start, idx);
+      // Large block: registry entry already removed above.
+      free_large_after_unregister(backend_base, capacity);
     }
   }
 
   void release_all() {
+    std::vector<void *> backend_frees;
+    {
+      std::lock_guard<std::mutex> lock(mutex_);
+
+      if constexpr (host_accessible_) {
+        meta_.free_heads.fill(nullptr);
+      } else {
+        meta_.live_blocks.clear();
+        for (auto &stack : meta_.free_blocks) {
+          stack.clear();
+        }
+      }
+
+      for (auto &slab : slabs_) {
+        backend_deallocate(slab.base);
+      }
+
+      slabs_.clear();
+      current_slab_ = 0;
+      next_slab_bytes_ = min_slab_bytes_;
+
+      // Large allocations never live in slabs_, so they must be released here
+      // explicitly. This matches the existing "release everything" contract for
+      // small allocations and, critically, ensures kokkos_malloc-backed large
+      // blocks are freed while Kokkos is still live (release_all runs from the
+      // finalize hook). Both cached-free and still-active large blocks go.
+      backend_frees.reserve(free_large_blocks_.size() + live_large_.size());
+      for (auto &kv : free_large_blocks_) {
+        backend_frees.push_back(kv.second.base_ptr);
+      }
+      for (auto &kv : live_large_) {
+        backend_frees.push_back(kv.second.base_ptr);
+      }
+      free_large_blocks_.clear();
+      live_large_.clear();
+      cached_large_bytes_ = 0;
+      large_stats_.active_capacity_bytes = 0;
+      large_stats_.active_blocks = 0;
+      large_stats_.cached_bytes = 0;
+      large_stats_.cached_blocks = 0;
+    }
+
+    for (void *p : backend_frees) {
+      backend_deallocate(p);
+    }
+  }
+
+  // Release every currently free (cached) large block, leaving active large
+  // allocations untouched. Thread-safe with normal allocations.
+  void trim_large_cache() { trim_large_cache_to(0); }
+
+  // Release cached large blocks, oldest first, until the retained byte total is
+  // at most target_bytes.
+  void trim_large_cache_to(std::size_t target_bytes) {
+    std::vector<LargeBlock> victims;
+    {
+      std::lock_guard<std::mutex> lock(mutex_);
+      while (cached_large_bytes_ > target_bytes && !free_large_blocks_.empty()) {
+        auto oldest = free_large_blocks_.begin();
+        for (auto it = free_large_blocks_.begin(); it != free_large_blocks_.end();
+             ++it) {
+          if (it->second.last_used_epoch < oldest->second.last_used_epoch) {
+            oldest = it;
+          }
+        }
+        victims.push_back(oldest->second);
+        const std::size_t victim_capacity = oldest->second.capacity_bytes;
+        free_large_blocks_.erase(oldest);
+        note_cached_removed(victim_capacity);
+      }
+    }
+    release_large_blocks(victims);
+  }
+
+  // Configure the large-request cache. Like configure(), this must be called
+  // before the first allocation of any kind.
+  void configure_large_allocations(const LargeAllocationConfig &config) {
     std::lock_guard<std::mutex> lock(mutex_);
-
-    if constexpr (host_accessible_) {
-      meta_.free_heads.fill(nullptr);
-    } else {
-      meta_.live_blocks.clear();
-      for (auto &stack : meta_.free_blocks) {
-        stack.clear();
-      }
+    if (any_allocation_ || !slabs_.empty()) {
+      throw std::runtime_error(
+          "Cannot configure SlabArenaPool large allocations after allocations "
+          "have occurred");
     }
+    large_config_ = config;
+  }
 
-    for (auto &slab : slabs_) {
-      if (slab.base != nullptr) {
-#ifdef PORTABILITY_STRATEGY_KOKKOS
-        Kokkos::kokkos_free<memory_space>(slab.base);
-#else
-        PORTABLE_FREE(slab.base);
-#endif
-      }
-    }
-
-    slabs_.clear();
-    current_slab_ = 0;
-    next_slab_bytes_ = min_slab_bytes_;
+  LargeAllocationStats large_allocation_stats() const {
+    std::lock_guard<std::mutex> lock(mutex_);
+    return large_stats_;
   }
 
   // Profiling functions for tuning slab sizes
@@ -416,9 +582,18 @@ class SlabArenaPool {
   static constexpr bool host_accessible_ =
       memory_detail::host_accessible<memory_space>::value;
 
+  enum class AllocationKind : std::uint8_t { SmallPool = 0, LargePool = 1 };
+
+  // In-band header for host-accessible spaces. The layout is unchanged in size
+  // and field alignment from the original small-only version: `kind` and its
+  // padding occupy what used to be the `reserved` word. For SmallPool blocks
+  // the fields keep their original meaning; for LargePool blocks `block_bytes`
+  // holds the backend capacity and `block_start` holds the backend base
+  // pointer (`idx` is unused).
   struct Header {
     std::uint32_t idx = 0;
-    std::uint32_t reserved = 0;
+    AllocationKind kind = AllocationKind::SmallPool;
+    std::uint8_t pad[3] = {}; // explicit padding; kept for 8-byte field alignment
     std::size_t block_bytes = 0;
     std::byte *block_start = nullptr;
     std::uint64_t sentinel = 0;
@@ -441,10 +616,14 @@ class SlabArenaPool {
 
   static constexpr std::uint64_t sentinel_ = 0x656D7070726F7473ull;
 
-  // Power-of-two block sizes from 16 B to 1 GiB.
+  // Power-of-two block sizes from 16 B (min_size) up to 2^max_size. The upper
+  // exponent (PORTS_OF_CALL_MAX_SLAB_BLOCK_LOG2, defined near the top of this
+  // header) is configurable so builds and tests can shrink the slab ceiling --
+  // and therefore the size at which the large-request path engages.
   static constexpr std::uint32_t min_size = 4;
-  static constexpr std::uint32_t max_size = 30;
+  static constexpr std::uint32_t max_size = PORTS_OF_CALL_MAX_SLAB_BLOCK_LOG2;
   static constexpr std::size_t num_blocks = std::size_t(max_size - min_size + 1);
+  static_assert(max_size > min_size, "max slab block must exceed min block size");
 
   static_assert((std::size_t{1} << min_size) >= sizeof(FreeNode),
                 "Minimum block size must be large enough to store FreeNode");
@@ -477,6 +656,37 @@ class SlabArenaPool {
   std::size_t next_slab_bytes_ = 8ull << 20;
   double growth_factor_ = 0.25;
 
+  // ---- Large-request cache state (guarded by mutex_) ---------------------
+  //
+  // A complete backend allocation used for a single caller. `base_ptr` is the
+  // pointer that must be returned to the backend; for host-accessible spaces
+  // an in-band Header precedes the user pointer, so base_ptr differs from the
+  // user pointer, and capacity_bytes excludes nothing -- it is the full
+  // backend size.
+  struct LargeBlock {
+    void *base_ptr = nullptr;
+    std::size_t capacity_bytes = 0;
+    std::uint64_t last_used_epoch = 0;
+  };
+
+  // Free large blocks available for reuse, ordered by capacity so a request
+  // can lower_bound() the smallest acceptable block.
+  std::multimap<std::size_t, LargeBlock> free_large_blocks_;
+  std::size_t cached_large_bytes_ = 0;
+  std::uint64_t large_epoch_ = 0;
+
+  // Active large allocations keyed by the user pointer. Maintained for every
+  // memory space (host and device) so release_all() -- which also runs from
+  // the Kokkos finalize hook -- can enumerate and free live large blocks that
+  // never appear in slabs_.
+  std::unordered_map<void *, LargeBlock> live_large_;
+
+  bool any_allocation_ = false;
+  bool shutting_down_ = false;
+
+  LargeAllocationConfig large_config_;
+  LargeAllocationStats large_stats_;
+
   static constexpr std::size_t overhead_bytes() noexcept {
     if constexpr (host_accessible_) {
       return sizeof(Header);
@@ -495,6 +705,237 @@ class SlabArenaPool {
   static constexpr std::size_t max_block_bytes() { return std::size_t(1) << max_size; }
 
   static bool is_power_of_two(std::size_t x) { return x != 0 && ((x & (x - 1)) == 0); }
+
+  // Narrow wrappers over the memory-space backend. All backend calls in the
+  // pool funnel through these so the strategy #ifdef lives in exactly one place
+  // and the large-allocation path can share it with the slab path. Returns
+  // nullptr on failure (caller decides how to react); never throws.
+  static void *backend_allocate(std::size_t bytes) noexcept {
+#ifdef PORTABILITY_STRATEGY_KOKKOS
+    return Kokkos::kokkos_malloc<memory_space>(bytes);
+#else
+    return PORTABLE_MALLOC(bytes);
+#endif
+  }
+
+  static void backend_deallocate(void *p) noexcept {
+    if (p == nullptr) {
+      return;
+    }
+#ifdef PORTABILITY_STRATEGY_KOKKOS
+    Kokkos::kokkos_free<memory_space>(p);
+#else
+    PORTABLE_FREE(p);
+#endif
+  }
+
+  // ---- Large-request path ------------------------------------------------
+
+  // Round a required backend size up to the configured granularity, with
+  // overflow checking. Returns 0 on overflow.
+  std::size_t round_large_capacity(std::size_t need) const noexcept {
+    const std::size_t g = large_config_.allocation_granularity_bytes;
+    if (g <= 1) {
+      return need;
+    }
+    if (need > std::numeric_limits<std::size_t>::max() - (g - 1)) {
+      return 0;
+    }
+    return ((need + (g - 1)) / g) * g;
+  }
+
+  // A cached block of `capacity` is reusable for `need` bytes only if it is at
+  // least `need` and not excessively larger than it.
+  bool acceptable_oversize(std::size_t capacity, std::size_t need) const noexcept {
+    if (capacity < need) {
+      return false;
+    }
+    std::size_t relative_slack = 0;
+    if (large_config_.max_oversize_denominator != 0) {
+      // need * num / den without overflowing: divide first.
+      relative_slack = (need / large_config_.max_oversize_denominator) *
+                       large_config_.max_oversize_numerator;
+    }
+    const std::size_t allowed_slack =
+        std::max(relative_slack, large_config_.min_oversize_bytes);
+    return capacity - need <= allowed_slack;
+  }
+
+  void note_active_large_added(std::size_t capacity) noexcept {
+    large_stats_.active_capacity_bytes += capacity;
+    ++large_stats_.active_blocks;
+    large_stats_.peak_active_capacity_bytes = std::max(
+        large_stats_.peak_active_capacity_bytes, large_stats_.active_capacity_bytes);
+  }
+
+  void note_active_large_removed(std::size_t capacity) noexcept {
+    large_stats_.active_capacity_bytes -= capacity;
+    --large_stats_.active_blocks;
+  }
+
+  void note_cached_added(std::size_t capacity) noexcept {
+    cached_large_bytes_ += capacity;
+    large_stats_.cached_bytes = cached_large_bytes_;
+    large_stats_.cached_blocks = free_large_blocks_.size();
+    large_stats_.peak_cached_bytes =
+        std::max(large_stats_.peak_cached_bytes, cached_large_bytes_);
+  }
+
+  void note_cached_removed(std::size_t capacity) noexcept {
+    cached_large_bytes_ -= capacity;
+    large_stats_.cached_bytes = cached_large_bytes_;
+    large_stats_.cached_blocks = free_large_blocks_.size();
+  }
+
+  // Build the user pointer inside a large backend block and register active
+  // metadata. Mirrors make_allocation()'s alignment/header logic. Must be
+  // called with mutex_ held (device registry) but the host header write needs
+  // no lock; we take the lock for both to keep the accounting consistent.
+  void *activate_large_block(void *base, std::size_t capacity, std::size_t request,
+                             std::size_t alignment) {
+    const std::uintptr_t raw_user =
+        reinterpret_cast<std::uintptr_t>(base) + overhead_bytes();
+    const std::uintptr_t aligned_user = align_up_ptr(raw_user, alignment);
+    auto *const user_ptr = reinterpret_cast<std::byte *>(aligned_user);
+
+    [[maybe_unused]] const std::byte *const block_end =
+        static_cast<std::byte *>(base) + capacity;
+    [[maybe_unused]] const std::byte *const user_end = user_ptr + request;
+    assert(user_end <= block_end);
+    assert(reinterpret_cast<std::uintptr_t>(user_ptr) % alignment == 0);
+
+    if constexpr (host_accessible_) {
+      auto *const h = reinterpret_cast<Header *>(user_ptr - sizeof(Header));
+      h->idx = 0;
+      h->kind = AllocationKind::LargePool;
+      h->block_bytes = capacity;                     // backend capacity
+      h->block_start = static_cast<std::byte *>(base); // backend base pointer
+      h->sentinel = sentinel_;
+    }
+
+    const auto &[it, inserted] = live_large_.emplace(
+        static_cast<void *>(user_ptr), LargeBlock{base, capacity, 0});
+    if (!inserted) {
+      throw std::runtime_error("SlabArenaPool: duplicate large allocation pointer");
+    }
+    note_active_large_added(capacity);
+    return static_cast<void *>(user_ptr);
+  }
+
+  void *alloc_large(std::size_t request, std::size_t alignment, std::size_t need) {
+    const std::size_t required_capacity = round_large_capacity(need);
+    if (required_capacity == 0) {
+      throw std::bad_alloc{};
+    }
+
+    {
+      std::lock_guard<std::mutex> lock(mutex_);
+      any_allocation_ = true;
+      ++large_stats_.requests;
+
+      auto it = free_large_blocks_.lower_bound(required_capacity);
+      if (it != free_large_blocks_.end() &&
+          acceptable_oversize(it->second.capacity_bytes, required_capacity)) {
+        LargeBlock block = it->second;
+        free_large_blocks_.erase(it);
+        note_cached_removed(block.capacity_bytes);
+        ++large_stats_.cache_hits;
+        return activate_large_block(block.base_ptr, block.capacity_bytes, request,
+                                    alignment);
+      }
+      ++large_stats_.cache_misses;
+    }
+
+    // Cache miss: allocate from the backend outside the lock so a slow
+    // multi-gigabyte call does not block small allocations. On failure, trim
+    // the cache and retry once (cached blocks may be holding the memory we
+    // need at a different capacity).
+    void *base = backend_allocate(required_capacity);
+    if (base == nullptr) {
+      trim_large_cache();
+      base = backend_allocate(required_capacity);
+      if (base == nullptr) {
+        throw std::bad_alloc{};
+      }
+      std::lock_guard<std::mutex> lock(mutex_);
+      ++large_stats_.allocation_retries_succeeded;
+    }
+
+    std::lock_guard<std::mutex> lock(mutex_);
+    ++large_stats_.backend_allocations;
+    try {
+      return activate_large_block(base, required_capacity, request, alignment);
+    } catch (...) {
+      backend_deallocate(base);
+      throw;
+    }
+  }
+
+  // Common tail for freeing a large block whose active registry entry has
+  // already been removed (both host and device paths). Decides whether to
+  // cache or return to the backend, and performs any backend calls outside the
+  // lock.
+  void free_large_after_unregister(std::byte *backend_base,
+                                   std::size_t capacity) noexcept {
+    std::vector<LargeBlock> victims;
+    bool release_directly = false;
+    {
+      std::lock_guard<std::mutex> lock(mutex_);
+      note_active_large_removed(capacity);
+
+      release_directly = shutting_down_ || large_config_.max_cached_bytes == 0 ||
+                         capacity > large_config_.max_single_cached_bytes;
+
+      if (!release_directly) {
+        // std::multimap::emplace can throw; if it does we fall back to a direct
+        // backend free rather than leaking, preserving noexcept.
+        try {
+          free_large_blocks_.emplace(capacity,
+                                     LargeBlock{backend_base, capacity, ++large_epoch_});
+          note_cached_added(capacity);
+          victims = collect_eviction_victims_locked();
+        } catch (...) {
+          release_directly = true;
+        }
+      }
+    }
+
+    if (release_directly) {
+      ++large_stats_.direct_frees;
+      ++large_stats_.backend_deallocations;
+      backend_deallocate(backend_base);
+    }
+
+    release_large_blocks(victims);
+  }
+
+  // Select oldest-epoch victims until both cache limits are satisfied. Caller
+  // holds mutex_. Returns blocks to free outside the lock.
+  std::vector<LargeBlock> collect_eviction_victims_locked() {
+    std::vector<LargeBlock> victims;
+    while (cached_large_bytes_ > large_config_.max_cached_bytes ||
+           free_large_blocks_.size() > large_config_.max_cached_blocks) {
+      auto oldest = free_large_blocks_.begin();
+      for (auto it = free_large_blocks_.begin(); it != free_large_blocks_.end(); ++it) {
+        if (it->second.last_used_epoch < oldest->second.last_used_epoch) {
+          oldest = it;
+        }
+      }
+      victims.push_back(oldest->second);
+      const std::size_t victim_capacity = oldest->second.capacity_bytes;
+      free_large_blocks_.erase(oldest);
+      note_cached_removed(victim_capacity);
+      ++large_stats_.evictions;
+    }
+    return victims;
+  }
+
+  void release_large_blocks(const std::vector<LargeBlock> &blocks) noexcept {
+    for (const LargeBlock &b : blocks) {
+      ++large_stats_.backend_deallocations;
+      backend_deallocate(b.base_ptr);
+    }
+  }
 
   static std::uint32_t get_block_index(std::size_t bytes_needed) {
     std::size_t block = std::size_t{1} << min_size;
@@ -524,11 +965,7 @@ class SlabArenaPool {
     const std::size_t slab_bytes =
         std::max(std::max(min_slab_bytes_, next_slab_bytes_), min_required_bytes);
 
-#ifdef PORTABILITY_STRATEGY_KOKKOS
-    void *raw = Kokkos::kokkos_malloc<memory_space>(slab_bytes);
-#else
-    void *raw = PORTABLE_MALLOC(slab_bytes);
-#endif
+    void *raw = backend_allocate(slab_bytes);
     if (!raw) {
       throw std::bad_alloc{};
     }
@@ -536,11 +973,7 @@ class SlabArenaPool {
     try {
       slabs_.push_back(Slab{static_cast<std::byte *>(raw), slab_bytes, 0});
     } catch (...) {
-#ifdef PORTABILITY_STRATEGY_KOKKOS
-      Kokkos::kokkos_free<memory_space>(raw);
-#else
-      PORTABLE_FREE(raw);
-#endif
+      backend_deallocate(raw);
       throw;
     }
     current_slab_ = slabs_.size() - 1;
@@ -584,7 +1017,7 @@ class SlabArenaPool {
     if constexpr (host_accessible_) {
       auto *const h = reinterpret_cast<Header *>(user_ptr - sizeof(Header));
       h->idx = idx;
-      h->reserved = 0; // explicit padding; kept for 8-byte field alignment
+      h->kind = AllocationKind::SmallPool;
       h->block_bytes = block_bytes;
       h->block_start = block_start;
       h->sentinel = sentinel_;
