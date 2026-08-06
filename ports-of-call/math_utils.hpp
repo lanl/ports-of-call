@@ -108,6 +108,11 @@ PORTABLE_FORCEINLINE_FUNCTION double expm1(double x) {
 #endif
 }
 
+template <typename T>
+PORTABLE_FORCEINLINE_FUNCTION auto sgn(const T &x) {
+  return (T(0) < x) - (x < T(0));
+}
+
 } // namespace Math
 } // namespace PortsOfCall
 
