@@ -87,12 +87,14 @@ constexpr std::int64_t low_mask = (one << 26) - 1;
 } // namespace FP64LE
 
 namespace NQT {
+namespace O1 {
+namespace Portable {
 // First order interpolation based NQTs
 // ----------------------------------------------------------------------
 // Reference implementations, however the integer cast implementation
 // below is probably faster.
 PORTABLE_FORCEINLINE_FUNCTION
-double lg_o1_portable(const double x) {
+double lg(const double x) {
   int e;
   PORTABLE_REQUIRE(x > 0, "log divergent for x <= 0");
   PORTABLE_REQUIRE(std::isfinite(x), "log divergent for non-finite x");
@@ -101,7 +103,7 @@ double lg_o1_portable(const double x) {
 }
 
 PORTABLE_FORCEINLINE_FUNCTION
-double pow2_o1_portable(const double x) {
+double pow2(const double x) {
   PORTABLE_REQUIRE(std::isfinite(x) && x >= -1022 && x <= 1024,
                    "x must be finite and sufficiently small");
   const int flr = std::floor(x);
@@ -111,9 +113,12 @@ double pow2_o1_portable(const double x) {
   return ldexp(mantissa, exponent);
 }
 
+} // namespace Portable
+
+namespace Aliased {
 // Integer aliased versions
 PORTABLE_FORCEINLINE_FUNCTION
-double lg_o1_aliased(const double x) {
+double lg(const double x) {
   using namespace FP64LE;
   PORTABLE_REQUIRE(x >= std::numeric_limits<double>::min() && std::isfinite(x),
                    "Aliased log unsafe for negatives and subnormals");
@@ -121,20 +126,24 @@ double lg_o1_aliased(const double x) {
 }
 
 PORTABLE_FORCEINLINE_FUNCTION
-double pow2_o1_aliased(const double x) {
+double pow2(const double x) {
   using namespace FP64LE;
   PORTABLE_REQUIRE(std::isfinite(x) && x >= -1022 && x <= 1024,
                    "x must be finite and sufficiently small");
   return as_double(static_cast<std::int64_t>(x * scale_up) + one_as_int);
 }
+} // namespace Aliased
+} // namespace O1
 // ----------------------------------------------------------------------
 
+namespace O2 {
+namespace Portable {
 // Second-order interpolation based NQTs
 // These implementations are due to Peter Hammond
 // ----------------------------------------------------------------------
 // Portable versions that use frexp/ldexp rather than integer aliasing
 PORTABLE_FORCEINLINE_FUNCTION
-double lg_o2_portable(const double x) {
+double lg(const double x) {
   PORTABLE_REQUIRE(x > 0, "log divergent for x <= 0");
   PORTABLE_REQUIRE(std::isfinite(x), "log divergent for non-finite x");
   constexpr double four_thirds = 4. / 3.;
@@ -145,7 +154,7 @@ double lg_o2_portable(const double x) {
 
 // This version uses the exact formula
 PORTABLE_FORCEINLINE_FUNCTION
-double pow2_o2_portable(const double x) {
+double pow2(const double x) {
   PORTABLE_REQUIRE(std::isfinite(x) && x >= -1022 && x <= 1024,
                    "x must be finite and sufficiently small");
   // log2(mantissa). should go between -1 and 0
@@ -156,9 +165,12 @@ double pow2_o2_portable(const double x) {
   return ldexp(mantissa, exponent);
 }
 
+} // namespace Portable
+
+namespace Aliased {
 // Integer aliased/bithacked versions
 PORTABLE_FORCEINLINE_FUNCTION
-double lg_o2_aliased(const double x) {
+double lg(const double x) {
   using namespace FP64LE;
   PORTABLE_REQUIRE(x >= std::numeric_limits<double>::min() && std::isfinite(x),
                    "Aliased log unsafe for negatives and subnormals");
@@ -173,7 +185,7 @@ double lg_o2_aliased(const double x) {
 }
 
 PORTABLE_FORCEINLINE_FUNCTION
-double pow2_o2_aliased(const double x) {
+double pow2(const double x) {
   using namespace FP64LE;
   PORTABLE_REQUIRE(std::isfinite(x) && x >= -1022 && x <= 1024,
                    "x must be finite and sufficiently small");
@@ -187,7 +199,44 @@ double pow2_o2_aliased(const double x) {
 
   return as_double(x_as_int + a - frac_sqrt - frac_as_int + one_as_int);
 }
-// ----------------------------------------------------------------------
+} // namespace Aliased
+} // namespace O2
+
+/* namespace impl {
+template <auto lg>
+KOKKOS_FORCEINLINE_FUNCTION double asinh_o1(const double x) {
+  constexpr double IE = 1.0 / M_E;
+  constexpr double LG2 = 1.4426950408889634074;
+  const double a2x = 2 * std::abs(x);
+  const double mask = (a2x < M_E); // to make expr below single type
+  return mask * a2x * IE + (1. - mask) * LG2 * sgn(x) * lg(a2x);
+}
+template <auto pow2>
+KOKKOS_FORCEINLINE_FUNCTION double sinh_o1(const double x) {
+  constexpr double LG2 = 1.4426950408889634074;
+  const double ax = std::abs(x);
+  const double mask = (ax < 1.0);
+  return mask * 0.5 * M_E * x + (1. - mask) * 0.5 * sgn(x) * pow2(LG2 * ax);
+}
+} // namespace impl
+
+PORTABLE_FORCEINLINE_FUNCTION
+double asinh_o1_aliased(const double x) {
+  return asinh_o1<lg_o1_aliased>(x);
+}
+PORTABLE_FORCEINLINE_FUNCTION
+double sinh_o1_aliased(const double x) {
+  return sinh_o1<pow2_o1_aliased>(x);
+}
+PORTABLE_FORCEINLINE_FUNCTION
+double asinh_o1_portable(const double x) {
+  return asinh_o1<lg_o1_portable>(x);
+}
+PORTABLE_FORCEINLINE_FUNCTION
+double sinh_o1_portable(const double x) {
+  return sinh_o1<pow2_o1_portable>(x);
+}
+// ---------------------------------------------------------------------- */
 
 } // namespace NQT
 

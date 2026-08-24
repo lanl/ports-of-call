@@ -78,16 +78,20 @@ SCENARIO("Test that the NQT math magic numbers are all correct", "[NQT]") {
 
 TEST_CASE("NQT implementations reproduce analytic values", "[NQT]") {
   SECTION("portable first order") {
-    check_o1_values(PortsOfCall::NQT::lg_o1_portable, PortsOfCall::NQT::pow2_o1_portable);
+    check_o1_values(PortsOfCall::NQT::O1::Portable::lg,
+                    PortsOfCall::NQT::O1::Portable::pow2);
   }
   SECTION("aliased first order") {
-    check_o1_values(PortsOfCall::NQT::lg_o1_aliased, PortsOfCall::NQT::pow2_o1_aliased);
+    check_o1_values(PortsOfCall::NQT::O1::Aliased::lg,
+                    PortsOfCall::NQT::O1::Aliased::pow2);
   }
   SECTION("portable second order") {
-    check_o2_values(PortsOfCall::NQT::lg_o2_portable, PortsOfCall::NQT::pow2_o2_portable);
+    check_o2_values(PortsOfCall::NQT::O2::Portable::lg,
+                    PortsOfCall::NQT::O2::Portable::pow2);
   }
   SECTION("aliased second order") {
-    check_o2_values(PortsOfCall::NQT::lg_o2_aliased, PortsOfCall::NQT::pow2_o2_aliased);
+    check_o2_values(PortsOfCall::NQT::O2::Aliased::lg,
+                    PortsOfCall::NQT::O2::Aliased::pow2);
   }
 }
 
@@ -108,10 +112,10 @@ SCENARIO("Test that all NQT implementations are invertible and run on device",
             const double expected_log2 = min_log2 + i * spacing;
             const double x = std::pow(2.0, expected_log2);
             const double round_trips[] = {
-                PortsOfCall::NQT::pow2_o1_portable(PortsOfCall::NQT::lg_o1_portable(x)),
-                PortsOfCall::NQT::pow2_o1_aliased(PortsOfCall::NQT::lg_o1_aliased(x)),
-                PortsOfCall::NQT::pow2_o2_portable(PortsOfCall::NQT::lg_o2_portable(x)),
-                PortsOfCall::NQT::pow2_o2_aliased(PortsOfCall::NQT::lg_o2_aliased(x))};
+                PortsOfCall::NQT::O1::Portable::pow2(PortsOfCall::NQT::O1::Portable::lg(x)),
+                PortsOfCall::NQT::O1::Aliased::pow2(PortsOfCall::NQT::O1::Aliased::lg(x)),
+                PortsOfCall::NQT::O2::Portable::pow2(PortsOfCall::NQT::O2::Portable::lg(x)),
+                PortsOfCall::NQT::O2::Aliased::pow2(PortsOfCall::NQT::O2::Aliased::lg(x))};
 
             for (const double round_trip : round_trips) {
               const double relative_error =
