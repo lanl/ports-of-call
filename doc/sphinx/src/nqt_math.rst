@@ -1,5 +1,5 @@
-Not-quite-transcendental math
-=============================
+Not-quite-transcendental functions
+====================================
 
 ``nqt_math.hpp`` provides fast, invertible approximations to base-2
 logarithms and powers of two.  These functions are useful when an
