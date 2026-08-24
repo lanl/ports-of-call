@@ -86,6 +86,15 @@ constexpr std::int64_t mantissa_mask = (one << 52) - one;
 constexpr std::int64_t low_mask = (one << 26) - 1;
 } // namespace FP64LE
 
+// Mathematical constants shared by NQT implementations.
+namespace NQTConstants {
+constexpr double four_thirds = 4.0 / 3.0;
+constexpr double e_half = 1.3591409142295226177;
+constexpr double inv_e = 0.3678794411714423216;
+constexpr double ln2 = 0.6931471805599453094;
+constexpr double log2e = 1.4426950408889634074;
+} // namespace NQTConstants
+
 namespace NQT {
 namespace O1 {
 namespace Portable {
@@ -146,10 +155,9 @@ PORTABLE_FORCEINLINE_FUNCTION
 double lg(const double x) {
   PORTABLE_REQUIRE(x > 0, "log divergent for x <= 0");
   PORTABLE_REQUIRE(std::isfinite(x), "log divergent for non-finite x");
-  constexpr double four_thirds = 4. / 3.;
   int e;
   const double m = frexp(x, &e);
-  return e - four_thirds * (m - 2) * (m - 1);
+  return e - NQTConstants::four_thirds * (m - 2) * (m - 1);
 }
 
 // This version uses the exact formula
@@ -205,30 +213,23 @@ double pow2(const double x) {
 namespace impl {
 template <auto Lg>
 PORTABLE_FORCEINLINE_FUNCTION double asinh(const double x) {
-  constexpr double e_half = 1.3591409142295226177;
-  constexpr double inv_e = 0.3678794411714423216;
-  constexpr double ln2 = 0.6931471805599453094;
-
   const double ax = std::abs(x);
-  const double large = static_cast<double>(ax >= e_half);
+  const double large = static_cast<double>(ax >= NQTConstants::e_half);
   // Both sides of the mask are evaluated, so give Lg a valid argument
   // for small inputs as well.
-  const double safe_ax = large * ax + (1.0 - large) * e_half;
-  const double small_result = 2.0 * x * inv_e;
-  const double large_result = Math::sgn(x) * ln2 * (Lg(safe_ax) + 1.0);
+  const double safe_ax = large * ax + (1.0 - large) * NQTConstants::e_half;
+  const double small_result = 2.0 * x * NQTConstants::inv_e;
+  const double large_result = Math::sgn(x) * NQTConstants::ln2 * (Lg(safe_ax) + 1.0);
 
   return (1.0 - large) * small_result + large * large_result;
 }
 
 template <auto Pow2>
 PORTABLE_FORCEINLINE_FUNCTION double sinh(const double x) {
-  constexpr double e_half = 1.3591409142295226177;
-  constexpr double log2e = 1.4426950408889634074;
-
   const double ax = std::abs(x);
   const double large = static_cast<double>(ax >= 1.0);
-  const double small_result = e_half * x;
-  const double large_result = 0.5 * Math::sgn(x) * Pow2(log2e * ax);
+  const double small_result = NQTConstants::e_half * x;
+  const double large_result = 0.5 * Math::sgn(x) * Pow2(NQTConstants::log2e * ax);
 
   return (1.0 - large) * small_result + large * large_result;
 }
