@@ -62,6 +62,26 @@ void check_o2_values(Log log, Pow2 pow2) {
   CHECK_THAT(pow2(0.5), WithinAbs(3.0 - std::sqrt(2.5), tolerance));
 }
 
+template <typename Asinh, typename Sinh>
+void check_o1_hyperbolic_values(Asinh asinh, Sinh sinh) {
+  using Catch::Matchers::WithinAbs;
+  constexpr double e_half = 1.3591409142295226177;
+  constexpr double inv_e = 0.3678794411714423216;
+  constexpr double tolerance = 16.0 * std::numeric_limits<double>::epsilon();
+
+  CHECK(asinh(0.0) == 0.0);
+  CHECK(sinh(0.0) == 0.0);
+  CHECK_THAT(asinh(0.5), WithinAbs(inv_e, tolerance));
+  CHECK_THAT(asinh(-0.5), WithinAbs(-inv_e, tolerance));
+  CHECK_THAT(sinh(0.5), WithinAbs(0.5 * e_half, tolerance));
+  CHECK_THAT(sinh(-0.5), WithinAbs(-0.5 * e_half, tolerance));
+
+  constexpr double values[] = {-4.0, -1.0, -0.5, 0.5, 1.0, 4.0};
+  for (const double x : values) {
+    CHECK_THAT(asinh(sinh(x)), WithinAbs(x, tolerance));
+  }
+}
+
 } // namespace
 
 SCENARIO("Test that the NQT math magic numbers are all correct", "[NQT]") {
@@ -95,6 +115,17 @@ TEST_CASE("NQT implementations reproduce analytic values", "[NQT]") {
   }
 }
 
+TEST_CASE("First-order NQT hyperbolic functions are odd and invertible", "[NQT]") {
+  SECTION("portable") {
+    check_o1_hyperbolic_values(PortsOfCall::NQT::O1::Portable::asinh,
+                               PortsOfCall::NQT::O1::Portable::sinh);
+  }
+  SECTION("aliased") {
+    check_o1_hyperbolic_values(PortsOfCall::NQT::O1::Aliased::asinh,
+                               PortsOfCall::NQT::O1::Aliased::sinh);
+  }
+}
+
 SCENARIO("Test that all NQT implementations are invertible and run on device",
          "[NQT][GPU]") {
   GIVEN("normal values spanning a large dynamic range") {
@@ -117,9 +148,26 @@ SCENARIO("Test that all NQT implementations are invertible and run on device",
                 PortsOfCall::NQT::O2::Portable::pow2(PortsOfCall::NQT::O2::Portable::lg(x)),
                 PortsOfCall::NQT::O2::Aliased::pow2(PortsOfCall::NQT::O2::Aliased::lg(x))};
 
+            constexpr double min_hyperbolic_arg = -4.0;
+            constexpr double max_hyperbolic_arg = 4.0;
+            const double hyperbolic_arg =
+                min_hyperbolic_arg + i * (max_hyperbolic_arg - min_hyperbolic_arg) /
+                                         (num_points - 1);
+            const double hyperbolic_round_trips[] = {
+                PortsOfCall::NQT::O1::Portable::asinh(
+                    PortsOfCall::NQT::O1::Portable::sinh(hyperbolic_arg)),
+                PortsOfCall::NQT::O1::Aliased::asinh(
+                    PortsOfCall::NQT::O1::Aliased::sinh(hyperbolic_arg))};
+
             for (const double round_trip : round_trips) {
               const double relative_error =
                   2.0 * std::abs(x - round_trip) / (std::abs(x) + std::abs(round_trip));
+              local_failures += !std::isfinite(round_trip) || relative_error > tolerance;
+            }
+            for (const double round_trip : hyperbolic_round_trips) {
+              const double relative_error =
+                  2.0 * std::abs(hyperbolic_arg - round_trip) /
+                  (std::abs(hyperbolic_arg) + std::abs(round_trip));
               local_failures += !std::isfinite(round_trip) || relative_error > tolerance;
             }
           },

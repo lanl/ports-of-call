@@ -63,6 +63,14 @@ Each implementation namespace provides ``lg`` and ``pow2``:
    const double y = PortsOfCall::NQT::O2::Portable::lg(x);
    const double x_round_trip = PortsOfCall::NQT::O2::Portable::pow2(y);
 
+The first-order namespaces also provide matched ``asinh`` and ``sinh``
+approximations:
+
+.. code-block:: cpp
+
+   const double y = PortsOfCall::NQT::O1::Aliased::sinh(x);
+   const double x_round_trip = PortsOfCall::NQT::O1::Aliased::asinh(y);
+
 For every implementation, ``lg`` requires a finite positive argument.  The
 ``pow2`` functions accept finite arguments in the range ``[-1022, 1024]``.
 The aliased ``lg`` functions additionally reject subnormal values because the

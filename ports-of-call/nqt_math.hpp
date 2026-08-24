@@ -202,41 +202,64 @@ double pow2(const double x) {
 } // namespace Aliased
 } // namespace O2
 
-/* namespace impl {
-template <auto lg>
-KOKKOS_FORCEINLINE_FUNCTION double asinh_o1(const double x) {
-  constexpr double IE = 1.0 / M_E;
-  constexpr double LG2 = 1.4426950408889634074;
-  const double a2x = 2 * std::abs(x);
-  const double mask = (a2x < M_E); // to make expr below single type
-  return mask * a2x * IE + (1. - mask) * LG2 * sgn(x) * lg(a2x);
-}
-template <auto pow2>
-KOKKOS_FORCEINLINE_FUNCTION double sinh_o1(const double x) {
-  constexpr double LG2 = 1.4426950408889634074;
+namespace impl {
+template <auto Lg>
+PORTABLE_FORCEINLINE_FUNCTION double asinh(const double x) {
+  constexpr double e_half = 1.3591409142295226177;
+  constexpr double inv_e = 0.3678794411714423216;
+  constexpr double ln2 = 0.6931471805599453094;
+
   const double ax = std::abs(x);
-  const double mask = (ax < 1.0);
-  return mask * 0.5 * M_E * x + (1. - mask) * 0.5 * sgn(x) * pow2(LG2 * ax);
+  const double large = static_cast<double>(ax >= e_half);
+  // Both sides of the mask are evaluated, so give Lg a valid argument
+  // for small inputs as well.
+  const double safe_ax = large * ax + (1.0 - large) * e_half;
+  const double small_result = 2.0 * x * inv_e;
+  const double large_result = Math::sgn(x) * ln2 * (Lg(safe_ax) + 1.0);
+
+  return (1.0 - large) * small_result + large * large_result;
+}
+
+template <auto Pow2>
+PORTABLE_FORCEINLINE_FUNCTION double sinh(const double x) {
+  constexpr double e_half = 1.3591409142295226177;
+  constexpr double log2e = 1.4426950408889634074;
+
+  const double ax = std::abs(x);
+  const double large = static_cast<double>(ax >= 1.0);
+  const double small_result = e_half * x;
+  const double large_result = 0.5 * Math::sgn(x) * Pow2(log2e * ax);
+
+  return (1.0 - large) * small_result + large * large_result;
 }
 } // namespace impl
 
+namespace O1 {
+namespace Aliased {
 PORTABLE_FORCEINLINE_FUNCTION
-double asinh_o1_aliased(const double x) {
-  return asinh_o1<lg_o1_aliased>(x);
+double asinh(const double x) {
+  return impl::asinh<lg>(x);
 }
+
 PORTABLE_FORCEINLINE_FUNCTION
-double sinh_o1_aliased(const double x) {
-  return sinh_o1<pow2_o1_aliased>(x);
+double sinh(const double x) {
+  return impl::sinh<pow2>(x);
 }
+} // namespace Aliased
+
+namespace Portable {
 PORTABLE_FORCEINLINE_FUNCTION
-double asinh_o1_portable(const double x) {
-  return asinh_o1<lg_o1_portable>(x);
+double asinh(const double x) {
+  return impl::asinh<lg>(x);
 }
+
 PORTABLE_FORCEINLINE_FUNCTION
-double sinh_o1_portable(const double x) {
-  return sinh_o1<pow2_o1_portable>(x);
+double sinh(const double x) {
+  return impl::sinh<pow2>(x);
 }
-// ---------------------------------------------------------------------- */
+} // namespace Portable
+} // namespace O1
+// ----------------------------------------------------------------------
 
 } // namespace NQT
 
