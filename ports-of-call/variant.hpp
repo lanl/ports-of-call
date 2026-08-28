@@ -269,6 +269,10 @@ class bad_variant_access : public std::exception {
   virtual const char *what() const noexcept override { return "bad_variant_access"; }
 };
 
+#if defined(SYCL_LANGUAGE_VERSION)
+// TODO(CEP) this isn't ideal, we should be halting or throwing if SYCL supports it
+V_GPU_FUNCTION inline void throw_bad_variant_access() { return; }
+#else
 [[noreturn]] V_GPU_FUNCTION inline void throw_bad_variant_access() {
 #if defined(__HIP_DEVICE_COMPILE__) ||                                                   \
     (defined(__clang__) && defined(__CUDA__) && defined(__CUDA_ARCH__))
@@ -284,6 +288,7 @@ class bad_variant_access : public std::exception {
   PORTABLE_BUILTIN_UNREACHABLE;
 #endif
 }
+#endif
 
 template <typename... Ts>
 class variant;
