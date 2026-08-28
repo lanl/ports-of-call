@@ -270,9 +270,8 @@ class bad_variant_access : public std::exception {
 };
 
 #if defined(SYCL_LANGUAGE_VERSION)
-V_GPU_FUNCTION inline void throw_bad_variant_access() {
-  return;
-}
+// TODO(CEP) this isn't ideal, we should be halting or throwing if SYCL supports it
+V_GPU_FUNCTION inline void throw_bad_variant_access() { return; }
 #else
 [[noreturn]] V_GPU_FUNCTION inline void throw_bad_variant_access() {
 #if defined(__HIP_DEVICE_COMPILE__) ||                                                   \
