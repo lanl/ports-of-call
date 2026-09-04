@@ -18,6 +18,7 @@
 
 // This file was generated in part with generative AI
 
+#include <algorithm>
 #include <cstdlib>
 
 #include <string>
