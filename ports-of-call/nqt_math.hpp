@@ -214,11 +214,13 @@ namespace impl {
 template <auto Lg>
 PORTABLE_FORCEINLINE_FUNCTION double asinh(const double x) {
   const double ax = std::abs(x);
-  const double large = static_cast<double>(ax >= NQTConstants::e_half);
+  // pow2(log2(e)) / 2 == log2(e) for the O1 NQT. Using this
+  // NQT-consistent splice keeps both branches continuous and invertible.
+  const double large = static_cast<double>(ax >= NQTConstants::log2e);
   // Both sides of the mask are evaluated, so give Lg a valid argument
   // for small inputs as well.
-  const double safe_ax = large * ax + (1.0 - large) * NQTConstants::e_half;
-  const double small_result = 2.0 * x * NQTConstants::inv_e;
+  const double safe_ax = large * ax + (1.0 - large) * NQTConstants::log2e;
+  const double small_result = NQTConstants::ln2 * x;
   const double large_result = Math::sgn(x) * NQTConstants::ln2 * (Lg(safe_ax) + 1.0);
 
   return (1.0 - large) * small_result + large * large_result;
@@ -228,7 +230,7 @@ template <auto Pow2>
 PORTABLE_FORCEINLINE_FUNCTION double sinh(const double x) {
   const double ax = std::abs(x);
   const double large = static_cast<double>(ax >= 1.0);
-  const double small_result = NQTConstants::e_half * x;
+  const double small_result = NQTConstants::log2e * x;
   const double large_result = 0.5 * Math::sgn(x) * Pow2(NQTConstants::log2e * ax);
 
   return (1.0 - large) * small_result + large * large_result;

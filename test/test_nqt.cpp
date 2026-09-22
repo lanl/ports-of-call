@@ -65,20 +65,40 @@ void check_o2_values(Log log, Pow2 pow2) {
 template <typename Asinh, typename Sinh>
 void check_o1_hyperbolic_values(Asinh asinh, Sinh sinh) {
   using Catch::Matchers::WithinAbs;
-  constexpr double e_half = 1.3591409142295226177;
-  constexpr double inv_e = 0.3678794411714423216;
+  constexpr double ln2 = 0.6931471805599453094;
+  constexpr double log2e = 1.4426950408889634074;
   constexpr double tolerance = 16.0 * std::numeric_limits<double>::epsilon();
 
   CHECK(asinh(0.0) == 0.0);
   CHECK(sinh(0.0) == 0.0);
-  CHECK_THAT(asinh(0.5), WithinAbs(inv_e, tolerance));
-  CHECK_THAT(asinh(-0.5), WithinAbs(-inv_e, tolerance));
-  CHECK_THAT(sinh(0.5), WithinAbs(0.5 * e_half, tolerance));
-  CHECK_THAT(sinh(-0.5), WithinAbs(-0.5 * e_half, tolerance));
+  CHECK_THAT(asinh(0.5), WithinAbs(0.5 * ln2, tolerance));
+  CHECK_THAT(asinh(-0.5), WithinAbs(-0.5 * ln2, tolerance));
+  CHECK_THAT(sinh(0.5), WithinAbs(0.5 * log2e, tolerance));
+  CHECK_THAT(sinh(-0.5), WithinAbs(-0.5 * log2e, tolerance));
 
-  constexpr double values[] = {-4.0, -1.0, -0.5, 0.5, 1.0, 4.0};
+  // Check monotonicity immediately across both piecewise splices. The old
+  // e/2-based branches made sinh jump up and asinh jump down here.
+  for (const double splice : {-log2e, log2e}) {
+    const double below = std::nextafter(splice, -std::numeric_limits<double>::infinity());
+    const double above = std::nextafter(splice, std::numeric_limits<double>::infinity());
+    CHECK(asinh(below) <= asinh(splice));
+    CHECK(asinh(splice) <= asinh(above));
+  }
+  for (const double splice : {-1.0, 1.0}) {
+    const double below = std::nextafter(splice, -std::numeric_limits<double>::infinity());
+    const double above = std::nextafter(splice, std::numeric_limits<double>::infinity());
+    CHECK(sinh(below) <= sinh(splice));
+    CHECK(sinh(splice) <= sinh(above));
+  }
+
+  // e/2 was in the range skipped by the old discontinuous sinh, so reverse
+  // composition at this value directly detects the original bug.
+  constexpr double e_half = 1.3591409142295226177;
+  constexpr double values[] = {-4.0, -log2e, -e_half, -1.0, -0.5, 0.0,
+                               0.5,  1.0,    e_half,  log2e, 4.0};
   for (const double x : values) {
     CHECK_THAT(asinh(sinh(x)), WithinAbs(x, tolerance));
+    CHECK_THAT(sinh(asinh(x)), WithinAbs(x, tolerance));
   }
 }
 
