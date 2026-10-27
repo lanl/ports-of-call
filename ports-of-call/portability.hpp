@@ -121,11 +121,7 @@ struct Host {};
 template <typename... Ts>
 PORTABLE_INLINE_FUNCTION void printf(char const *const format, Ts... ts) {
 #ifdef PORTABILITY_STRATEGY_KOKKOS
-  if constexpr (sizeof...(Ts) > 0) {
-    Kokkos::printf(format, ts...);
-  } else {
-    Kokkos::printf("%s", format);
-  }
+  Kokkos::printf(format, ts...);
 #else
   // disable for hip, sycl
 #ifndef __HIPCC__
