@@ -120,14 +120,20 @@ struct Host {};
 #define PORTABLE_MAX_NUM_CHAR (2048)
 template <typename... Ts>
 PORTABLE_INLINE_FUNCTION void printf(char const *const format, Ts... ts) {
-  // disable for hip
+#ifdef PORTABILITY_STRATEGY_KOKKOS
+  Kokkos::printf(format, ts...);
+#else
+  // disable for hip, sycl
 #ifndef __HIPCC__
+#ifndef SYCL_LANGUAGE_VERSION
   if constexpr (sizeof...(Ts) > 0) {
     std::printf(format, ts...);
   } else {
     std::printf("%s", format);
   }
+#endif // SYCL_LANGUAGE_VERSION
 #endif // __HIPCC__
+#endif // PORTABILITY_STRATEGY_KOKKOS
   return;
 }
 template <typename... Ts>
