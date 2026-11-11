@@ -682,7 +682,6 @@ class SlabArenaPool {
   std::unordered_map<void *, LargeBlock> live_large_;
 
   bool any_allocation_ = false;
-  bool shutting_down_ = false;
 
   LargeAllocationConfig large_config_;
   LargeAllocationStats large_stats_;
@@ -712,7 +711,15 @@ class SlabArenaPool {
   // nullptr on failure (caller decides how to react); never throws.
   static void *backend_allocate(std::size_t bytes) noexcept {
 #ifdef PORTABILITY_STRATEGY_KOKKOS
-    return Kokkos::kokkos_malloc<memory_space>(bytes);
+    // kokkos_malloc reports allocation failure by throwing (std::runtime_error
+    // from Kokkos::Impl::throw_bad_alloc), not by returning nullptr. Translate
+    // that to nullptr so the retry/bad_alloc logic in the callers runs; letting
+    // it escape this noexcept function would call std::terminate.
+    try {
+      return Kokkos::kokkos_malloc<memory_space>(bytes);
+    } catch (...) {
+      return nullptr;
+    }
 #else
     return PORTABLE_MALLOC(bytes);
 #endif
@@ -883,7 +890,10 @@ class SlabArenaPool {
       std::lock_guard<std::mutex> lock(mutex_);
       note_active_large_removed(capacity);
 
-      release_directly = shutting_down_ || large_config_.max_cached_bytes == 0 ||
+      // No separate shutdown check is needed: shutdown goes through
+      // release_all() (finalize hook / destructor), which returns every large
+      // block to the backend directly.
+      release_directly = large_config_.max_cached_bytes == 0 ||
                          capacity > large_config_.max_single_cached_bytes;
 
       if (!release_directly) {
@@ -898,11 +908,14 @@ class SlabArenaPool {
           release_directly = true;
         }
       }
+
+      if (release_directly) {
+        ++large_stats_.direct_frees;
+        ++large_stats_.backend_deallocations;
+      }
     }
 
     if (release_directly) {
-      ++large_stats_.direct_frees;
-      ++large_stats_.backend_deallocations;
       backend_deallocate(backend_base);
     }
 
@@ -930,9 +943,17 @@ class SlabArenaPool {
     return victims;
   }
 
+  // Return blocks to the backend. Called without mutex_ held (backend calls stay
+  // outside the lock); only the stats update takes it.
   void release_large_blocks(const std::vector<LargeBlock> &blocks) noexcept {
+    if (blocks.empty()) {
+      return;
+    }
+    {
+      std::lock_guard<std::mutex> lock(mutex_);
+      large_stats_.backend_deallocations += blocks.size();
+    }
     for (const LargeBlock &b : blocks) {
-      ++large_stats_.backend_deallocations;
       backend_deallocate(b.base_ptr);
     }
   }
