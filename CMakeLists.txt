@@ -40,6 +40,12 @@ if(PORTS_OF_CALL_BUILD_TESTING)
       CACHE STRING "Portability strategy used by tests")
   set_property(CACHE PORTS_OF_CALL_TEST_PORTABILITY_STRATEGY
                PROPERTY STRINGS None Cuda Kokkos)
+  # Lower the SlabArenaPool slab ceiling (2^N bytes) for the tests so the
+  # large-request path is exercised with modest allocations: the large tests
+  # peak at about 8x one block. 30 reproduces the production default (1 GiB).
+  set(PORTS_OF_CALL_TEST_MAX_SLAB_BLOCK_LOG2
+      "24"
+      CACHE STRING "Slab ceiling exponent used by tests (2^N bytes)")
 endif()
 
 # CONFIGURATION LOGIC
@@ -153,5 +159,6 @@ endif()
 config_summary_block("User Options") # Are these the right user options?
 config_summary_option("PORTS_OF_CALL_BUILD_TESTING")
 config_summary_variable("PORTS_OF_CALL_TEST_PORTABILITY_STRATEGY")
+config_summary_variable("PORTS_OF_CALL_TEST_MAX_SLAB_BLOCK_LOG2")
 
 config_summary_print()

@@ -92,6 +92,8 @@ endif()
 
 
 target_link_libraries(portsofcall_iface INTERFACE Catch2::Catch2)
+target_compile_definitions(portsofcall_iface INTERFACE
+  PORTS_OF_CALL_MAX_SLAB_BLOCK_LOG2=${PORTS_OF_CALL_TEST_MAX_SLAB_BLOCK_LOG2})
 
 add_executable(test_portsofcall test_main.cpp)
 target_link_libraries(test_portsofcall
