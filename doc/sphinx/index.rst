@@ -17,6 +17,7 @@ Mauney. Documentation approved for unlimited release. LA-UR-22-20363.
 
    src/building
    src/using
+   src/nqt_math
    src/developing
    src/sphinx-howto
 

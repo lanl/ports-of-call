@@ -109,6 +109,7 @@ target_sources(test_portsofcall
     test_array.cpp
     test_math_utils.cpp
     test_memory.cpp
+    test_nqt.cpp
     test_robust_utils.cpp
     test_static_vector.cpp
     test_static_vector_iterator.cpp
