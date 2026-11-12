@@ -18,6 +18,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <limits>
 #include <new>
 #include <type_traits>
 #include <vector>
@@ -494,6 +495,462 @@ TEST_CASE("PoolAllocator preserves over-alignment after free-list reuse",
 
   aligned_alloc.deallocate(q, 1);
 }
+
+// ---------------------------------------------------------------------------
+// Large-request path
+//
+// Requests whose padded size exceeds the maximum slab block bypass the slab
+// machinery and are served (and cached) by the large-request cache. The slab
+// ceiling is build-configurable via PORTS_OF_CALL_MAX_SLAB_BLOCK_LOG2 so these
+// tests can run without allocating 1 GiB per block: every size below is derived
+// from max_slab_block_bytes(), and the largest test allocation is 8x a single
+// block. The test build sets the ceiling from the CMake cache variable
+// PORTS_OF_CALL_TEST_MAX_SLAB_BLOCK_LOG2 (default 24, i.e. 16 MiB blocks).
+// ---------------------------------------------------------------------------
+namespace {
+// Smallest request guaranteed to take the large path (just past the ceiling,
+// with slack for header + alignment padding).
+std::size_t just_over_ceiling() {
+  return HostPool::max_slab_block_bytes() + (1u << 20);
+}
+} // namespace
+
+TEST_CASE("Large: request just over the slab ceiling round-trips",
+          "[pool][large]") {
+  HostPool pool;
+  pool.release_all();
+
+  const std::size_t n = just_over_ceiling();
+  void *p = pool.alloc_bytes(n, alignof(std::max_align_t));
+  REQUIRE(p != nullptr);
+  REQUIRE(is_aligned_bytes(p, alignof(std::max_align_t)));
+
+  // Writable end-to-end.
+  auto *bytes = static_cast<unsigned char *>(p);
+  bytes[0] = 1;
+  bytes[n - 1] = 2;
+  REQUIRE(bytes[0] == 1);
+  REQUIRE(bytes[n - 1] == 2);
+
+  auto stats = pool.large_allocation_stats();
+  REQUIRE(stats.requests == 1);
+  REQUIRE(stats.backend_allocations == 1);
+  REQUIRE(stats.active_blocks == 1);
+
+  pool.free_bytes(p);
+  pool.release_all();
+}
+
+TEST_CASE("Large: boundary between slab and large paths", "[pool][large][boundary]") {
+  HostPool pool;
+  pool.release_all();
+
+  // Exactly the ceiling still fits a slab block (no large request).
+  void *small = pool.alloc_bytes(HostPool::max_slab_block_bytes() -
+                                     alignof(std::max_align_t) - 64,
+                                 alignof(std::max_align_t));
+  REQUIRE(small != nullptr);
+  REQUIRE(pool.large_allocation_stats().requests == 0);
+  pool.free_bytes(small);
+
+  // Comfortably over the ceiling takes the large path.
+  void *large = pool.alloc_bytes(just_over_ceiling(), alignof(std::max_align_t));
+  REQUIRE(large != nullptr);
+  REQUIRE(pool.large_allocation_stats().requests == 1);
+  pool.free_bytes(large);
+
+  pool.release_all();
+}
+
+TEST_CASE("Large: freed block is reused for a same-size request",
+          "[pool][large][reuse]") {
+  HostPool pool;
+  pool.release_all();
+
+  const std::size_t n = just_over_ceiling();
+  void *p1 = pool.alloc_bytes(n, alignof(std::max_align_t));
+  REQUIRE(p1 != nullptr);
+  pool.free_bytes(p1);
+
+  // Cached, not yet returned to the backend.
+  REQUIRE(pool.large_allocation_stats().cached_blocks == 1);
+  REQUIRE(pool.large_allocation_stats().backend_deallocations == 0);
+
+  void *p2 = pool.alloc_bytes(n, alignof(std::max_align_t));
+  REQUIRE(p2 != nullptr);
+
+  auto stats = pool.large_allocation_stats();
+  REQUIRE(stats.cache_hits == 1);
+  REQUIRE(stats.backend_allocations == 1); // only the first request hit backend
+  REQUIRE(stats.cached_blocks == 0);
+
+  pool.free_bytes(p2);
+  pool.release_all();
+}
+
+TEST_CASE("Large: slightly smaller request reuses a cached larger block",
+          "[pool][large][reuse]") {
+  HostPool pool;
+  pool.release_all();
+
+  const std::size_t base = HostPool::max_slab_block_bytes();
+  void *p1 = pool.alloc_bytes(base + (base / 8), alignof(std::max_align_t));
+  REQUIRE(p1 != nullptr);
+  pool.free_bytes(p1);
+
+  // A request a little smaller than the cached capacity should reuse it (within
+  // the default 25% + 64 MiB oversize tolerance for these near-ceiling sizes).
+  void *p2 = pool.alloc_bytes(base + (1u << 20), alignof(std::max_align_t));
+  REQUIRE(p2 != nullptr);
+  REQUIRE(pool.large_allocation_stats().cache_hits == 1);
+
+  pool.free_bytes(p2);
+  pool.release_all();
+}
+
+TEST_CASE("Large: excessively smaller request does not consume an oversized block",
+          "[pool][large][oversize]") {
+  HostPool pool;
+  pool.release_all();
+
+  // Tighten oversize tolerance so the test does not depend on huge absolute
+  // slack: no relative slack, minimal absolute slack.
+  HostPool::LargeAllocationConfig cfg;
+  cfg.max_oversize_numerator = 0;
+  cfg.min_oversize_bytes = 1u << 20;
+  pool.configure_large_allocations(cfg);
+
+  const std::size_t base = HostPool::max_slab_block_bytes();
+  void *big = pool.alloc_bytes(4 * base, alignof(std::max_align_t)); // ~8x ceiling peak
+  REQUIRE(big != nullptr);
+  pool.free_bytes(big); // now cached at ~4x capacity
+
+  // A request only just over the ceiling is far smaller than the 4x cached
+  // block, so reuse must be rejected and a fresh backend allocation made.
+  void *small = pool.alloc_bytes(just_over_ceiling(), alignof(std::max_align_t));
+  REQUIRE(small != nullptr);
+
+  auto stats = pool.large_allocation_stats();
+  REQUIRE(stats.cache_hits == 0);
+  REQUIRE(stats.backend_allocations == 2);
+
+  pool.free_bytes(small);
+  pool.release_all();
+}
+
+TEST_CASE("Large: best-fit picks the smallest acceptable cached block",
+          "[pool][large][bestfit]") {
+  HostPool pool;
+  pool.release_all();
+
+  const std::size_t base = HostPool::max_slab_block_bytes();
+
+  // Cache two capacities: ~1x and ~2x the ceiling.
+  void *a = pool.alloc_bytes(base + (1u << 20), alignof(std::max_align_t));
+  void *b = pool.alloc_bytes(2 * base, alignof(std::max_align_t));
+  REQUIRE(a != nullptr);
+  REQUIRE(b != nullptr);
+  const std::uintptr_t a_addr = reinterpret_cast<std::uintptr_t>(a);
+  pool.free_bytes(a);
+  pool.free_bytes(b);
+  REQUIRE(pool.large_allocation_stats().cached_blocks == 2);
+
+  // A request that fits the smaller block should reuse it, not the 2x block.
+  void *q = pool.alloc_bytes(base + (1u << 20), alignof(std::max_align_t));
+  REQUIRE(reinterpret_cast<std::uintptr_t>(q) == a_addr);
+  REQUIRE(pool.large_allocation_stats().cached_blocks == 1);
+
+  pool.free_bytes(q);
+  pool.release_all();
+}
+
+TEST_CASE("Large: cache disabled frees directly to backend", "[pool][large][direct]") {
+  HostPool pool;
+  pool.release_all();
+
+  HostPool::LargeAllocationConfig cfg;
+  cfg.max_cached_bytes = 0; // retention disabled
+  pool.configure_large_allocations(cfg);
+
+  void *p = pool.alloc_bytes(just_over_ceiling(), alignof(std::max_align_t));
+  REQUIRE(p != nullptr);
+  pool.free_bytes(p);
+
+  auto stats = pool.large_allocation_stats();
+  REQUIRE(stats.direct_frees == 1);
+  REQUIRE(stats.cached_blocks == 0);
+  REQUIRE(stats.backend_deallocations == 1);
+
+  pool.release_all();
+}
+
+TEST_CASE("Large: block over single-cache limit is not retained",
+          "[pool][large][direct]") {
+  HostPool pool;
+  pool.release_all();
+
+  const std::size_t base = HostPool::max_slab_block_bytes();
+  HostPool::LargeAllocationConfig cfg;
+  cfg.max_single_cached_bytes = base + (base / 2); // ~1.5x ceiling
+  pool.configure_large_allocations(cfg);
+
+  void *p = pool.alloc_bytes(2 * base, alignof(std::max_align_t)); // exceeds limit
+  REQUIRE(p != nullptr);
+  pool.free_bytes(p);
+
+  REQUIRE(pool.large_allocation_stats().cached_blocks == 0);
+  REQUIRE(pool.large_allocation_stats().direct_frees == 1);
+
+  pool.release_all();
+}
+
+TEST_CASE("Large: block-count limit evicts oldest on insert", "[pool][large][evict]") {
+  HostPool pool;
+  pool.release_all();
+
+  HostPool::LargeAllocationConfig cfg;
+  cfg.max_cached_blocks = 1;               // keep at most one free block
+  cfg.max_cached_bytes = 64ull << 30;      // not the binding limit here
+  pool.configure_large_allocations(cfg);
+
+  const std::size_t n = just_over_ceiling();
+  void *p1 = pool.alloc_bytes(n, alignof(std::max_align_t));
+  void *p2 = pool.alloc_bytes(n, alignof(std::max_align_t));
+  REQUIRE(p1 != nullptr);
+  REQUIRE(p2 != nullptr);
+
+  pool.free_bytes(p1); // cached (1 block)
+  pool.free_bytes(p2); // insert would make 2 -> evict oldest back to 1
+
+  auto stats = pool.large_allocation_stats();
+  REQUIRE(stats.cached_blocks == 1);
+  REQUIRE(stats.evictions == 1);
+
+  pool.release_all();
+}
+
+TEST_CASE("Large: trim releases cached blocks but not active ones",
+          "[pool][large][trim]") {
+  HostPool pool;
+  pool.release_all();
+
+  const std::size_t n = just_over_ceiling();
+  void *active = pool.alloc_bytes(n, alignof(std::max_align_t));
+  void *freed = pool.alloc_bytes(n, alignof(std::max_align_t));
+  REQUIRE(active != nullptr);
+  REQUIRE(freed != nullptr);
+  pool.free_bytes(freed);
+
+  REQUIRE(pool.large_allocation_stats().cached_blocks == 1);
+  REQUIRE(pool.large_allocation_stats().active_blocks == 1);
+
+  pool.trim_large_cache();
+
+  auto stats = pool.large_allocation_stats();
+  REQUIRE(stats.cached_blocks == 0);
+  REQUIRE(stats.active_blocks == 1); // active untouched
+
+  // Trimming again is a harmless no-op.
+  pool.trim_large_cache();
+  REQUIRE(pool.large_allocation_stats().cached_blocks == 0);
+
+  pool.free_bytes(active);
+  pool.release_all();
+}
+
+TEST_CASE("Large: release_all frees cached and active large blocks",
+          "[pool][large][release]") {
+  HostPool pool;
+  pool.release_all();
+
+  const std::size_t n = just_over_ceiling();
+  void *active = pool.alloc_bytes(n, alignof(std::max_align_t));
+  void *freed = pool.alloc_bytes(n, alignof(std::max_align_t));
+  REQUIRE(active != nullptr);
+  REQUIRE(freed != nullptr);
+  pool.free_bytes(freed);
+
+  pool.release_all();
+
+  auto stats = pool.large_allocation_stats();
+  REQUIRE(stats.active_blocks == 0);
+  REQUIRE(stats.cached_blocks == 0);
+  REQUIRE(stats.active_capacity_bytes == 0);
+  REQUIRE(stats.cached_bytes == 0);
+}
+
+TEST_CASE("Large: configure after allocation is rejected", "[pool][large][config]") {
+  HostPool pool;
+  pool.release_all();
+
+  void *p = pool.alloc_bytes(just_over_ceiling(), alignof(std::max_align_t));
+  REQUIRE(p != nullptr);
+
+  HostPool::LargeAllocationConfig cfg;
+  REQUIRE_THROWS_AS(pool.configure_large_allocations(cfg), std::runtime_error);
+
+  pool.free_bytes(p);
+  pool.release_all();
+}
+
+TEST_CASE("Large: PoolAllocator reaches the large path past the slab ceiling",
+          "[pool][large][allocator]") {
+  HostPool pool;
+  pool.release_all();
+
+  PortsOfCall::PoolAllocator<unsigned char, HostPool> alloc(pool);
+  const std::size_t n = just_over_ceiling();
+
+  unsigned char *p = alloc.allocate(n);
+  REQUIRE(p != nullptr);
+  REQUIRE(pool.large_allocation_stats().requests == 1);
+
+  alloc.deallocate(p, n);
+  pool.release_all();
+}
+
+TEST_CASE("Large: interleaved small+large traffic keeps accounting consistent",
+          "[pool][large][mixed]") {
+  HostPool pool;
+  pool.release_all();
+
+  HostPool::LargeAllocationConfig cfg;
+  cfg.max_cached_bytes = 2 * HostPool::max_slab_block_bytes();
+  cfg.max_cached_blocks = 2;
+  pool.configure_large_allocations(cfg);
+
+  const std::size_t large_n = just_over_ceiling();
+
+  // Cycle small and large allocations through the single pool, mixing the fast
+  // and large paths. One large block is live at a time, so peak footprint stays
+  // near a single ceiling-sized block.
+  for (int i = 0; i < 8; ++i) {
+    void *s = pool.alloc_bytes(4096, alignof(std::max_align_t));
+    void *l = pool.alloc_bytes(large_n, alignof(std::max_align_t));
+    REQUIRE(s != nullptr);
+    REQUIRE(l != nullptr);
+    pool.free_bytes(s);
+    pool.free_bytes(l);
+  }
+
+  auto stats = pool.large_allocation_stats();
+  REQUIRE(stats.active_blocks == 0);
+  REQUIRE(stats.active_capacity_bytes == 0);
+  REQUIRE(stats.cached_blocks <= cfg.max_cached_blocks);
+  REQUIRE(stats.cached_bytes <= cfg.max_cached_bytes);
+  REQUIRE(stats.requests == 8);
+
+  pool.release_all();
+}
+
+TEST_CASE("Large: slab/large boundary is a single clean transition",
+          "[pool][large][boundary]") {
+  HostPool pool;
+  pool.release_all();
+
+  // Walk requests across the slab ceiling one byte at a time. Header overhead
+  // and alignment padding are folded into the routing decision, so rather than
+  // hard-coding them we require exactly one small->large transition and check
+  // the requests on either side of it (cap-1 / cap / cap+1 in padded terms).
+  const std::size_t cap = HostPool::max_slab_block_bytes();
+  const std::size_t align = alignof(std::max_align_t);
+  std::size_t first_large = 0;
+  for (std::size_t r = cap - 256; r <= cap; ++r) {
+    const auto before = pool.large_allocation_stats().requests;
+    void *p = pool.alloc_bytes(r, align);
+    REQUIRE(p != nullptr);
+    const bool went_large = pool.large_allocation_stats().requests == before + 1;
+    pool.free_bytes(p);
+    if (went_large && first_large == 0) {
+      first_large = r;
+    }
+    // Once a request takes the large path, every larger one must as well.
+    if (first_large != 0) {
+      REQUIRE(went_large);
+    }
+  }
+  REQUIRE(first_large != 0);
+  REQUIRE(first_large > cap - 256);
+
+  pool.release_all();
+}
+
+TEST_CASE("Large: capacity is rounded up to the allocation granularity",
+          "[pool][large][rounding]") {
+  HostPool pool;
+  pool.release_all();
+
+  const std::size_t g = std::size_t{1} << 20;
+  HostPool::LargeAllocationConfig cfg;
+  cfg.allocation_granularity_bytes = g;
+  pool.configure_large_allocations(cfg);
+
+  // Request sits just under a granularity boundary; header + alignment padding
+  // push the required size past it, so the capacity must round to the next
+  // multiple rather than the one the raw request would suggest.
+  const std::size_t k = HostPool::max_slab_block_bytes() / g + 1;
+  const std::size_t request = k * g - 8;
+  void *p = pool.alloc_bytes(request, 64);
+  REQUIRE(p != nullptr);
+  REQUIRE(is_aligned_bytes(p, 64));
+
+  auto stats = pool.large_allocation_stats();
+  REQUIRE(stats.active_capacity_bytes % g == 0);
+  REQUIRE(stats.active_capacity_bytes == (k + 1) * g);
+
+  pool.free_bytes(p);
+  pool.release_all();
+}
+
+TEST_CASE("Large: backend allocation failure throws bad_alloc and pool stays usable",
+          "[pool][large][failure]") {
+  HostPool pool;
+  pool.release_all();
+
+  // Overflow of request + overhead is rejected before reaching the backend.
+  REQUIRE_THROWS_AS(
+      pool.alloc_bytes(std::numeric_limits<std::size_t>::max() - 8), std::bad_alloc);
+
+  // A request that passes the overflow checks but cannot be satisfied by any
+  // backend. The backend failure (which Kokkos reports by throwing) must be
+  // turned into std::bad_alloc after the trim-and-retry, not std::terminate.
+  const std::size_t impossible = std::numeric_limits<std::size_t>::max() / 4;
+  REQUIRE_THROWS_AS(pool.alloc_bytes(impossible), std::bad_alloc);
+
+  auto stats = pool.large_allocation_stats();
+  REQUIRE(stats.requests == 1);
+  REQUIRE(stats.backend_allocations == 0);
+  REQUIRE(stats.active_blocks == 0);
+
+  // The failure must leave the pool fully usable on both paths.
+  void *small = pool.alloc_bytes(4096);
+  void *large = pool.alloc_bytes(just_over_ceiling());
+  REQUIRE(small != nullptr);
+  REQUIRE(large != nullptr);
+  pool.free_bytes(small);
+  pool.free_bytes(large);
+
+  pool.release_all();
+}
+
+TEST_CASE("Large: release_all leaves nothing for the destructor to free",
+          "[pool][large][release]") {
+  std::size_t backend_allocs = 0;
+  {
+    HostPool pool;
+    void *active = pool.alloc_bytes(just_over_ceiling());
+    REQUIRE(active != nullptr);
+    pool.release_all();
+    backend_allocs = pool.large_allocation_stats().backend_allocations;
+    // A second release_all (as the destructor will do) must be a no-op.
+    pool.release_all();
+    auto stats = pool.large_allocation_stats();
+    REQUIRE(stats.active_blocks == 0);
+    REQUIRE(stats.cached_blocks == 0);
+  }
+  REQUIRE(backend_allocs == 1);
+}
+
 #include <catch2/catch_test_macros.hpp>
 
 #include <limits>
@@ -520,7 +977,7 @@ TEST_CASE("SlabArenaPool rejects invalid growth factors", "[pool][growth-factor]
                     std::invalid_argument);
 }
 
-TEST_CASE("PoolAllocator max_size reflects SlabArenaPool maximum block size",
+TEST_CASE("PoolAllocator max_size allows requests past the slab block ceiling",
           "[pool][max_size]") {
 
   HostPool pool;
@@ -528,8 +985,13 @@ TEST_CASE("PoolAllocator max_size reflects SlabArenaPool maximum block size",
 
   const std::size_t max_n = alloc.max_size();
 
-  REQUIRE(max_n < (std::size_t{1} << 30));
+  // Since large requests now route to the large-request cache rather than being
+  // rejected, the reported ceiling is bounded only by size_t overflow, not by
+  // the 1 GiB maximum slab block.
+  REQUIRE(max_n > (std::size_t{1} << 30));
 
+  // A request past the reported ceiling is still rejected before reaching the
+  // pool.
   REQUIRE_THROWS_AS(alloc.allocate(max_n + 1), std::bad_array_new_length);
 }
 
@@ -972,4 +1434,210 @@ TEST_CASE("device: singleton reuses freed blocks across allocator instances",
   b.deallocate(p2, N);
   DevPool::instance().release_all();
 }
+
+// ---------------------------------------------------------------------------
+// Large-request path on the device memory space
+//
+// For a non-host-accessible space (e.g. CudaSpace, HIPSpace) the large path
+// must track blocks host-side only: a host dereference of the returned pointer
+// would fault. On host-only Kokkos builds DevMemSpace is HostSpace and these
+// exercise the header path instead.
+// ---------------------------------------------------------------------------
+
+TEST_CASE("device: large allocation is usable from a kernel and reused from cache",
+          "[pool][large][device]") {
+  DevPool pool;
+  pool.release_all();
+
+  const std::size_t n_bytes = DevPool::max_slab_block_bytes() + (1u << 20);
+  const int n = static_cast<int>(n_bytes / sizeof(double));
+
+  void *raw = pool.alloc_bytes(n_bytes, alignof(double));
+  REQUIRE(raw != nullptr);
+  REQUIRE(pool.large_allocation_stats().requests == 1);
+  REQUIRE(pool.large_allocation_stats().backend_allocations == 1);
+
+  using view_type =
+      Kokkos::View<double *, DevMemSpace, Kokkos::MemoryTraits<Kokkos::Unmanaged>>;
+  {
+    view_type v(static_cast<double *>(raw), n);
+    Kokkos::parallel_for(
+        "large_device_write", Kokkos::RangePolicy<ExecSpace>(0, n),
+        KOKKOS_LAMBDA(const int i) { v(i) = static_cast<double>(i); });
+    auto v_h = Kokkos::create_mirror_view_and_copy(Kokkos::HostSpace(), v);
+    REQUIRE(v_h(0) == 0.0);
+    REQUIRE(v_h(n / 2) == static_cast<double>(n / 2));
+    REQUIRE(v_h(n - 1) == static_cast<double>(n - 1));
+  }
+
+  pool.free_bytes(raw);
+  REQUIRE(pool.large_allocation_stats().cached_blocks == 1);
+
+  // Same-size request is served from the cache without touching the backend.
+  void *again = pool.alloc_bytes(n_bytes, alignof(double));
+  REQUIRE(again == raw);
+  auto stats = pool.large_allocation_stats();
+  REQUIRE(stats.cache_hits == 1);
+  REQUIRE(stats.backend_allocations == 1);
+
+  {
+    view_type v(static_cast<double *>(again), n);
+    Kokkos::View<int, DevMemSpace> bad("bad");
+    Kokkos::parallel_for(
+        "large_device_rewrite", Kokkos::RangePolicy<ExecSpace>(0, n),
+        KOKKOS_LAMBDA(const int i) { v(i) = -static_cast<double>(i); });
+    Kokkos::parallel_for(
+        "large_device_check", Kokkos::RangePolicy<ExecSpace>(0, n),
+        KOKKOS_LAMBDA(const int i) {
+          if (v(i) != -static_cast<double>(i)) Kokkos::atomic_add(&bad(), 1);
+        });
+    auto bad_h = Kokkos::create_mirror_view_and_copy(Kokkos::HostSpace(), bad);
+    REQUIRE(bad_h() == 0);
+  }
+
+  pool.free_bytes(again);
+  pool.release_all();
+}
+
+TEST_CASE("device: release_all frees active and cached large device blocks",
+          "[pool][large][device][release]") {
+  DevPool pool;
+  pool.release_all();
+
+  const std::size_t n_bytes = DevPool::max_slab_block_bytes() + (1u << 20);
+  void *active = pool.alloc_bytes(n_bytes);
+  void *cached = pool.alloc_bytes(n_bytes);
+  void *small = pool.alloc_bytes(4096);
+  REQUIRE(active != nullptr);
+  REQUIRE(cached != nullptr);
+  REQUIRE(small != nullptr);
+  pool.free_bytes(cached);
+
+  pool.release_all();
+
+  auto stats = pool.large_allocation_stats();
+  REQUIRE(stats.active_blocks == 0);
+  REQUIRE(stats.cached_blocks == 0);
+  REQUIRE(pool.slab_count() == 0);
+}
+
+TEST_CASE("device: reserve_device_scratch past the slab ceiling takes the large path",
+          "[pool][large][device][scratch]") {
+  DevPool pool;
+  pool.release_all();
+
+  // One slice per instance, sized so the whole reservation exceeds a slab block.
+  constexpr int instances = 64;
+  const std::size_t per_instance = DevPool::max_slab_block_bytes() / 32;
+  auto r = pool.reserve_device_scratch(per_instance, instances, 64);
+  REQUIRE(r.base != nullptr);
+  REQUIRE(r.total_bytes > DevPool::max_slab_block_bytes());
+  REQUIRE(pool.large_allocation_stats().requests == 1);
+
+  auto bytes = r.view();
+  const std::size_t stride = r.bytes_per_instance;
+  Kokkos::View<int, DevMemSpace> bad("bad");
+  Kokkos::parallel_for(
+      "large_scratch_write", Kokkos::RangePolicy<ExecSpace>(0, instances),
+      KOKKOS_LAMBDA(const int i) {
+        // Touch the first and last byte of each slice.
+        bytes(i * stride) = std::byte{static_cast<unsigned char>(i)};
+        bytes(i * stride + stride - 1) = std::byte{static_cast<unsigned char>(i)};
+      });
+  Kokkos::parallel_for(
+      "large_scratch_check", Kokkos::RangePolicy<ExecSpace>(0, instances),
+      KOKKOS_LAMBDA(const int i) {
+        const auto want = std::byte{static_cast<unsigned char>(i)};
+        if (bytes(i * stride) != want || bytes(i * stride + stride - 1) != want)
+          Kokkos::atomic_add(&bad(), 1);
+      });
+  auto bad_h = Kokkos::create_mirror_view_and_copy(Kokkos::HostSpace(), bad);
+  REQUIRE(bad_h() == 0);
+
+  pool.free_bytes(r.base);
+  pool.release_all();
+}
+
+#ifdef KOKKOS_HAS_SHARED_SPACE
+// ---------------------------------------------------------------------------
+// Managed / shared memory (Kokkos::SharedSpace)
+//
+// SharedSpace (CudaUVMSpace, HIPManagedSpace, ...) is host-accessible, so the
+// pool writes its in-band Header from the host on every alloc and free while
+// the payload is used by device kernels. These tests cover that combination,
+// which neither the HostSpace nor the device-only (CudaSpace) tests reach.
+// ---------------------------------------------------------------------------
+using SharedPool = PortsOfCall::SlabArenaPool<Kokkos::SharedSpace>;
+
+TEST_CASE("shared: host header writes do not disturb in-flight kernel data",
+          "[pool][shared]") {
+  SharedPool pool(1 << 20);
+
+  constexpr int N = 4096;
+  auto *a = static_cast<int *>(pool.alloc_bytes(N * sizeof(int), alignof(int)));
+  REQUIRE(a != nullptr);
+
+  Kokkos::parallel_for(
+      "shared_fill_a", Kokkos::RangePolicy<ExecSpace>(0, N),
+      KOKKOS_LAMBDA(const int i) { a[i] = 3 * i + 1; });
+
+  // While that kernel may still be running, allocate the neighbouring block in
+  // the same slab: its header is written from the host right after `a`'s block.
+  auto *b = static_cast<int *>(pool.alloc_bytes(N * sizeof(int), alignof(int)));
+  REQUIRE(b != nullptr);
+  Kokkos::fence();
+
+  for (int i = 0; i < N; ++i) {
+    REQUIRE(a[i] == 3 * i + 1);
+  }
+
+  // Freeing reads the headers back from the host after device writes.
+  pool.free_bytes(a);
+  pool.free_bytes(b);
+
+  // Reuse returns the same block and it is still device-writable.
+  auto *c = static_cast<int *>(pool.alloc_bytes(N * sizeof(int), alignof(int)));
+  REQUIRE(c != nullptr);
+  Kokkos::parallel_for(
+      "shared_fill_c", Kokkos::RangePolicy<ExecSpace>(0, N),
+      KOKKOS_LAMBDA(const int i) { c[i] = -i; });
+  Kokkos::fence();
+  for (int i = 0; i < N; ++i) {
+    REQUIRE(c[i] == -i);
+  }
+  pool.free_bytes(c);
+  pool.release_all();
+}
+
+TEST_CASE("shared: large allocation round-trips between device kernels and host",
+          "[pool][shared][large]") {
+  SharedPool pool;
+  pool.release_all();
+
+  const std::size_t n_bytes = SharedPool::max_slab_block_bytes() + (1u << 20);
+  const int n = static_cast<int>(n_bytes / sizeof(double));
+  auto *x = static_cast<double *>(pool.alloc_bytes(n_bytes, alignof(double)));
+  REQUIRE(x != nullptr);
+  REQUIRE(pool.large_allocation_stats().requests == 1);
+
+  Kokkos::parallel_for(
+      "shared_large_fill", Kokkos::RangePolicy<ExecSpace>(0, n),
+      KOKKOS_LAMBDA(const int i) { x[i] = 0.5 * static_cast<double>(i); });
+  Kokkos::fence();
+
+  REQUIRE(x[0] == 0.0);
+  REQUIRE(x[n / 2] == 0.5 * static_cast<double>(n / 2));
+  REQUIRE(x[n - 1] == 0.5 * static_cast<double>(n - 1));
+
+  pool.free_bytes(x);
+  REQUIRE(pool.large_allocation_stats().cached_blocks == 1);
+
+  auto *y = static_cast<double *>(pool.alloc_bytes(n_bytes, alignof(double)));
+  REQUIRE(y == x);
+  REQUIRE(pool.large_allocation_stats().cache_hits == 1);
+
+  pool.free_bytes(y);
+  pool.release_all();
+}
+#endif // KOKKOS_HAS_SHARED_SPACE
 #endif

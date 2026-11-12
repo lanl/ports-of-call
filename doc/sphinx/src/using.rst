@@ -482,7 +482,20 @@ The time for allocation and freeing is thus O(1), so long as a new slab is not n
 Note that, because new slabs are added, the size of the pool can grow throughout the lifetime of the program.
 Each allocation also contains a small header that contains some information including a sentinal value that is checked for correctness.
 
-``PortsOfCall::PoolAllocator`` is a ``std::allocator`` compatible allocator that interfaces with the memory pool. 
+The fixed-block size classes go up to a maximum block size (2 :sup:`30` bytes, or 1 GiB, by default).
+Requests larger than this maximum block size are served by a separate large-request path rather than being rejected.
+The large-request path allocates a whole backing allocation directly from the memory-space backend, sized to the request rounded up to a coarse granularity, and returns it to a single caller.
+When a large allocation is freed, its backing allocation is not immediately returned to the backend; instead it is retained in a cache keyed by capacity so that a later request of a similar size can reuse it without a fresh backend allocation.
+A cached block is reused for a new request when its capacity is at least the requested size and not excessively larger than it, so nearby request sizes share backing allocations.
+The cache is bounded by configurable limits on the total retained bytes, the number of retained blocks, and the largest single block that will be retained; when a limit is exceeded the oldest cached blocks are evicted and returned to the backend.
+Because the large-request path is only reached above the maximum block size, the O(1) small-allocation fast path is unaffected.
+The maximum block size is controlled by the ``PORTS_OF_CALL_MAX_SLAB_BLOCK_LOG2`` macro (a base-2 exponent, defaulting to ``30``), which may be defined before including the header to shrink the slab ceiling.
+
+The large-request cache is tuned through ``SlabArenaPool::configure_large_allocations``, which accepts a ``LargeAllocationConfig`` and, like ``configure``, must be called before the first allocation.
+``SlabArenaPool::trim_large_cache`` releases every currently cached large block back to the backend while leaving active allocations untouched, and ``SlabArenaPool::large_allocation_stats`` returns cache statistics such as hit and miss counts and retained bytes.
+As with the slab path, ``release_all`` frees both cached and still-active large allocations.
+
+``PortsOfCall::PoolAllocator`` is a ``std::allocator`` compatible allocator that interfaces with the memory pool.
 After initializing the memory pool, host codes should use the ``PoolAllocator`` to allocate and free memory from the pool.
 ``PoolAllocator`` should only be used on host.
 
