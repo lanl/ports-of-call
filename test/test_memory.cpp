@@ -349,6 +349,60 @@ TEST_CASE("SlabArenaPool release_all should reset next slab size",
   pool.free_bytes(q);
 }
 
+TEST_CASE("Freeing every block of a size class never overflows its free list",
+          "[pool][slab][freelist][regression]") {
+  HostPool pool(1 << 20);
+
+  // Carve many blocks of one class while the free list is empty, then free
+  // them all. The free list must already have room for every one of them.
+  std::vector<void *> ptrs;
+  for (int i = 0; i < 100; ++i) {
+    ptrs.push_back(pool.alloc_bytes(256));
+  }
+  for (void *p : ptrs) {
+    pool.free_bytes(p);
+  }
+
+  // And again after reuse plus some fresh carving.
+  ptrs.clear();
+  for (int i = 0; i < 150; ++i) {
+    ptrs.push_back(pool.alloc_bytes(256));
+  }
+  for (void *p : ptrs) {
+    pool.free_bytes(p);
+  }
+}
+
+TEST_CASE("Power-of-two requests fill their size class exactly",
+          "[pool][slab][size-class]") {
+  HostPool pool;
+  constexpr std::size_t slab = 64 << 10;
+  pool.configure(slab, 0.0);
+
+  // No per-block header and no padding at the default alignment, so 1 KiB
+  // requests use 1 KiB blocks and exactly slab / 1 KiB of them fit one slab.
+  constexpr std::size_t n = slab / 1024;
+  std::vector<void *> ptrs;
+  for (std::size_t i = 0; i < n; ++i) {
+    ptrs.push_back(pool.alloc_bytes(1024));
+  }
+  REQUIRE(pool.slab_count() == 1);
+
+  // Consecutive blocks are adjacent: nothing sits between them.
+  for (std::size_t i = 1; i < n; ++i) {
+    REQUIRE(static_cast<std::byte *>(ptrs[i]) - static_cast<std::byte *>(ptrs[i - 1]) ==
+            1024);
+  }
+
+  // One more does not fit and needs a second slab.
+  ptrs.push_back(pool.alloc_bytes(1024));
+  REQUIRE(pool.slab_count() == 2);
+
+  for (void *p : ptrs) {
+    pool.free_bytes(p);
+  }
+}
+
 TEST_CASE("SlabArenaPool should reject non-power-of-two alignments",
           "[pool][SlabArenaPool][alignment][validation]") {
   HostPool pool;
@@ -408,8 +462,8 @@ TEST_CASE("SlabArenaPool reuses blocks while recomputing alignment",
     Create several 16-byte-aligned allocations that fall into the same size class
     as the later 64-byte-aligned allocation.
 
-    request=80, alignment=16 typically maps to the 128-byte size class.
-    request=1, alignment=64 also typically maps to the 128-byte size class.
+    request=80, alignment=16 maps to the 128-byte size class.
+    request=65, alignment=64 (65 + 63 bytes of padding) also maps to it.
   */
   for (int i = 0; i < 16; ++i) {
     void *p = pool.alloc_bytes(80, 16);
@@ -435,7 +489,7 @@ TEST_CASE("SlabArenaPool reuses blocks while recomputing alignment",
     Old buggy behavior:
       It could return an old 16-byte-aligned user pointer directly.
   */
-  void *q = pool.alloc_bytes(1, 64);
+  void *q = pool.alloc_bytes(65, 64);
 
   REQUIRE(is_aligned_bytes(q, 64));
 
@@ -452,7 +506,8 @@ TEST_CASE(
 
   pool.free_bytes(p);
 
-  void *q = pool.alloc_bytes(1, 64);
+  // Same 128-byte class as above, but the user pointer must be re-aligned.
+  void *q = pool.alloc_bytes(65, 64);
 
   REQUIRE(is_aligned_bytes(q, 64));
 
@@ -508,8 +563,8 @@ TEST_CASE("PoolAllocator preserves over-alignment after free-list reuse",
 // PORTS_OF_CALL_TEST_MAX_SLAB_BLOCK_LOG2 (default 24, i.e. 16 MiB blocks).
 // ---------------------------------------------------------------------------
 namespace {
-// Smallest request guaranteed to take the large path (just past the ceiling,
-// with slack for header + alignment padding).
+// A request comfortably past the slab ceiling, so it takes the large path at
+// any alignment.
 std::size_t just_over_ceiling() {
   return HostPool::max_slab_block_bytes() + (1u << 20);
 }
@@ -618,6 +673,9 @@ TEST_CASE("Large: excessively smaller request does not consume an oversized bloc
   HostPool::LargeAllocationConfig cfg;
   cfg.max_oversize_numerator = 0;
   cfg.min_oversize_bytes = 1u << 20;
+  // Fine granularity, so the two requests below get different capacities
+  // instead of both rounding up to the same 64 MiB default.
+  cfg.allocation_granularity_bytes = 1u << 20;
   pool.configure_large_allocations(cfg);
 
   const std::size_t base = HostPool::max_slab_block_bytes();
@@ -843,34 +901,32 @@ TEST_CASE("Large: interleaved small+large traffic keeps accounting consistent",
   pool.release_all();
 }
 
-TEST_CASE("Large: slab/large boundary is a single clean transition",
+TEST_CASE("Large: slab/large boundary is exactly the slab ceiling",
           "[pool][large][boundary]") {
   HostPool pool;
   pool.release_all();
 
-  // Walk requests across the slab ceiling one byte at a time. Header overhead
-  // and alignment padding are folded into the routing decision, so rather than
-  // hard-coding them we require exactly one small->large transition and check
-  // the requests on either side of it (cap-1 / cap / cap+1 in padded terms).
+  // With no per-block header and the default alignment, a request needs exactly
+  // its own size, so cap-1 and cap fit the largest slab class and cap+1 is the
+  // first request routed to the large path.
   const std::size_t cap = HostPool::max_slab_block_bytes();
-  const std::size_t align = alignof(std::max_align_t);
-  std::size_t first_large = 0;
-  for (std::size_t r = cap - 256; r <= cap; ++r) {
-    const auto before = pool.large_allocation_stats().requests;
-    void *p = pool.alloc_bytes(r, align);
+  for (const std::size_t r : {cap - 1, cap}) {
+    void *p = pool.alloc_bytes(r);
     REQUIRE(p != nullptr);
-    const bool went_large = pool.large_allocation_stats().requests == before + 1;
+    REQUIRE(pool.large_allocation_stats().requests == 0);
     pool.free_bytes(p);
-    if (went_large && first_large == 0) {
-      first_large = r;
-    }
-    // Once a request takes the large path, every larger one must as well.
-    if (first_large != 0) {
-      REQUIRE(went_large);
-    }
   }
-  REQUIRE(first_large != 0);
-  REQUIRE(first_large > cap - 256);
+  void *p = pool.alloc_bytes(cap + 1);
+  REQUIRE(p != nullptr);
+  REQUIRE(pool.large_allocation_stats().requests == 1);
+  pool.free_bytes(p);
+
+  // A stricter alignment reserves alignment-1 bytes of padding, so the same
+  // ceiling-sized request no longer fits a slab block.
+  void *q = pool.alloc_bytes(cap, 64);
+  REQUIRE(q != nullptr);
+  REQUIRE(pool.large_allocation_stats().requests == 2);
+  pool.free_bytes(q);
 
   pool.release_all();
 }
@@ -885,9 +941,9 @@ TEST_CASE("Large: capacity is rounded up to the allocation granularity",
   cfg.allocation_granularity_bytes = g;
   pool.configure_large_allocations(cfg);
 
-  // Request sits just under a granularity boundary; header + alignment padding
-  // push the required size past it, so the capacity must round to the next
-  // multiple rather than the one the raw request would suggest.
+  // Request sits just under a granularity boundary; the alignment padding for a
+  // 64-byte alignment pushes the required size past it, so the capacity must
+  // round to the next multiple rather than the one the raw request suggests.
   const std::size_t k = HostPool::max_slab_block_bytes() / g + 1;
   const std::size_t request = k * g - 8;
   void *p = pool.alloc_bytes(request, 64);
@@ -907,7 +963,8 @@ TEST_CASE("Large: backend allocation failure throws bad_alloc and pool stays usa
   HostPool pool;
   pool.release_all();
 
-  // Overflow of request + overhead is rejected before reaching the backend.
+  // A request so close to SIZE_MAX that rounding it to the allocation
+  // granularity overflows is rejected before reaching the backend.
   REQUIRE_THROWS_AS(
       pool.alloc_bytes(std::numeric_limits<std::size_t>::max() - 8), std::bad_alloc);
 
@@ -981,14 +1038,15 @@ TEST_CASE("PoolAllocator max_size allows requests past the slab block ceiling",
           "[pool][max_size]") {
 
   HostPool pool;
-  PortsOfCall::PoolAllocator<std::byte, HostPool> alloc(pool);
+  // Use an 8-byte element so max_size() + 1 does not wrap around size_t.
+  PortsOfCall::PoolAllocator<double, HostPool> alloc(pool);
 
   const std::size_t max_n = alloc.max_size();
 
   // Since large requests now route to the large-request cache rather than being
   // rejected, the reported ceiling is bounded only by size_t overflow, not by
   // the 1 GiB maximum slab block.
-  REQUIRE(max_n > (std::size_t{1} << 30));
+  REQUIRE(max_n * sizeof(double) > (std::size_t{1} << 30));
 
   // A request past the reported ceiling is still rejected before reaching the
   // pool.
@@ -1336,9 +1394,9 @@ TEST_CASE("SlabArenaPool works with device space without host-touching device me
 // ---------------------------------------------------------------------------
 // Singleton pathway for the device (heterogeneous) memory space
 //
-// The device pool tracks live allocations in a host-side unordered_map keyed
-// by the returned pointer (no host-touchable header lives in device memory),
-// but the singleton semantics are identical: one shared pool per memory-space
+// The pool tracks live allocations in a host-side unordered_map keyed by the
+// returned pointer for every memory space, and the singleton semantics are the
+// same as for the host pool: one shared pool per memory-space
 // type, reachable through instance() and through default-constructed
 // allocators. These tests normalize with release_all() to stay independent of
 // ordering against other test cases that use the device singleton.
@@ -1438,10 +1496,10 @@ TEST_CASE("device: singleton reuses freed blocks across allocator instances",
 // ---------------------------------------------------------------------------
 // Large-request path on the device memory space
 //
-// For a non-host-accessible space (e.g. CudaSpace, HIPSpace) the large path
-// must track blocks host-side only: a host dereference of the returned pointer
-// would fault. On host-only Kokkos builds DevMemSpace is HostSpace and these
-// exercise the header path instead.
+// For a non-host-accessible space (e.g. CudaSpace, HIPSpace on a discrete GPU)
+// a host dereference of the returned pointer would fault, so these check that
+// the pool never touches the memory it hands out. On host-only Kokkos builds
+// DevMemSpace is HostSpace.
 // ---------------------------------------------------------------------------
 
 TEST_CASE("device: large allocation is usable from a kernel and reused from cache",
@@ -1562,14 +1620,13 @@ TEST_CASE("device: reserve_device_scratch past the slab ceiling takes the large 
 // ---------------------------------------------------------------------------
 // Managed / shared memory (Kokkos::SharedSpace)
 //
-// SharedSpace (CudaUVMSpace, HIPManagedSpace, ...) is host-accessible, so the
-// pool writes its in-band Header from the host on every alloc and free while
-// the payload is used by device kernels. These tests cover that combination,
-// which neither the HostSpace nor the device-only (CudaSpace) tests reach.
+// SharedSpace (CudaUVMSpace, HIPManagedSpace, ...) is the space Lokkos uses on
+// CUDA. These check that pooled managed memory stays correct while device
+// kernels and the host use neighbouring blocks.
 // ---------------------------------------------------------------------------
 using SharedPool = PortsOfCall::SlabArenaPool<Kokkos::SharedSpace>;
 
-TEST_CASE("shared: host header writes do not disturb in-flight kernel data",
+TEST_CASE("shared: neighbouring blocks stay correct while a kernel is in flight",
           "[pool][shared]") {
   SharedPool pool(1 << 20);
 
@@ -1582,7 +1639,7 @@ TEST_CASE("shared: host header writes do not disturb in-flight kernel data",
       KOKKOS_LAMBDA(const int i) { a[i] = 3 * i + 1; });
 
   // While that kernel may still be running, allocate the neighbouring block in
-  // the same slab: its header is written from the host right after `a`'s block.
+  // the same slab.
   auto *b = static_cast<int *>(pool.alloc_bytes(N * sizeof(int), alignof(int)));
   REQUIRE(b != nullptr);
   Kokkos::fence();
@@ -1591,7 +1648,6 @@ TEST_CASE("shared: host header writes do not disturb in-flight kernel data",
     REQUIRE(a[i] == 3 * i + 1);
   }
 
-  // Freeing reads the headers back from the host after device writes.
   pool.free_bytes(a);
   pool.free_bytes(b);
 

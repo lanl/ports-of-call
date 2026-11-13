@@ -45,22 +45,6 @@
 
 namespace PortsOfCall {
 
-namespace memory_detail {
-#ifdef PORTABILITY_STRATEGY_KOKKOS
-template <class Space>
-struct host_accessible
-    : std::bool_constant<
-          Kokkos::SpaceAccessibility<Kokkos::HostSpace, Space>::accessible> {};
-template <>
-struct host_accessible<void> : std::true_type {};
-#else
-
-template <class Space>
-struct host_accessible : std::true_type {};
-#endif
-
-} // namespace memory_detail
-
 template <class MemorySpace = void>
 class SlabArenaPool {
  public:
@@ -181,17 +165,9 @@ class SlabArenaPool {
 
     alignment = std::max(alignment, alignof(std::max_align_t));
 
-    const std::size_t padding = alignment - 1;
-
-    if (overhead_bytes() > std::numeric_limits<std::size_t>::max() - padding) {
-      return 0;
-    }
-
-    const std::size_t overhead = overhead_bytes() + padding;
-
-    // alloc_bytes rejects (request + overhead) that overflows size_t; report
+    // alloc_bytes rejects (request + padding) that overflows size_t; report
     // the largest request that survives that check.
-    return std::numeric_limits<std::size_t>::max() - overhead;
+    return std::numeric_limits<std::size_t>::max() - alignment_padding(alignment);
   }
 
   void *alloc_bytes(std::size_t request,
@@ -205,26 +181,16 @@ class SlabArenaPool {
 
     alignment = std::max(alignment, alignof(std::max_align_t));
 
-    const std::size_t padding = alignment - 1;
-
-    std::size_t need = request;
-    if (need > std::numeric_limits<std::size_t>::max() - overhead_bytes()) {
+    const std::size_t padding = alignment_padding(alignment);
+    if (request > std::numeric_limits<std::size_t>::max() - padding) {
       throw std::bad_alloc{};
     }
-
-    need += overhead_bytes();
-
-    if (need > std::numeric_limits<std::size_t>::max() - padding) {
-      throw std::bad_alloc{};
-    }
-
-    need += padding;
+    const std::size_t need = request + padding;
 
     if (need > max_block_bytes()) {
       // Requests that cannot be served by any power-of-two slab class take the
-      // separate large-request path. `need` already folds in the header
-      // overhead and alignment padding, so it is the true minimum number of
-      // backend bytes required.
+      // separate large-request path. `need` already folds in any alignment
+      // padding, so it is the true minimum number of backend bytes required.
       return alloc_large(request, alignment, need);
     }
 
@@ -250,69 +216,34 @@ class SlabArenaPool {
       return;
     }
 
-    if constexpr (host_accessible_) {
-      // The kind and (for large blocks) the backend metadata live in the
-      // in-band header, so classification needs no lock and no map lookup --
-      // the small fast path stays free of ordered-container operations.
-      Header *h =
-          reinterpret_cast<Header *>(static_cast<std::byte *>(p) - sizeof(Header));
-      if ((h == nullptr) || (h->sentinel != sentinel_)) {
-        PORTABLE_ALWAYS_ABORT("SlabArenaPool corrupted header");
-        return;
-      }
-
-      if (h->kind == AllocationKind::LargePool) {
-        std::byte *const backend_base = h->block_start;
-        const std::size_t capacity = h->block_bytes;
-        h->sentinel = 0;
-        {
-          std::lock_guard<std::mutex> lock(mutex_);
-          live_large_.erase(p);
-        }
-        free_large_after_unregister(backend_base, capacity);
-        return;
-      }
-
-      if ((h->idx >= num_blocks) || (h->block_start == nullptr) ||
-          (h->block_bytes != block_size(h->idx))) {
-        PORTABLE_ALWAYS_ABORT("SlabArenaPool corrupted block metadata");
-        return;
-      }
-      const std::uint32_t idx = h->idx;
-      std::byte *const block_start = h->block_start;
-      h->sentinel = 0;
-
+    // All bookkeeping lives host-side, keyed by the returned pointer, so the
+    // pool never reads or writes the memory it hands out and an unknown or
+    // double-freed pointer is always detected.
+    std::byte *backend_base = nullptr;
+    std::size_t capacity = 0;
+    {
       std::lock_guard<std::mutex> lock(mutex_);
-      push_block(block_start, idx);
-    } else {
-      // Non-host-accessible spaces cannot embed a readable header, so both the
-      // small live-block map and the large active registry are consulted.
-      std::byte *backend_base = nullptr;
-      std::size_t capacity = 0;
-      {
-        std::lock_guard<std::mutex> lock(mutex_);
 
-        auto lit = live_large_.find(p);
-        if (lit != live_large_.end()) {
-          backend_base = static_cast<std::byte *>(lit->second.base_ptr);
-          capacity = lit->second.capacity_bytes;
-          live_large_.erase(lit);
-        } else {
-          auto it = meta_.live_blocks.find(p);
-          if (it == meta_.live_blocks.end()) {
-            PORTABLE_ALWAYS_ABORT("SlabArenaPool called with unknown pointer");
-            return;
-          }
-          std::byte *const block_start = it->second.block_start;
-          const std::uint32_t idx = it->second.idx;
-          meta_.live_blocks.erase(it);
-          push_block(block_start, idx);
+      auto lit = live_large_.find(p);
+      if (lit != live_large_.end()) {
+        backend_base = static_cast<std::byte *>(lit->second.base_ptr);
+        capacity = lit->second.capacity_bytes;
+        live_large_.erase(lit);
+      } else {
+        auto it = live_blocks_.find(p);
+        if (it == live_blocks_.end()) {
+          PORTABLE_ALWAYS_ABORT("SlabArenaPool called with unknown pointer");
           return;
         }
+        std::byte *const block_start = it->second.block_start;
+        const std::uint32_t idx = it->second.idx;
+        live_blocks_.erase(it);
+        push_block(block_start, idx);
+        return;
       }
-      // Large block: registry entry already removed above.
-      free_large_after_unregister(backend_base, capacity);
     }
+    // Large block: registry entry already removed above.
+    free_large_after_unregister(backend_base, capacity);
   }
 
   void release_all() {
@@ -320,14 +251,11 @@ class SlabArenaPool {
     {
       std::lock_guard<std::mutex> lock(mutex_);
 
-      if constexpr (host_accessible_) {
-        meta_.free_heads.fill(nullptr);
-      } else {
-        meta_.live_blocks.clear();
-        for (auto &stack : meta_.free_blocks) {
-          stack.clear();
-        }
+      live_blocks_.clear();
+      for (auto &stack : free_blocks_) {
+        stack.clear();
       }
+      carved_blocks_.fill(0);
 
       for (auto &slab : slabs_) {
         backend_deallocate(slab.base);
@@ -578,30 +506,6 @@ class SlabArenaPool {
   }
 
  private:
-  static constexpr bool host_accessible_ =
-      memory_detail::host_accessible<memory_space>::value;
-
-  enum class AllocationKind : std::uint8_t { SmallPool = 0, LargePool = 1 };
-
-  // In-band header for host-accessible spaces. The layout is unchanged in size
-  // and field alignment from the original small-only version: `kind` and its
-  // padding occupy what used to be the `reserved` word. For SmallPool blocks
-  // the fields keep their original meaning; for LargePool blocks `block_bytes`
-  // holds the backend capacity and `block_start` holds the backend base
-  // pointer (`idx` is unused).
-  struct Header {
-    std::uint32_t idx = 0;
-    AllocationKind kind = AllocationKind::SmallPool;
-    std::uint8_t pad[3] = {}; // explicit padding; kept for 8-byte field alignment
-    std::size_t block_bytes = 0;
-    std::byte *block_start = nullptr;
-    std::uint64_t sentinel = 0;
-  };
-
-  struct FreeNode {
-    FreeNode *next = nullptr;
-  };
-
   struct BlockRecord {
     std::byte *block_start = nullptr;
     std::uint32_t idx = 0;
@@ -613,8 +517,6 @@ class SlabArenaPool {
     std::size_t offset = 0;
   };
 
-  static constexpr std::uint64_t sentinel_ = 0x656D7070726F7473ull;
-
   // Power-of-two block sizes from 16 B (min_size) up to 2^max_size. The upper
   // exponent (PORTS_OF_CALL_MAX_SLAB_BLOCK_LOG2, defined near the top of this
   // header) is configurable so builds and tests can shrink the slab ceiling --
@@ -624,32 +526,26 @@ class SlabArenaPool {
   static constexpr std::size_t num_blocks = std::size_t(max_size - min_size + 1);
   static_assert(max_size > min_size, "max slab block must exceed min block size");
 
-  static_assert((std::size_t{1} << min_size) >= sizeof(FreeNode),
-                "Minimum block size must be large enough to store FreeNode");
+  // Every block size is a multiple of the smallest one, so if the smallest is a
+  // multiple of alignof(max_align_t), every block carved from a slab keeps the
+  // slab base's max_align_t alignment. alignment_padding() relies on this.
+  static_assert((std::size_t{1} << min_size) % alignof(std::max_align_t) == 0,
+                "Minimum block size must preserve max_align_t alignment");
 
   mutable std::mutex mutex_;
 
   std::vector<Slab> slabs_;
   std::size_t current_slab_ = 0;
 
-  // Free-list metadata is strategy-specific, and only one strategy is ever used
-  // for a given memory space. Carrying both wastes per-instance memory, so we
-  // select the relevant one at compile time via host_accessible_.
-
-  // Host-accessible spaces embed a Header in each block and thread an intrusive
-  // free list through the freed blocks themselves.
-  struct HostMeta {
-    std::array<FreeNode *, num_blocks> free_heads{};
-  };
-
-  // Non-host-accessible spaces cannot touch device memory from the host, so
-  // free-block starts and live-allocation records are tracked host-side.
-  struct DeviceMeta {
-    std::array<std::vector<std::byte *>, num_blocks> free_blocks{};
-    std::unordered_map<void *, BlockRecord> live_blocks;
-  };
-
-  std::conditional_t<host_accessible_, HostMeta, DeviceMeta> meta_;
+  // Bookkeeping is kept host-side for every memory space, so the pool never
+  // touches the memory it hands out (which may be device-only). Free block
+  // starts are kept per size class, and live allocations are keyed by the
+  // pointer returned to the caller.
+  std::array<std::vector<std::byte *>, num_blocks> free_blocks_{};
+  std::unordered_map<void *, BlockRecord> live_blocks_;
+  // Number of blocks ever carved from slabs, per size class. Bounds how many
+  // blocks of a class can be on its free list at once (see bump_slab()).
+  std::array<std::size_t, num_blocks> carved_blocks_{};
 
   std::size_t min_slab_bytes_ = 8ull << 20;
   std::size_t next_slab_bytes_ = 8ull << 20;
@@ -658,9 +554,8 @@ class SlabArenaPool {
   // ---- Large-request cache state (guarded by mutex_) ---------------------
   //
   // A complete backend allocation used for a single caller. `base_ptr` is the
-  // pointer that must be returned to the backend; for host-accessible spaces
-  // an in-band Header precedes the user pointer, so base_ptr differs from the
-  // user pointer, and capacity_bytes excludes nothing -- it is the full
+  // pointer that must be returned to the backend; it differs from the user
+  // pointer only when alignment padding was needed. capacity_bytes is the full
   // backend size.
   struct LargeBlock {
     void *base_ptr = nullptr;
@@ -685,11 +580,12 @@ class SlabArenaPool {
   LargeAllocationConfig large_config_;
   LargeAllocationStats large_stats_;
 
-  static constexpr std::size_t overhead_bytes() noexcept {
-    if constexpr (host_accessible_) {
-      return sizeof(Header);
-    }
-    return 0;
+  // Bytes reserved so a block can be aligned to `alignment` (already raised to
+  // at least alignof(std::max_align_t)). Slabs and large backend allocations
+  // start max_align_t-aligned and every block size preserves that, so padding
+  // is only needed for stricter alignments.
+  static constexpr std::size_t alignment_padding(std::size_t alignment) noexcept {
+    return alignment > alignof(std::max_align_t) ? alignment - 1 : 0;
   }
 
   static std::size_t align_up(std::size_t x, std::size_t a) {
@@ -795,14 +691,12 @@ class SlabArenaPool {
   }
 
   // Build the user pointer inside a large backend block and register active
-  // metadata. Mirrors make_allocation()'s alignment/header logic. Must be
-  // called with mutex_ held (device registry) but the host header write needs
-  // no lock; we take the lock for both to keep the accounting consistent.
+  // metadata. Mirrors make_allocation()'s alignment logic. Must be called with
+  // mutex_ held.
   void *activate_large_block(void *base, std::size_t capacity, std::size_t request,
                              std::size_t alignment) {
-    const std::uintptr_t raw_user =
-        reinterpret_cast<std::uintptr_t>(base) + overhead_bytes();
-    const std::uintptr_t aligned_ptr = align_up_ptr(raw_user, alignment);
+    const std::uintptr_t aligned_ptr =
+        align_up_ptr(reinterpret_cast<std::uintptr_t>(base), alignment);
     auto *const user_ptr = reinterpret_cast<std::byte *>(aligned_ptr);
 
     [[maybe_unused]] const std::byte *const block_end =
@@ -810,15 +704,6 @@ class SlabArenaPool {
     [[maybe_unused]] const std::byte *const user_end = user_ptr + request;
     assert(user_end <= block_end);
     assert(reinterpret_cast<std::uintptr_t>(user_ptr) % alignment == 0);
-
-    if constexpr (host_accessible_) {
-      auto *const h = reinterpret_cast<Header *>(user_ptr - sizeof(Header));
-      h->idx = 0;
-      h->kind = AllocationKind::LargePool;
-      h->block_bytes = capacity;                       // backend capacity
-      h->block_start = static_cast<std::byte *>(base); // backend base pointer
-      h->sentinel = sentinel_;
-    }
 
     const auto &[it, inserted] =
         live_large_.emplace(static_cast<void *>(user_ptr), LargeBlock{base, capacity, 0});
@@ -1014,9 +899,8 @@ class SlabArenaPool {
     assert(idx < num_blocks);
     assert(block_bytes == block_size(idx));
 
-    const std::uintptr_t raw_user =
-        reinterpret_cast<std::uintptr_t>(block_start) + overhead_bytes();
-    const std::uintptr_t aligned_ptr = align_up_ptr(raw_user, alignment);
+    const std::uintptr_t aligned_ptr =
+        align_up_ptr(reinterpret_cast<std::uintptr_t>(block_start), alignment);
 
     auto *const user_ptr = reinterpret_cast<std::byte *>(aligned_ptr);
     [[maybe_unused]] const std::byte *const block_end = block_start + block_bytes;
@@ -1025,19 +909,10 @@ class SlabArenaPool {
     assert(reinterpret_cast<std::uintptr_t>(user_ptr) % alignment == 0);
 
     // Keep an allocation record for when this is freed
-    if constexpr (host_accessible_) {
-      auto *const h = reinterpret_cast<Header *>(user_ptr - sizeof(Header));
-      h->idx = idx;
-      h->kind = AllocationKind::SmallPool;
-      h->block_bytes = block_bytes;
-      h->block_start = block_start;
-      h->sentinel = sentinel_;
-    } else {
-      const auto &[it, inserted] = meta_.live_blocks.emplace(
-          static_cast<void *>(user_ptr), BlockRecord{block_start, idx});
-      if (!inserted) {
-        throw std::runtime_error("SlabArenaPool: duplicate allocation pointer");
-      }
+    const auto &[it, inserted] = live_blocks_.emplace(static_cast<void *>(user_ptr),
+                                                      BlockRecord{block_start, idx});
+    if (!inserted) {
+      throw std::runtime_error("SlabArenaPool: duplicate allocation pointer");
     }
 
     return static_cast<void *>(user_ptr);
@@ -1048,81 +923,59 @@ class SlabArenaPool {
     Slab &slab = slabs_[current_slab_];
     assert(block_bytes <= slab.bytes - slab.offset);
 
-    // Free-list capacity invariant (device strategy):
-    //   For non-host-accessible spaces the free list lives in a host-side
-    //   std::vector that must never allocate inside the noexcept free path
-    //   (push_block). We guarantee capacity here, at bump time: every block
-    //   that is ever bump-allocated from a slab reserves one free-list slot for
-    //   itself up front. A block can only be freed after it was bump-allocated,
-    //   so the number of live+freed blocks of a class never exceeds the number
-    //   of reserve() calls made for that class -> push_block can always
-    //   push_back without reallocating. The abort in push_block is a defensive
-    //   backstop for this invariant, not an expected path.
-    if constexpr (!host_accessible_) {
-      auto &stack = meta_.free_blocks[idx];
-      if (stack.capacity() == stack.size()) {
-        stack.reserve(stack.size() + 1);
-      }
+    // Free-list capacity invariant:
+    //   The free list lives in a host-side std::vector that must never
+    //   allocate inside the noexcept free path (push_block). A block can only
+    //   be on its class's free list after it was carved here, so the list never
+    //   holds more than carved_blocks_[idx] entries. Keeping capacity at least
+    //   that large before carving guarantees push_block never reallocates. The
+    //   abort in push_block is a defensive backstop, not an expected path.
+    auto &stack = free_blocks_[idx];
+    const std::size_t needed = carved_blocks_[idx] + 1;
+    if (stack.capacity() < needed) {
+      stack.reserve(std::max(needed, 2 * stack.capacity()));
     }
     const auto old_offset = slab.offset;
 
     std::byte *const block_start = slab.base + slab.offset;
     slab.offset += block_bytes;
 
+    void *p = nullptr;
     try {
-      return make_allocation(block_start, block_bytes, request, alignment, idx);
+      p = make_allocation(block_start, block_bytes, request, alignment, idx);
     } catch (...) {
       slab.offset = old_offset;
       throw;
     }
-    return nullptr;
+    ++carved_blocks_[idx];
+    return p;
   }
 
   void *pop_block(std::uint32_t idx, std::size_t request, std::size_t alignment) {
     assert(idx < num_blocks);
-    if constexpr (host_accessible_) {
-      FreeNode *head = meta_.free_heads[idx];
-      if (!head) {
-        return nullptr;
-      }
-
-      meta_.free_heads[idx] = head->next;
-
-      auto *const block_start = reinterpret_cast<std::byte *>(head);
-
+    auto &stack = free_blocks_[idx];
+    if (stack.empty()) return nullptr;
+    std::byte *const block_start = stack.back();
+    stack.pop_back();
+    try {
       return make_allocation(block_start, block_size(idx), request, alignment, idx);
-    } else {
-      auto &stack = meta_.free_blocks[idx];
-      if (stack.empty()) return nullptr;
-      std::byte *const block_start = stack.back();
-      stack.pop_back();
-      try {
-        return make_allocation(block_start, block_size(idx), request, alignment, idx);
-      } catch (...) {
-        stack.push_back(block_start);
-        throw;
-      }
+    } catch (...) {
+      stack.push_back(block_start);
+      throw;
     }
-    return nullptr;
   }
 
   void push_block(std::byte *block_start, std::uint32_t idx) noexcept {
     assert(block_start != nullptr);
     assert(idx < num_blocks);
-    if constexpr (host_accessible_) {
-      auto *node = reinterpret_cast<FreeNode *>(block_start);
-      node->next = meta_.free_heads[idx];
-      meta_.free_heads[idx] = node;
-    } else {
-      auto &stack = meta_.free_blocks[idx];
-      // Capacity was reserved up front in bump_slab() (see invariant there);
-      // this must never reallocate inside the noexcept free path.
-      if (stack.size() == stack.capacity()) {
-        PORTABLE_ALWAYS_ABORT("SlabArenaPool free-list capacity exceeded");
-      }
-      stack.push_back(block_start);
+    auto &stack = free_blocks_[idx];
+    // Capacity was reserved up front in bump_slab() (see invariant there);
+    // this must never reallocate inside the noexcept free path.
+    if (stack.size() == stack.capacity()) {
+      PORTABLE_ALWAYS_ABORT("SlabArenaPool free-list capacity exceeded");
     }
-  };
+    stack.push_back(block_start);
+  }
 };
 
 // A std::allocator compliant allocator
