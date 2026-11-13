@@ -375,8 +375,7 @@ class SlabArenaPool {
       std::lock_guard<std::mutex> lock(mutex_);
       while (cached_large_bytes_ > target_bytes && !free_large_blocks_.empty()) {
         auto oldest = free_large_blocks_.begin();
-        for (auto it = free_large_blocks_.begin(); it != free_large_blocks_.end();
-             ++it) {
+        for (auto it = free_large_blocks_.begin(); it != free_large_blocks_.end(); ++it) {
           if (it->second.last_used_epoch < oldest->second.last_used_epoch) {
             oldest = it;
           }
@@ -712,12 +711,13 @@ class SlabArenaPool {
   static void *backend_allocate(std::size_t bytes) noexcept {
 #ifdef PORTABILITY_STRATEGY_KOKKOS
     // kokkos_malloc reports allocation failure by throwing (std::runtime_error
-    // from Kokkos::Impl::throw_bad_alloc), not by returning nullptr. Translate
-    // that to nullptr so the retry/bad_alloc logic in the callers runs; letting
-    // it escape this noexcept function would call std::terminate.
+    // from Kokkos::Impl::throw_bad_alloc; its tracking record can also throw
+    // std::bad_alloc), not by returning nullptr. Translate that to nullptr so
+    // the retry/bad_alloc logic in the callers runs; letting it escape this
+    // noexcept function would call std::terminate.
     try {
       return Kokkos::kokkos_malloc<memory_space>(bytes);
-    } catch (...) {
+    } catch (const std::exception &) {
       return nullptr;
     }
 #else
@@ -802,8 +802,8 @@ class SlabArenaPool {
                              std::size_t alignment) {
     const std::uintptr_t raw_user =
         reinterpret_cast<std::uintptr_t>(base) + overhead_bytes();
-    const std::uintptr_t aligned_user = align_up_ptr(raw_user, alignment);
-    auto *const user_ptr = reinterpret_cast<std::byte *>(aligned_user);
+    const std::uintptr_t aligned_ptr = align_up_ptr(raw_user, alignment);
+    auto *const user_ptr = reinterpret_cast<std::byte *>(aligned_ptr);
 
     [[maybe_unused]] const std::byte *const block_end =
         static_cast<std::byte *>(base) + capacity;
@@ -815,13 +815,13 @@ class SlabArenaPool {
       auto *const h = reinterpret_cast<Header *>(user_ptr - sizeof(Header));
       h->idx = 0;
       h->kind = AllocationKind::LargePool;
-      h->block_bytes = capacity;                     // backend capacity
+      h->block_bytes = capacity;                       // backend capacity
       h->block_start = static_cast<std::byte *>(base); // backend base pointer
       h->sentinel = sentinel_;
     }
 
-    const auto &[it, inserted] = live_large_.emplace(
-        static_cast<void *>(user_ptr), LargeBlock{base, capacity, 0});
+    const auto &[it, inserted] =
+        live_large_.emplace(static_cast<void *>(user_ptr), LargeBlock{base, capacity, 0});
     if (!inserted) {
       throw std::runtime_error("SlabArenaPool: duplicate large allocation pointer");
     }
@@ -896,20 +896,15 @@ class SlabArenaPool {
       release_directly = large_config_.max_cached_bytes == 0 ||
                          capacity > large_config_.max_single_cached_bytes;
 
+      // The cache insert and victim collection only throw if host memory is
+      // exhausted. That is not recoverable, so let it terminate (this function
+      // is noexcept) rather than leave the cache inconsistent.
       if (!release_directly) {
-        // std::multimap::emplace can throw; if it does we fall back to a direct
-        // backend free rather than leaking, preserving noexcept.
-        try {
-          free_large_blocks_.emplace(capacity,
-                                     LargeBlock{backend_base, capacity, ++large_epoch_});
-          note_cached_added(capacity);
-          victims = collect_eviction_victims_locked();
-        } catch (...) {
-          release_directly = true;
-        }
-      }
-
-      if (release_directly) {
+        free_large_blocks_.emplace(capacity,
+                                   LargeBlock{backend_base, capacity, ++large_epoch_});
+        note_cached_added(capacity);
+        victims = collect_eviction_victims_locked();
+      } else {
         ++large_stats_.direct_frees;
         ++large_stats_.backend_deallocations;
       }
@@ -991,12 +986,7 @@ class SlabArenaPool {
       throw std::bad_alloc{};
     }
 
-    try {
-      slabs_.push_back(Slab{static_cast<std::byte *>(raw), slab_bytes, 0});
-    } catch (...) {
-      backend_deallocate(raw);
-      throw;
-    }
+    slabs_.push_back(Slab{static_cast<std::byte *>(raw), slab_bytes, 0});
     current_slab_ = slabs_.size() - 1;
 
     next_slab_bytes_ = get_next_slab(slab_bytes);
@@ -1026,9 +1016,9 @@ class SlabArenaPool {
 
     const std::uintptr_t raw_user =
         reinterpret_cast<std::uintptr_t>(block_start) + overhead_bytes();
-    const std::uintptr_t aligned_user = align_up_ptr(raw_user, alignment);
+    const std::uintptr_t aligned_ptr = align_up_ptr(raw_user, alignment);
 
-    auto *const user_ptr = reinterpret_cast<std::byte *>(aligned_user);
+    auto *const user_ptr = reinterpret_cast<std::byte *>(aligned_ptr);
     [[maybe_unused]] const std::byte *const block_end = block_start + block_bytes;
     [[maybe_unused]] const std::byte *const user_end = user_ptr + request;
     assert(user_end <= block_end);
@@ -1138,74 +1128,74 @@ class SlabArenaPool {
 // A std::allocator compliant allocator
 template <class T, class Pool>
 class PoolAllocator {
-   public:
-    using value_type = T;
-    using pointer = T *;
-    using const_pointer = const T *;
-    using size_type = std::size_t;
-    using difference_type = std::ptrdiff_t;
+ public:
+  using value_type = T;
+  using pointer = T *;
+  using const_pointer = const T *;
+  using size_type = std::size_t;
+  using difference_type = std::ptrdiff_t;
 
-    template <class U>
-    struct rebind {
-      using other = PoolAllocator<U, Pool>;
-    };
-
-    using propagate_on_container_copy_assignment = std::false_type;
-    using propagate_on_container_move_assignment = std::true_type;
-    using propagate_on_container_swap = std::true_type;
-    using is_always_equal = std::false_type;
-
-    PoolAllocator() noexcept : pool_(&Pool::instance()) {}
-
-    explicit PoolAllocator(Pool &pool) noexcept : pool_(&pool) {}
-
-    template <class U>
-    PoolAllocator(const PoolAllocator<U, Pool> &other) noexcept : pool_(other.pool_) {}
-
-    [[nodiscard]] T *allocate(size_type n) {
-      if (n > max_size()) {
-        throw std::bad_array_new_length{};
-      }
-      void *p = pool_->alloc_bytes(n * sizeof(T), alignof(T));
-      return static_cast<T *>(p);
-    }
-
-    void deallocate(T *p, size_type = 0) noexcept {
-      pool_->free_bytes(static_cast<void *>(p));
-    }
-
-    Pool *pool() const noexcept { return pool_; }
-
-    [[nodiscard]] size_type max_size() const noexcept {
-      return Pool::max_allocation_bytes(alignof(T)) / sizeof(T);
-    }
-
-    template <class U, class... Args>
-    void construct(U *p, Args &&...args) {
-      // this is placement new, it constructs the object from already allocated memory
-      ::new (static_cast<void *>(p)) U(std::forward<Args>(args)...);
-    }
-
-    template <class U>
-    void destroy(U *p) {
-      p->~U();
-    }
-
-    template <class U>
-    bool operator==(const PoolAllocator<U, Pool> &rhs) const noexcept {
-      return pool_ == rhs.pool_;
-    }
-
-    template <class U>
-    bool operator!=(const PoolAllocator<U, Pool> &rhs) const noexcept {
-      return !(*this == rhs);
-    }
-
-   private:
-    template <class, class>
-    friend class PoolAllocator;
-
-    Pool *pool_;
+  template <class U>
+  struct rebind {
+    using other = PoolAllocator<U, Pool>;
   };
+
+  using propagate_on_container_copy_assignment = std::false_type;
+  using propagate_on_container_move_assignment = std::true_type;
+  using propagate_on_container_swap = std::true_type;
+  using is_always_equal = std::false_type;
+
+  PoolAllocator() noexcept : pool_(&Pool::instance()) {}
+
+  explicit PoolAllocator(Pool &pool) noexcept : pool_(&pool) {}
+
+  template <class U>
+  PoolAllocator(const PoolAllocator<U, Pool> &other) noexcept : pool_(other.pool_) {}
+
+  [[nodiscard]] T *allocate(size_type n) {
+    if (n > max_size()) {
+      throw std::bad_array_new_length{};
+    }
+    void *p = pool_->alloc_bytes(n * sizeof(T), alignof(T));
+    return static_cast<T *>(p);
+  }
+
+  void deallocate(T *p, size_type = 0) noexcept {
+    pool_->free_bytes(static_cast<void *>(p));
+  }
+
+  Pool *pool() const noexcept { return pool_; }
+
+  [[nodiscard]] size_type max_size() const noexcept {
+    return Pool::max_allocation_bytes(alignof(T)) / sizeof(T);
+  }
+
+  template <class U, class... Args>
+  void construct(U *p, Args &&...args) {
+    // this is placement new, it constructs the object from already allocated memory
+    ::new (static_cast<void *>(p)) U(std::forward<Args>(args)...);
+  }
+
+  template <class U>
+  void destroy(U *p) {
+    p->~U();
+  }
+
+  template <class U>
+  bool operator==(const PoolAllocator<U, Pool> &rhs) const noexcept {
+    return pool_ == rhs.pool_;
+  }
+
+  template <class U>
+  bool operator!=(const PoolAllocator<U, Pool> &rhs) const noexcept {
+    return !(*this == rhs);
+  }
+
+ private:
+  template <class, class>
+  friend class PoolAllocator;
+
+  Pool *pool_;
+};
 } // namespace PortsOfCall
 #endif // _PORTABLE_MEMORY_HPP_
