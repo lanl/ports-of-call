@@ -480,7 +480,13 @@ Finally, if the allocation request would exceed the remaining space in the slab,
 When the pointer is freed, the block that backed that allocation request is added to the list of available blocks.
 The time for allocation and freeing is thus O(1), so long as a new slab is not needed.
 Note that, because new slabs are added, the size of the pool can grow throughout the lifetime of the program.
-Each allocation also contains a small header that contains some information including a sentinal value that is checked for correctness.
+How allocations are tracked depends on whether the memory space is accessible from the host.
+In host-accessible memory spaces (e.g. ``Kokkos::HostSpace``, ``Kokkos::SharedSpace``, or ``HIPSpace`` on an APU) the pool writes a small header (32 bytes) into each block, immediately in front of the user data.
+The pointer returned by ``alloc_bytes`` points to the first byte *after* this header, aligned to the requested alignment, so the header sits directly below the returned pointer.
+The header records the block's size class and start address and carries a sentinel value that is checked when the pointer is freed.
+Because the header is part of the block, it counts toward the block size: a request is placed in the smallest size class that holds the request plus the header and any alignment padding, so for example a request of exactly a power of two lands in a larger size class.
+Code must not write below the returned pointer, and must pass ``free_bytes`` the exact pointer that ``alloc_bytes`` returned.
+In memory spaces that are not host-accessible (e.g. ``Kokkos::CudaSpace``) the host cannot write into the block, so no header is added; the pool instead keeps the bookkeeping for each live allocation in a host-side table keyed by the returned pointer.
 
 The fixed-block size classes go up to a maximum block size (2 :sup:`30` bytes, or 1 GiB, by default).
 Requests larger than this maximum block size are served by a separate large-request path rather than being rejected.
