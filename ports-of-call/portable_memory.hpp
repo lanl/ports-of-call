@@ -89,6 +89,33 @@ class SlabArenaPool {
 
     std::size_t peak_active_capacity_bytes = 0;
     std::size_t peak_cached_bytes = 0;
+
+    // Bytes callers asked for in live large allocations, versus
+    // active_capacity_bytes reserved for them (granularity rounding).
+    std::size_t active_requested_bytes = 0;
+    std::size_t peak_active_requested_bytes = 0;
+  };
+
+  // Usage of the power-of-two slab classes, for judging how much memory the
+  // size-class rounding wastes. "Requested" is what callers asked for; "block"
+  // is the size-class block that served it. Peaks are high-water marks of the
+  // corresponding live totals and, like the large-path peaks, are not reset by
+  // release_all().
+  struct SlabAllocationStats {
+    std::uint64_t requests = 0;          // slab-path allocations
+    std::size_t live_blocks = 0;         // currently allocated slab blocks
+    std::size_t live_requested_bytes = 0;
+    std::size_t live_block_bytes = 0;
+    std::size_t peak_requested_bytes = 0;
+    std::size_t peak_block_bytes = 0;
+    std::size_t free_list_bytes = 0;     // freed blocks waiting for reuse
+    std::size_t uncarved_bytes = 0;      // slab space never handed out
+    std::size_t slab_bytes = 0;          // total backend memory held in slabs
+
+    // Bytes lost to size-class rounding in the live allocations.
+    std::size_t internal_fragmentation_bytes() const noexcept {
+      return live_block_bytes - live_requested_bytes;
+    }
   };
 
   // Process-wide singleton pool for this memory space.
@@ -221,6 +248,7 @@ class SlabArenaPool {
     // double-freed pointer is always detected.
     std::byte *backend_base = nullptr;
     std::size_t capacity = 0;
+    std::size_t requested = 0;
     {
       std::lock_guard<std::mutex> lock(mutex_);
 
@@ -228,6 +256,7 @@ class SlabArenaPool {
       if (lit != live_large_.end()) {
         backend_base = static_cast<std::byte *>(lit->second.base_ptr);
         capacity = lit->second.capacity_bytes;
+        requested = lit->second.requested_bytes;
         live_large_.erase(lit);
       } else {
         auto it = live_blocks_.find(p);
@@ -237,13 +266,16 @@ class SlabArenaPool {
         }
         std::byte *const block_start = it->second.block_start;
         const std::uint32_t idx = it->second.idx;
+        --slab_stats_.live_blocks;
+        slab_stats_.live_requested_bytes -= it->second.requested_bytes;
+        slab_stats_.live_block_bytes -= block_size(idx);
         live_blocks_.erase(it);
         push_block(block_start, idx);
         return;
       }
     }
     // Large block: registry entry already removed above.
-    free_large_after_unregister(backend_base, capacity);
+    free_large_after_unregister(backend_base, capacity, requested);
   }
 
   void release_all() {
@@ -281,7 +313,11 @@ class SlabArenaPool {
       live_large_.clear();
       cached_large_bytes_ = 0;
       large_stats_.active_capacity_bytes = 0;
+      large_stats_.active_requested_bytes = 0;
       large_stats_.active_blocks = 0;
+      slab_stats_.live_blocks = 0;
+      slab_stats_.live_requested_bytes = 0;
+      slab_stats_.live_block_bytes = 0;
       large_stats_.cached_bytes = 0;
       large_stats_.cached_blocks = 0;
     }
@@ -332,6 +368,19 @@ class SlabArenaPool {
   LargeAllocationStats large_allocation_stats() const {
     std::lock_guard<std::mutex> lock(mutex_);
     return large_stats_;
+  }
+
+  SlabAllocationStats slab_allocation_stats() const {
+    std::lock_guard<std::mutex> lock(mutex_);
+    SlabAllocationStats stats = slab_stats_;
+    for (std::uint32_t idx = 0; idx < num_blocks; ++idx) {
+      stats.free_list_bytes += free_blocks_[idx].size() * block_size(idx);
+    }
+    for (const auto &slab : slabs_) {
+      stats.slab_bytes += slab.bytes;
+      stats.uncarved_bytes += slab.bytes - slab.offset;
+    }
+    return stats;
   }
 
   // Profiling functions for tuning slab sizes
@@ -509,6 +558,7 @@ class SlabArenaPool {
   struct BlockRecord {
     std::byte *block_start = nullptr;
     std::uint32_t idx = 0;
+    std::size_t requested_bytes = 0;
   };
 
   struct Slab {
@@ -561,6 +611,7 @@ class SlabArenaPool {
     void *base_ptr = nullptr;
     std::size_t capacity_bytes = 0;
     std::uint64_t last_used_epoch = 0;
+    std::size_t requested_bytes = 0; // live allocations only
   };
 
   // Free large blocks available for reuse, ordered by capacity so a request
@@ -579,6 +630,7 @@ class SlabArenaPool {
 
   LargeAllocationConfig large_config_;
   LargeAllocationStats large_stats_;
+  SlabAllocationStats slab_stats_; // live totals and peaks only
 
   // Bytes reserved so a block can be aligned to `alignment` (already raised to
   // at least alignof(std::max_align_t)). Slabs and large backend allocations
@@ -664,15 +716,19 @@ class SlabArenaPool {
     return capacity - need <= allowed_slack;
   }
 
-  void note_active_large_added(std::size_t capacity) noexcept {
+  void note_active_large_added(std::size_t capacity, std::size_t requested) noexcept {
     large_stats_.active_capacity_bytes += capacity;
+    large_stats_.active_requested_bytes += requested;
     ++large_stats_.active_blocks;
     large_stats_.peak_active_capacity_bytes = std::max(
         large_stats_.peak_active_capacity_bytes, large_stats_.active_capacity_bytes);
+    large_stats_.peak_active_requested_bytes = std::max(
+        large_stats_.peak_active_requested_bytes, large_stats_.active_requested_bytes);
   }
 
-  void note_active_large_removed(std::size_t capacity) noexcept {
+  void note_active_large_removed(std::size_t capacity, std::size_t requested) noexcept {
     large_stats_.active_capacity_bytes -= capacity;
+    large_stats_.active_requested_bytes -= requested;
     --large_stats_.active_blocks;
   }
 
@@ -705,12 +761,12 @@ class SlabArenaPool {
     assert(user_end <= block_end);
     assert(reinterpret_cast<std::uintptr_t>(user_ptr) % alignment == 0);
 
-    const auto &[it, inserted] =
-        live_large_.emplace(static_cast<void *>(user_ptr), LargeBlock{base, capacity, 0});
+    const auto &[it, inserted] = live_large_.emplace(
+        static_cast<void *>(user_ptr), LargeBlock{base, capacity, 0, request});
     if (!inserted) {
       throw std::runtime_error("SlabArenaPool: duplicate large allocation pointer");
     }
-    note_active_large_added(capacity);
+    note_active_large_added(capacity, request);
     return static_cast<void *>(user_ptr);
   }
 
@@ -767,13 +823,13 @@ class SlabArenaPool {
   // already been removed (both host and device paths). Decides whether to
   // cache or return to the backend, and performs any backend calls outside the
   // lock.
-  void free_large_after_unregister(std::byte *backend_base,
-                                   std::size_t capacity) noexcept {
+  void free_large_after_unregister(std::byte *backend_base, std::size_t capacity,
+                                   std::size_t requested) noexcept {
     std::vector<LargeBlock> victims;
     bool release_directly = false;
     {
       std::lock_guard<std::mutex> lock(mutex_);
-      note_active_large_removed(capacity);
+      note_active_large_removed(capacity, requested);
 
       // No separate shutdown check is needed: shutdown goes through
       // release_all() (finalize hook / destructor), which returns every large
@@ -909,11 +965,19 @@ class SlabArenaPool {
     assert(reinterpret_cast<std::uintptr_t>(user_ptr) % alignment == 0);
 
     // Keep an allocation record for when this is freed
-    const auto &[it, inserted] = live_blocks_.emplace(static_cast<void *>(user_ptr),
-                                                      BlockRecord{block_start, idx});
+    const auto &[it, inserted] = live_blocks_.emplace(
+        static_cast<void *>(user_ptr), BlockRecord{block_start, idx, request});
     if (!inserted) {
       throw std::runtime_error("SlabArenaPool: duplicate allocation pointer");
     }
+    ++slab_stats_.requests;
+    ++slab_stats_.live_blocks;
+    slab_stats_.live_requested_bytes += request;
+    slab_stats_.live_block_bytes += block_bytes;
+    slab_stats_.peak_requested_bytes =
+        std::max(slab_stats_.peak_requested_bytes, slab_stats_.live_requested_bytes);
+    slab_stats_.peak_block_bytes =
+        std::max(slab_stats_.peak_block_bytes, slab_stats_.live_block_bytes);
 
     return static_cast<void *>(user_ptr);
   }

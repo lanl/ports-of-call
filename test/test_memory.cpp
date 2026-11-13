@@ -403,6 +403,47 @@ TEST_CASE("Power-of-two requests fill their size class exactly",
   }
 }
 
+TEST_CASE("Slab allocation stats track requested vs block bytes",
+          "[pool][slab][stats]") {
+  HostPool pool;
+  constexpr std::size_t slab = 64 << 10;
+  pool.configure(slab, 0.0);
+
+  // 600 B lands in the 1 KiB class and 1024 B fills it exactly.
+  void *a = pool.alloc_bytes(600);
+  void *b = pool.alloc_bytes(1024);
+
+  auto s = pool.slab_allocation_stats();
+  REQUIRE(s.requests == 2);
+  REQUIRE(s.live_blocks == 2);
+  REQUIRE(s.live_requested_bytes == 600 + 1024);
+  REQUIRE(s.live_block_bytes == 2 * 1024);
+  REQUIRE(s.internal_fragmentation_bytes() == 1024 - 600);
+  REQUIRE(s.slab_bytes == slab);
+  REQUIRE(s.uncarved_bytes == slab - 2 * 1024);
+  REQUIRE(s.free_list_bytes == 0);
+
+  pool.free_bytes(a);
+  s = pool.slab_allocation_stats();
+  REQUIRE(s.live_blocks == 1);
+  REQUIRE(s.live_requested_bytes == 1024);
+  REQUIRE(s.live_block_bytes == 1024);
+  REQUIRE(s.free_list_bytes == 1024);
+  // Every slab byte is live, waiting on a free list, or not yet carved.
+  REQUIRE(s.live_block_bytes + s.free_list_bytes + s.uncarved_bytes == s.slab_bytes);
+  // Peaks keep the high-water mark.
+  REQUIRE(s.peak_requested_bytes == 600 + 1024);
+  REQUIRE(s.peak_block_bytes == 2 * 1024);
+
+  pool.free_bytes(b);
+  pool.release_all();
+  s = pool.slab_allocation_stats();
+  REQUIRE(s.live_blocks == 0);
+  REQUIRE(s.live_block_bytes == 0);
+  REQUIRE(s.slab_bytes == 0);
+  REQUIRE(s.peak_block_bytes == 2 * 1024);
+}
+
 TEST_CASE("SlabArenaPool should reject non-power-of-two alignments",
           "[pool][SlabArenaPool][alignment][validation]") {
   HostPool pool;
@@ -898,6 +939,27 @@ TEST_CASE("Large: interleaved small+large traffic keeps accounting consistent",
   REQUIRE(stats.cached_bytes <= cfg.max_cached_bytes);
   REQUIRE(stats.requests == 8);
 
+  pool.release_all();
+}
+
+TEST_CASE("Large allocation stats track requested bytes",
+          "[pool][large][stats]") {
+  HostPool pool;
+  pool.release_all();
+
+  const std::size_t n = just_over_ceiling();
+  void *p = pool.alloc_bytes(n);
+  auto s = pool.large_allocation_stats();
+  REQUIRE(s.active_requested_bytes == n);
+  REQUIRE(s.active_capacity_bytes >= n);
+  REQUIRE(s.peak_active_requested_bytes == n);
+  // Large requests never count toward the slab stats.
+  REQUIRE(pool.slab_allocation_stats().requests == 0);
+
+  pool.free_bytes(p);
+  s = pool.large_allocation_stats();
+  REQUIRE(s.active_requested_bytes == 0);
+  REQUIRE(s.peak_active_requested_bytes == n);
   pool.release_all();
 }
 
