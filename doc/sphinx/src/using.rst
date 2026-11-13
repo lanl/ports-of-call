@@ -480,13 +480,14 @@ Finally, if the allocation request would exceed the remaining space in the slab,
 When the pointer is freed, the block that backed that allocation request is added to the list of available blocks.
 The time for allocation and freeing is thus O(1), so long as a new slab is not needed.
 Note that, because new slabs are added, the size of the pool can grow throughout the lifetime of the program.
-How allocations are tracked depends on whether the memory space is accessible from the host.
-In host-accessible memory spaces (e.g. ``Kokkos::HostSpace``, ``Kokkos::SharedSpace``, or ``HIPSpace`` on an APU) the pool writes a small header (32 bytes) into each block, immediately in front of the user data.
-The pointer returned by ``alloc_bytes`` points to the first byte *after* this header, aligned to the requested alignment, so the header sits directly below the returned pointer.
-The header records the block's size class and start address and carries a sentinel value that is checked when the pointer is freed.
-Because the header is part of the block, it counts toward the block size: a request is placed in the smallest size class that holds the request plus the header and any alignment padding, so for example a request of exactly a power of two lands in a larger size class.
-Code must not write below the returned pointer, and must pass ``free_bytes`` the exact pointer that ``alloc_bytes`` returned.
-In memory spaces that are not host-accessible (e.g. ``Kokkos::CudaSpace``) the host cannot write into the block, so no header is added; the pool instead keeps the bookkeeping for each live allocation in a host-side table keyed by the returned pointer.
+The pool keeps all of its bookkeeping on the host, keyed by the pointer it returned, and never reads or writes the memory it hands out.
+This is the same for every memory space, so pooled memory may be device-only (e.g. ``Kokkos::CudaSpace``), managed, or host memory.
+No header is stored in the block, so the returned pointer is the start of the block (or, for alignments stricter than ``alignof(std::max_align_t)``, the first suitably aligned address in it).
+For the default alignment (``alignof(std::max_align_t)``) a request of exactly a power of two fills its size class with no waste.
+A stricter alignment reserves ``alignment - 1`` extra bytes so the block can be aligned, which can move the request to a larger size class.
+``free_bytes`` must be given the exact pointer returned by ``alloc_bytes``; freeing an unknown pointer, or the same pointer twice, aborts.
+Each live allocation costs a small host-side table entry, and each allocation and free is a hash-table insert or erase under the pool's mutex.
+The pool is therefore aimed at array-sized allocations, particularly in device and managed memory where backend allocation is expensive, rather than at large numbers of tiny host allocations.
 
 The fixed-block size classes go up to a maximum block size (2 :sup:`30` bytes, or 1 GiB, by default).
 Requests larger than this maximum block size are served by a separate large-request path rather than being rejected.
