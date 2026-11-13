@@ -21,6 +21,7 @@
 #include <limits>
 #include <new>
 #include <type_traits>
+#include <utility>
 #include <vector>
 
 #include <ports-of-call/portable_memory.hpp>
@@ -403,13 +404,39 @@ TEST_CASE("Power-of-two requests fill their size class exactly",
   }
 }
 
+TEST_CASE("Requests round up to four size classes per doubling",
+          "[pool][slab][size-class]") {
+  HostPool pool;
+  pool.configure(64 << 10, 0.0);
+
+  // {request, expected block}: 16 B steps up to 64 B, then each octave
+  // (2^k, 2^(k+1)] is split into four steps of 2^(k-2).
+  const std::pair<std::size_t, std::size_t> cases[] = {
+      {1, 16},      {16, 16},     {17, 32},     {48, 48},     {64, 64},
+      {65, 80},     {100, 112},   {128, 128},   {129, 160},   {200, 224},
+      {600, 640},   {1024, 1024}, {1025, 1280}, {1300, 1536}, {3000, 3072},
+      {5000, 5120}, {7000, 7168}, {8192, 8192}};
+  for (const auto &[request, block] : cases) {
+    const std::size_t before = pool.slab_allocation_stats().live_block_bytes;
+    void *p = pool.alloc_bytes(request);
+    REQUIRE(pool.slab_allocation_stats().live_block_bytes - before == block);
+    pool.free_bytes(p);
+  }
+
+  // The largest class is the slab ceiling itself.
+  const std::size_t cap = HostPool::max_slab_block_bytes();
+  void *big = pool.alloc_bytes(cap - (cap / 8) + 1); // just above the 7/8 class
+  REQUIRE(pool.slab_allocation_stats().live_block_bytes == cap);
+  pool.free_bytes(big);
+}
+
 TEST_CASE("Slab allocation stats track requested vs block bytes",
           "[pool][slab][stats]") {
   HostPool pool;
   constexpr std::size_t slab = 64 << 10;
   pool.configure(slab, 0.0);
 
-  // 600 B lands in the 1 KiB class and 1024 B fills it exactly.
+  // 600 B lands in the 640 B class and 1024 B fills its class exactly.
   void *a = pool.alloc_bytes(600);
   void *b = pool.alloc_bytes(1024);
 
@@ -417,10 +444,10 @@ TEST_CASE("Slab allocation stats track requested vs block bytes",
   REQUIRE(s.requests == 2);
   REQUIRE(s.live_blocks == 2);
   REQUIRE(s.live_requested_bytes == 600 + 1024);
-  REQUIRE(s.live_block_bytes == 2 * 1024);
-  REQUIRE(s.internal_fragmentation_bytes() == 1024 - 600);
+  REQUIRE(s.live_block_bytes == 640 + 1024);
+  REQUIRE(s.internal_fragmentation_bytes() == 640 - 600);
   REQUIRE(s.slab_bytes == slab);
-  REQUIRE(s.uncarved_bytes == slab - 2 * 1024);
+  REQUIRE(s.uncarved_bytes == slab - (640 + 1024));
   REQUIRE(s.free_list_bytes == 0);
 
   pool.free_bytes(a);
@@ -428,12 +455,12 @@ TEST_CASE("Slab allocation stats track requested vs block bytes",
   REQUIRE(s.live_blocks == 1);
   REQUIRE(s.live_requested_bytes == 1024);
   REQUIRE(s.live_block_bytes == 1024);
-  REQUIRE(s.free_list_bytes == 1024);
+  REQUIRE(s.free_list_bytes == 640);
   // Every slab byte is live, waiting on a free list, or not yet carved.
   REQUIRE(s.live_block_bytes + s.free_list_bytes + s.uncarved_bytes == s.slab_bytes);
   // Peaks keep the high-water mark.
   REQUIRE(s.peak_requested_bytes == 600 + 1024);
-  REQUIRE(s.peak_block_bytes == 2 * 1024);
+  REQUIRE(s.peak_block_bytes == 640 + 1024);
 
   pool.free_bytes(b);
   pool.release_all();
@@ -441,7 +468,7 @@ TEST_CASE("Slab allocation stats track requested vs block bytes",
   REQUIRE(s.live_blocks == 0);
   REQUIRE(s.live_block_bytes == 0);
   REQUIRE(s.slab_bytes == 0);
-  REQUIRE(s.peak_block_bytes == 2 * 1024);
+  REQUIRE(s.peak_block_bytes == 640 + 1024);
 }
 
 TEST_CASE("SlabArenaPool should reject non-power-of-two alignments",
@@ -503,11 +530,11 @@ TEST_CASE("SlabArenaPool reuses blocks while recomputing alignment",
     Create several 16-byte-aligned allocations that fall into the same size class
     as the later 64-byte-aligned allocation.
 
-    request=80, alignment=16 maps to the 128-byte size class.
+    request=120, alignment=16 maps to the 128-byte size class.
     request=65, alignment=64 (65 + 63 bytes of padding) also maps to it.
   */
   for (int i = 0; i < 16; ++i) {
-    void *p = pool.alloc_bytes(80, 16);
+    void *p = pool.alloc_bytes(120, 16);
     REQUIRE(is_aligned_bytes(p, 16));
     candidates.push_back(p);
   }
@@ -542,7 +569,7 @@ TEST_CASE(
   HostPool pool;
   pool.configure(64 << 10, 0.0);
 
-  void *p = pool.alloc_bytes(80, 16);
+  void *p = pool.alloc_bytes(120, 16);
   REQUIRE(is_aligned_bytes(p, 16));
 
   pool.free_bytes(p);

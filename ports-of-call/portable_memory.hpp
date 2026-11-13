@@ -17,6 +17,7 @@
 #define _PORTABLE_MEMORY_HPP_
 
 #include <array>
+#include <bit>
 #include <cassert>
 #include <cmath>
 #include <cstddef>
@@ -567,20 +568,32 @@ class SlabArenaPool {
     std::size_t offset = 0;
   };
 
-  // Power-of-two block sizes from 16 B (min_size) up to 2^max_size. The upper
+  // Block size classes, four per doubling, up to 2^max_size:
+  //   16, 32, 48, 64,                   (16 B steps up to 64 B)
+  //   80, 96, 112, 128,                 (then 4 classes per power of two,
+  //   160, 192, 224, 256, ...            each a quarter of the octave apart)
+  // Powers of two are classes, so power-of-two requests fit exactly, and
+  // rounding a request up to its class wastes under 25% (about 10% on
+  // average) instead of the up to 50% of power-of-two-only classes. The upper
   // exponent (PORTS_OF_CALL_MAX_SLAB_BLOCK_LOG2, defined near the top of this
   // header) is configurable so builds and tests can shrink the slab ceiling --
   // and therefore the size at which the large-request path engages.
-  static constexpr std::uint32_t min_size = 4;
+  static constexpr std::size_t class_step_bytes = 16; // spacing below 64 B
+  static constexpr std::uint32_t linear_classes = 4;  // 16, 32, 48, 64
+  static constexpr std::uint32_t classes_per_doubling = 4;
+  static constexpr std::uint32_t first_octave_log2 = 6; // octaves start at 64 B
   static constexpr std::uint32_t max_size = PORTS_OF_CALL_MAX_SLAB_BLOCK_LOG2;
-  static constexpr std::size_t num_blocks = std::size_t(max_size - min_size + 1);
-  static_assert(max_size > min_size, "max slab block must exceed min block size");
+  static_assert(max_size > first_octave_log2,
+                "max slab block must be larger than 64 bytes");
+  static constexpr std::size_t num_blocks =
+      linear_classes + classes_per_doubling * (max_size - first_octave_log2);
 
-  // Every block size is a multiple of the smallest one, so if the smallest is a
-  // multiple of alignof(max_align_t), every block carved from a slab keeps the
-  // slab base's max_align_t alignment. alignment_padding() relies on this.
-  static_assert((std::size_t{1} << min_size) % alignof(std::max_align_t) == 0,
-                "Minimum block size must preserve max_align_t alignment");
+  // Every block size is a multiple of class_step_bytes (the octave step
+  // 2^(k-2) is at least 16 for k >= 6), so if that is a multiple of
+  // alignof(max_align_t), every block carved from a slab keeps the slab base's
+  // max_align_t alignment. alignment_padding() relies on this.
+  static_assert(class_step_bytes % alignof(std::max_align_t) == 0,
+                "Block size classes must preserve max_align_t alignment");
 
   mutable std::mutex mutex_;
 
@@ -894,20 +907,36 @@ class SlabArenaPool {
     }
   }
 
+  // Smallest size class holding bytes_needed. Caller guarantees
+  // bytes_needed <= max_block_bytes().
   static std::uint32_t get_block_index(std::size_t bytes_needed) {
-    std::size_t block = std::size_t{1} << min_size;
-    std::uint32_t idx = 0;
-
-    while (block < bytes_needed && idx + min_size < max_size) {
-      block <<= 1;
-      ++idx;
+    constexpr std::size_t linear_max = class_step_bytes * linear_classes; // 64
+    if (bytes_needed <= linear_max) {
+      return bytes_needed == 0
+                 ? 0
+                 : static_cast<std::uint32_t>((bytes_needed - 1) / class_step_bytes);
     }
-
+    // bytes_needed lies in the octave (2^k, 2^(k+1)], split into four steps of
+    // 2^(k-2); j in [1, 4] picks the step that holds it.
+    const auto k = static_cast<std::uint32_t>(std::bit_width(bytes_needed - 1) - 1);
+    const std::size_t base = std::size_t{1} << k;
+    const std::size_t step = base / classes_per_doubling;
+    const auto j = static_cast<std::uint32_t>((bytes_needed - base + step - 1) / step);
+    const std::uint32_t idx =
+        linear_classes - 1 + classes_per_doubling * (k - first_octave_log2) + j;
+    assert(idx < num_blocks);
     return idx;
   }
 
   static std::size_t block_size(std::uint32_t idx) {
-    return std::size_t(1) << (idx + min_size);
+    if (idx < linear_classes) {
+      return class_step_bytes * (idx + 1);
+    }
+    const std::uint32_t m = idx - linear_classes; // 0-based within the octaves
+    const std::uint32_t k = first_octave_log2 + m / classes_per_doubling;
+    const std::uint32_t j = m % classes_per_doubling + 1;
+    const std::size_t base = std::size_t{1} << k;
+    return base + j * (base / classes_per_doubling);
   }
 
   std::size_t remaining_in_current_slab() const {

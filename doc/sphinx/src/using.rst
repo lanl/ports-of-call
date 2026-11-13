@@ -473,7 +473,7 @@ portable_memory.hpp
 ``PortsOfCall::SlabArenaPool`` is a portable memory pool capable of fast allocations on host or device memory.
 The pool works by allocating "slabs" of memory that start at a user-specified size but then grow at a fixed factor as 
 more memory is requested. 
-During an allocation call, the requested number of bytes are rounded up to the nearest fixed-block size (which are arranged in powers of 2). 
+During an allocation call, the requested number of bytes are rounded up to the nearest fixed-block size. The block sizes step by 16 bytes up to 64 bytes and then split every power-of-two range into four equal steps (80, 96, 112, 128, 160, 192, 224, 256, ...), so rounding wastes less than 25% of a block (about 10% on average) and power-of-two requests fit exactly. 
 If there is a free and already allocated block of that size, a valid pointer is returned. 
 If there is not a free block, then a new one is carved out of the remaining space in the current slab and a valid pointer is returned.
 Finally, if the allocation request would exceed the remaining space in the slab, a new slab is created with a size slightly larger than the last slab, and then a new block is created from that slab, and a valid pointer is returned.
