@@ -112,6 +112,11 @@ class SlabArenaPool {
     std::size_t free_list_bytes = 0;     // freed blocks waiting for reuse
     std::size_t uncarved_bytes = 0;      // slab space never handed out
     std::size_t slab_bytes = 0;          // total backend memory held in slabs
+    // Cumulative, like `requests`: allocations served by a free block from a
+    // larger class instead of growing the pool, and slab tail bytes turned
+    // into free blocks when the pool moved on to a new slab.
+    std::uint64_t borrowed_allocations = 0;
+    std::size_t recycled_tail_bytes = 0;
 
     // Bytes lost to size-class rounding in the live allocations.
     std::size_t internal_fragmentation_bytes() const noexcept {
@@ -216,8 +221,8 @@ class SlabArenaPool {
     const std::size_t need = request + padding;
 
     if (need > max_block_bytes()) {
-      // Requests that cannot be served by any power-of-two slab class take the
-      // separate large-request path. `need` already folds in any alignment
+      // Requests that cannot be served by any slab class take the separate
+      // large-request path. `need` already folds in any alignment
       // padding, so it is the true minimum number of backend bytes required.
       return alloc_large(request, alignment, need);
     }
@@ -232,7 +237,16 @@ class SlabArenaPool {
       return p;
     }
 
+    // No free block of the exact class. Before carving new slab space, reuse an
+    // idle block from one of the next few larger classes: that wastes part of
+    // the borrowed block, but leaves less memory stranded on free lists that
+    // the current request mix no longer uses.
+    if (void *p = borrow_block(idx, request, alignment)) {
+      return p;
+    }
+
     if (slabs_.empty() || remaining_in_current_slab() < block_bytes) {
+      recycle_slab_tail();
       add_slab(block_bytes);
     }
 
@@ -587,6 +601,9 @@ class SlabArenaPool {
                 "max slab block must be larger than 64 bytes");
   static constexpr std::size_t num_blocks =
       linear_classes + classes_per_doubling * (max_size - first_octave_log2);
+  // How many larger classes borrow_block() searches: one doubling, so a
+  // borrowed block is at most twice the size of the exact class.
+  static constexpr std::uint32_t max_borrow_classes = classes_per_doubling;
 
   // Every block size is a multiple of class_step_bytes (the octave step
   // 2^(k-2) is at least 16 for k >= 6), so if that is a multiple of
@@ -928,6 +945,19 @@ class SlabArenaPool {
     return idx;
   }
 
+  // Largest size class no bigger than `bytes`. Caller guarantees
+  // bytes >= class_step_bytes.
+  static std::uint32_t largest_class_within(std::size_t bytes) {
+    if (bytes >= max_block_bytes()) {
+      return static_cast<std::uint32_t>(num_blocks - 1);
+    }
+    std::uint32_t idx = get_block_index(bytes);
+    if (block_size(idx) > bytes) {
+      --idx;
+    }
+    return idx;
+  }
+
   static std::size_t block_size(std::uint32_t idx) {
     if (idx < linear_classes) {
       return class_step_bytes * (idx + 1);
@@ -1023,11 +1053,7 @@ class SlabArenaPool {
     //   holds more than carved_blocks_[idx] entries. Keeping capacity at least
     //   that large before carving guarantees push_block never reallocates. The
     //   abort in push_block is a defensive backstop, not an expected path.
-    auto &stack = free_blocks_[idx];
-    const std::size_t needed = carved_blocks_[idx] + 1;
-    if (stack.capacity() < needed) {
-      stack.reserve(std::max(needed, 2 * stack.capacity()));
-    }
+    reserve_free_slot(idx);
     const auto old_offset = slab.offset;
 
     std::byte *const block_start = slab.base + slab.offset;
@@ -1042,6 +1068,54 @@ class SlabArenaPool {
     }
     ++carved_blocks_[idx];
     return p;
+  }
+
+  // Make room on idx's free list for one more carved block (see the
+  // free-list capacity invariant in bump_slab()). May throw std::bad_alloc.
+  void reserve_free_slot(std::uint32_t idx) {
+    auto &stack = free_blocks_[idx];
+    const std::size_t needed = carved_blocks_[idx] + 1;
+    if (stack.capacity() < needed) {
+      stack.reserve(std::max(needed, 2 * stack.capacity()));
+    }
+  }
+
+  // Serve a request from a free block in one of the next max_borrow_classes
+  // larger classes. The live record keeps the block's own class, so freeing it
+  // returns it to that class's free list. Called with mutex_ held.
+  void *borrow_block(std::uint32_t idx, std::size_t request, std::size_t alignment) {
+    const std::uint32_t last = static_cast<std::uint32_t>(
+        std::min<std::size_t>(idx + max_borrow_classes, num_blocks - 1));
+    for (std::uint32_t i = idx + 1; i <= last; ++i) {
+      if (void *p = pop_block(i, request, alignment)) {
+        ++slab_stats_.borrowed_allocations;
+        return p;
+      }
+    }
+    return nullptr;
+  }
+
+  // Cut the unused tail of the current slab into free blocks, largest class
+  // first, so it can still be reused after the pool moves on to a new slab.
+  // Every class size and slab offset is a multiple of class_step_bytes, so the
+  // only bytes left over are a remainder smaller than that, which can only come
+  // from a slab size that is not itself a multiple of it. Called with mutex_
+  // held, before add_slab(). The offset advances block by block, so the pool
+  // stays consistent if reserving a free-list slot throws.
+  void recycle_slab_tail() {
+    if (slabs_.empty()) {
+      return;
+    }
+    Slab &slab = slabs_[current_slab_];
+    while (slab.bytes - slab.offset >= class_step_bytes) {
+      const std::uint32_t idx = largest_class_within(slab.bytes - slab.offset);
+      const std::size_t bytes = block_size(idx);
+      reserve_free_slot(idx);
+      ++carved_blocks_[idx];
+      free_blocks_[idx].push_back(slab.base + slab.offset);
+      slab.offset += bytes;
+      slab_stats_.recycled_tail_bytes += bytes;
+    }
   }
 
   void *pop_block(std::uint32_t idx, std::size_t request, std::size_t alignment) {

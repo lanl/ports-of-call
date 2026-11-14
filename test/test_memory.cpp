@@ -430,6 +430,117 @@ TEST_CASE("Requests round up to four size classes per doubling",
   pool.free_bytes(big);
 }
 
+TEST_CASE("A full slab borrows a free block from a nearby larger class",
+          "[pool][slab][borrow]") {
+  HostPool pool;
+  constexpr std::size_t slab = 64 << 10;
+  pool.configure(slab, 0.0);
+
+  // Fill the slab exactly with 1 KiB blocks, then free one.
+  std::vector<void *> ptrs;
+  for (std::size_t i = 0; i < slab / 1024; ++i) {
+    ptrs.push_back(pool.alloc_bytes(1024));
+  }
+  REQUIRE(pool.slab_count() == 1);
+  void *freed = ptrs.back();
+  ptrs.pop_back();
+  pool.free_bytes(freed);
+
+  // 800 B maps to the 896 B class, whose free list is empty, and the slab is
+  // full. Rather than growing the pool it borrows the idle 1 KiB block.
+  void *p = pool.alloc_bytes(800);
+  REQUIRE(p == freed);
+  REQUIRE(pool.slab_count() == 1);
+  auto s = pool.slab_allocation_stats();
+  REQUIRE(s.borrowed_allocations == 1);
+  REQUIRE(s.live_block_bytes == slab); // charged at the block's real size
+
+  // Freeing returns it to the 1 KiB list: a 1 KiB request reuses it directly.
+  pool.free_bytes(p);
+  void *q = pool.alloc_bytes(1024);
+  REQUIRE(q == freed);
+  REQUIRE(pool.slab_allocation_stats().borrowed_allocations == 1);
+  pool.free_bytes(q);
+
+  // 400 B maps to the 448 B class. The free 1 KiB block is five classes up,
+  // past the one-doubling borrow limit, so the pool grows instead.
+  void *r = pool.alloc_bytes(400);
+  REQUIRE(r != freed);
+  REQUIRE(pool.slab_count() == 2);
+  REQUIRE(pool.slab_allocation_stats().borrowed_allocations == 1);
+  pool.free_bytes(r);
+
+  for (void *x : ptrs) {
+    pool.free_bytes(x);
+  }
+}
+
+TEST_CASE("Free larger blocks are borrowed before carving new slab space",
+          "[pool][slab][borrow]") {
+  HostPool pool;
+  pool.configure(64 << 10, 0.0);
+
+  void *a = pool.alloc_bytes(1024);
+  pool.free_bytes(a);
+  const std::size_t uncarved = pool.slab_allocation_stats().uncarved_bytes;
+
+  // The slab still has room, but the 896 B class has no free block, so an
+  // 800 B request reuses the idle 1 KiB block instead of carving a new one.
+  void *b = pool.alloc_bytes(800);
+  REQUIRE(b == a);
+  auto s = pool.slab_allocation_stats();
+  REQUIRE(s.borrowed_allocations == 1);
+  REQUIRE(s.live_block_bytes == 1024);
+  REQUIRE(s.uncarved_bytes == uncarved);
+  pool.free_bytes(b);
+
+  // With nothing idle within one doubling, the exact class is carved: the free
+  // 1 KiB block is five classes above the 448 B class that 400 B maps to.
+  void *c = pool.alloc_bytes(400);
+  REQUIRE(c != a);
+  s = pool.slab_allocation_stats();
+  REQUIRE(s.borrowed_allocations == 1);
+  REQUIRE(s.live_block_bytes == 448);
+  pool.free_bytes(c);
+}
+
+TEST_CASE("Moving to a new slab recycles the old slab's tail into free blocks",
+          "[pool][slab][recycle]") {
+  HostPool pool;
+  constexpr std::size_t slab = 64 << 10;
+  pool.configure(slab, 0.0);
+
+  // A 100 B request (112 B class) leaves 65424 B in the slab; a 64 KiB block
+  // does not fit, so the pool starts a new slab.
+  void *small = pool.alloc_bytes(100);
+  void *big = pool.alloc_bytes(slab);
+  REQUIRE(pool.slab_count() == 2);
+
+  // The tail is cut largest class first: 57344 + 7168 + 896 + 16 = 65424.
+  auto s = pool.slab_allocation_stats();
+  REQUIRE(s.recycled_tail_bytes == slab - 112);
+  REQUIRE(s.free_list_bytes == slab - 112);
+  REQUIRE(s.uncarved_bytes == 0);
+  REQUIRE(s.live_block_bytes + s.free_list_bytes + s.uncarved_bytes == s.slab_bytes);
+
+  // A 7000 B request (7168 B class) is served from the recycled tail, from
+  // just after the 112 B and 57344 B pieces in the first slab.
+  void *mid = pool.alloc_bytes(7000);
+  REQUIRE(static_cast<std::byte *>(mid) ==
+          static_cast<std::byte *>(small) + 112 + 57344);
+  REQUIRE(pool.slab_count() == 2);
+  REQUIRE(pool.slab_allocation_stats().borrowed_allocations == 0);
+
+  pool.free_bytes(mid);
+  pool.free_bytes(big);
+  pool.free_bytes(small);
+
+  // Every recycled and freed block fits back on its free list.
+  s = pool.slab_allocation_stats();
+  REQUIRE(s.live_blocks == 0);
+  REQUIRE(s.free_list_bytes == s.slab_bytes);
+}
+
 TEST_CASE("Slab allocation stats track requested vs block bytes",
           "[pool][slab][stats]") {
   HostPool pool;

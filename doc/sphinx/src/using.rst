@@ -475,8 +475,9 @@ The pool works by allocating "slabs" of memory that start at a user-specified si
 more memory is requested. 
 During an allocation call, the requested number of bytes are rounded up to the nearest fixed-block size. The block sizes step by 16 bytes up to 64 bytes and then split every power-of-two range into four equal steps (80, 96, 112, 128, 160, 192, 224, 256, ...), so rounding wastes less than 25% of a block (about 10% on average) and power-of-two requests fit exactly. 
 If there is a free and already allocated block of that size, a valid pointer is returned. 
-If there is not a free block, then a new one is carved out of the remaining space in the current slab and a valid pointer is returned.
-Finally, if the allocation request would exceed the remaining space in the slab, a new slab is created with a size slightly larger than the last slab, and then a new block is created from that slab, and a valid pointer is returned.
+If there is no free block of that size, the pool next tries to reuse a free block from one of the next four (one doubling's worth of) larger size classes, so idle memory is used before new space is carved; the block keeps its own size class and returns to that class's free list when freed.
+Otherwise a new block is carved out of the remaining space in the current slab.
+If the request does not fit in that space, the unused tail of the current slab is first cut into free blocks of the largest classes that fit, so it can still be reused, and then a new slab is created with a size slightly larger than the last slab and a new block is carved from it.
 When the pointer is freed, the block that backed that allocation request is added to the list of available blocks.
 The time for allocation and freeing is thus O(1), so long as a new slab is not needed.
 Note that, because new slabs are added, the size of the pool can grow throughout the lifetime of the program.
