@@ -481,12 +481,6 @@ If the request does not fit in that space, the unused tail of the current slab i
 When the pointer is freed, the block that backed that allocation request is added to the list of available blocks.
 The time for allocation and freeing is thus O(1), so long as a new slab is not needed.
 Note that, because new slabs are added, the size of the pool can grow throughout the lifetime of the program.
-The pool keeps all of its bookkeeping on the host, keyed by the pointer it returned, and never reads or writes the memory it hands out.
-This is the same for every memory space, so pooled memory may be device-only (e.g. ``Kokkos::CudaSpace``), managed, or host memory.
-No header is stored in the block, so the returned pointer is the start of the block (or, for alignments stricter than ``alignof(std::max_align_t)``, the first suitably aligned address in it).
-For the default alignment (``alignof(std::max_align_t)``) a request of exactly a power of two fills its size class with no waste.
-A stricter alignment reserves ``alignment - 1`` extra bytes so the block can be aligned, which can move the request to a larger size class.
-``free_bytes`` must be given the exact pointer returned by ``alloc_bytes``; freeing an unknown pointer, or the same pointer twice, aborts.
 Each live allocation costs a small host-side table entry, and each allocation and free is a hash-table insert or erase under the pool's mutex.
 The pool is therefore aimed at array-sized allocations, particularly in device and managed memory where backend allocation is expensive, rather than at large numbers of tiny host allocations.
 
