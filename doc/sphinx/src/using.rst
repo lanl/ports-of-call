@@ -493,17 +493,338 @@ The cache is bounded by configurable limits on the total retained bytes, the num
 Because the large-request path is only reached above the maximum block size, the O(1) small-allocation fast path is unaffected.
 The maximum block size is controlled by the ``PORTS_OF_CALL_MAX_SLAB_BLOCK_LOG2`` macro (a base-2 exponent, defaulting to ``30``), which may be defined before including the header to shrink the slab ceiling.
 
-The large-request cache is tuned through ``SlabArenaPool::configure_large_allocations``, which accepts a ``LargeAllocationConfig`` and, like ``configure``, must be called before the first allocation.
-``SlabArenaPool::trim_large_cache`` releases every currently cached large block back to the backend while leaving active allocations untouched, and ``SlabArenaPool::large_allocation_stats`` returns cache statistics such as hit and miss counts and retained bytes.
-As with the slab path, ``release_all`` frees both cached and still-active large allocations.
+Creating and configuring a pool
+"""""""""""""""""""""""""""""""
 
-``PortsOfCall::PoolAllocator`` is a ``std::allocator`` compatible allocator that interfaces with the memory pool.
-After initializing the memory pool, host codes should use the ``PoolAllocator`` to allocate and free memory from the pool.
-``PoolAllocator`` should only be used on host.
+``SlabArenaPool`` takes the memory space as a template parameter.
+In Kokkos builds this is a Kokkos memory space, e.g. ``SlabArenaPool<Kokkos::HostSpace>`` or ``SlabArenaPool<Kokkos::DefaultExecutionSpace::memory_space>``; otherwise use the default, ``SlabArenaPool<>``, which allocates with ``PORTABLE_MALLOC``.
+A pool can be used either as a process-wide singleton or as a standalone object:
 
-``PortsOfCall::BumpAllocator`` is a simple, portable bump allocator that can be used either on host or on device from within a kernel.
-The memory backing ``BumpAllocator`` should have been allocated before entering a kernel and passed to the ``BumpAllocator`` constructor as a pointer.
-When used on device, unmanaged Views can be created by requesting allocations from the ``BumpAllocator``.
+.. code-block:: cpp
+
+  using HostPool = PortsOfCall::SlabArenaPool<Kokkos::HostSpace>;
+
+  // The singleton, shared by every default-constructed PoolAllocator.
+  HostPool &pool = HostPool::instance();
+  pool.configure(64ull << 20, 0.5); // must precede the first allocation
+
+  // A standalone pool with its own slabs.
+  HostPool local(16ull << 20, 0.25);
+
+.. cpp:function:: static SlabArenaPool &SlabArenaPool::instance()
+
+  Returns the singleton pool for this memory space, constructing it with the default configuration on first use.
+  In Kokkos builds the first call registers a ``Kokkos::finalize`` hook that calls ``release_all``, so the singleton must first be used while Kokkos is initialized, and pointers from it must not be used after ``Kokkos::finalize``.
+
+.. cpp:function:: explicit SlabArenaPool::SlabArenaPool(std::size_t min_slab_bytes = 8ull << 20, double growth_factor = 0.25)
+
+  Constructs a standalone pool. Its destructor calls ``release_all``. Pools cannot be copied.
+
+.. cpp:function:: void SlabArenaPool::configure(std::size_t min_slab_bytes, double growth_factor)
+
+  Sets the slab sizing.
+  The first slab is ``min_slab_bytes`` (raised to at least 64 KiB) and each later slab is ``growth_factor`` larger than the previous one, by at least 64 KiB; a ``growth_factor`` of 0 keeps every slab the same size.
+  A slab is always made large enough for the block that triggered it.
+  Throws ``std::invalid_argument`` if ``growth_factor`` is negative or not finite, and ``std::runtime_error`` if the pool already holds slabs.
+
+.. cpp:function:: void SlabArenaPool::configure_large_allocations(const LargeAllocationConfig &config)
+
+  Sets the large-request cache limits.
+  Throws ``std::runtime_error`` if the pool has ever served an allocation; unlike ``configure``, this is not reset by ``release_all``.
+
+The fields of ``SlabArenaPool::LargeAllocationConfig`` are:
+
+.. list-table::
+  :header-rows: 1
+
+  * - Field
+    - Default
+    - Meaning
+  * - ``max_cached_bytes``
+    - 8 GiB
+    - Most backend bytes kept in the free large-block cache. 0 disables caching.
+  * - ``max_cached_blocks``
+    - 16
+    - Most blocks kept in the cache.
+  * - ``max_single_cached_bytes``
+    - 4 GiB
+    - Freed blocks larger than this go straight back to the backend.
+  * - ``max_oversize_numerator`` / ``max_oversize_denominator``
+    - 1 / 4
+    - A cached block is reused only if it exceeds the (rounded) request by at most ``request * numerator / denominator`` ...
+  * - ``min_oversize_bytes``
+    - 64 MiB
+    - ... or by at most this many bytes, whichever is larger.
+  * - ``allocation_granularity_bytes``
+    - 64 MiB
+    - New large backend allocations are rounded up to a multiple of this.
+
+For example, to cap the cache at 2 GiB:
+
+.. code-block:: cpp
+
+  HostPool::LargeAllocationConfig config;
+  config.max_cached_bytes = 2ull << 30;
+  config.max_single_cached_bytes = 1ull << 30;
+  HostPool::instance().configure_large_allocations(config);
+
+Allocating and freeing
+""""""""""""""""""""""
+
+All of the following are host functions, and all except the ``static`` ones lock the pool's mutex, so a pool may be shared between host threads.
+
+.. cpp:function:: void *SlabArenaPool::alloc_bytes(std::size_t request, std::size_t alignment = alignof(std::max_align_t))
+
+  Allocates ``request`` bytes in the pool's memory space, aligned to ``alignment``, which must be a power of two and is raised to at least ``alignof(std::max_align_t)``.
+  A request of 0 bytes is treated as 1.
+  The memory is uninitialized, and the pool never reads or writes it, so device-only memory is fine.
+  Throws ``std::invalid_argument`` for an invalid alignment and ``std::bad_alloc`` if the size overflows or the backend is out of memory.
+
+.. cpp:function:: void SlabArenaPool::free_bytes(void *p) noexcept
+
+  Returns memory from ``alloc_bytes`` (or a ``Reservation``) to the pool.
+  Passing ``nullptr`` does nothing; passing a pointer the pool does not own, including a double free, aborts.
+
+.. cpp:function:: void SlabArenaPool::release_all()
+
+  Returns every slab and every large block, cached or live, to the backend.
+  Every outstanding pointer becomes invalid, and the next slab starts again at the minimum slab size.
+  Calling it twice is harmless.
+
+.. cpp:function:: void SlabArenaPool::trim_large_cache()
+
+  Returns every cached (free) large block to the backend, leaving live allocations alone.
+
+.. cpp:function:: void SlabArenaPool::trim_large_cache_to(std::size_t target_bytes)
+
+  Returns cached large blocks to the backend, least recently used first, until at most ``target_bytes`` remain cached.
+
+.. cpp:function:: static constexpr std::size_t SlabArenaPool::max_slab_block_bytes() noexcept
+
+  The largest slab block size. A request whose size plus alignment padding exceeds this takes the large-request path.
+
+.. cpp:function:: static std::size_t SlabArenaPool::max_allocation_bytes(std::size_t alignment = alignof(std::max_align_t)) noexcept
+
+  The largest request ``alloc_bytes`` accepts for ``alignment``, or 0 if ``alignment`` is not a power of two.
+
+Statistics
+""""""""""
+
+The pool tracks usage of the slab and large-request paths separately.
+``slab_allocation_stats()`` and ``large_allocation_stats()`` each return a snapshot struct by value, so the values do not change after the call:
+
+.. code-block:: cpp
+
+  auto &pool = HostPool::instance();
+  // ... run the workload ...
+
+  const auto slab = pool.slab_allocation_stats();
+  std::printf("slabs: %zu bytes, live: %zu requested in %zu block bytes "
+              "(%zu lost to rounding), %zu on free lists\n",
+              slab.slab_bytes, slab.live_requested_bytes, slab.live_block_bytes,
+              slab.internal_fragmentation_bytes(), slab.free_list_bytes);
+
+  const auto large = pool.large_allocation_stats();
+  std::printf("large: %llu requests, %llu cache hits, %zu bytes cached\n",
+              (unsigned long long)large.requests,
+              (unsigned long long)large.cache_hits, large.cached_bytes);
+
+Counters (the ``std::uint64_t`` fields) and peaks are cumulative over the life of the pool.
+``release_all`` resets the live, active, and cached totals but keeps the counters and peaks.
+
+.. cpp:function:: SlabAllocationStats SlabArenaPool::slab_allocation_stats() const
+
+  Usage of the slab path. "Requested" bytes are what callers asked for; "block" bytes are the size-class blocks that served them.
+
+  .. list-table::
+    :header-rows: 1
+
+    * - Field
+      - Meaning
+    * - ``requests``
+      - Slab-path allocations served (cumulative).
+    * - ``borrowed_allocations``
+      - Allocations served by a free block of a larger class (cumulative).
+    * - ``recycled_tail_bytes``
+      - Slab tail bytes turned into free blocks when the pool moved to a new slab (cumulative).
+    * - ``live_blocks``
+      - Slab blocks currently allocated.
+    * - ``live_requested_bytes`` / ``live_block_bytes``
+      - Bytes requested by, and block bytes backing, the live allocations.
+    * - ``peak_requested_bytes`` / ``peak_block_bytes``
+      - High-water marks of the two live totals.
+    * - ``free_list_bytes``
+      - Bytes in freed blocks waiting for reuse.
+    * - ``uncarved_bytes``
+      - Slab bytes never handed out as blocks.
+    * - ``slab_bytes``
+      - Total backend bytes held in slabs.
+    * - ``internal_fragmentation_bytes()``
+      - ``live_block_bytes - live_requested_bytes``: bytes lost to size-class rounding.
+
+  ``slab_bytes`` is always the sum of ``live_block_bytes``, ``free_list_bytes``, and ``uncarved_bytes``.
+
+.. cpp:function:: LargeAllocationStats SlabArenaPool::large_allocation_stats() const
+
+  Usage of the large-request path.
+
+  .. list-table::
+    :header-rows: 1
+
+    * - Field
+      - Meaning
+    * - ``requests``
+      - Large-path allocations (``cache_hits + cache_misses``).
+    * - ``cache_hits`` / ``cache_misses``
+      - Requests served from the cache, and requests that needed a new backend allocation.
+    * - ``backend_allocations`` / ``backend_deallocations``
+      - Large backend allocations and frees, excluding those made by ``release_all``.
+    * - ``direct_frees``
+      - Frees returned straight to the backend instead of being cached.
+    * - ``evictions``
+      - Cached blocks dropped to stay within the cache limits.
+    * - ``allocation_retries_succeeded``
+      - Backend allocations that succeeded only after the cache was trimmed.
+    * - ``active_blocks``
+      - Live large allocations.
+    * - ``active_requested_bytes`` / ``active_capacity_bytes``
+      - Bytes requested by, and backend bytes reserved for, the live large allocations.
+    * - ``cached_blocks`` / ``cached_bytes``
+      - Blocks and backend bytes held in the cache.
+    * - ``peak_active_requested_bytes`` / ``peak_active_capacity_bytes`` / ``peak_cached_bytes``
+      - High-water marks of the corresponding totals.
+
+.. cpp:function:: std::size_t SlabArenaPool::slab_count() const
+
+  The number of slabs.
+
+.. cpp:function:: std::size_t SlabArenaPool::total_slab_bytes() const
+
+  The total size of all slabs (the same as ``slab_allocation_stats().slab_bytes``).
+
+.. cpp:function:: std::size_t SlabArenaPool::current_slab_remaining() const
+
+  Bytes left to carve in the current slab.
+
+PoolAllocator
+"""""""""""""
+
+``PortsOfCall::PoolAllocator<T, Pool>`` is a ``std::allocator`` compatible allocator that draws from a ``SlabArenaPool``, so standard containers can use the pool:
+
+.. code-block:: cpp
+
+  using HostPool = PortsOfCall::SlabArenaPool<Kokkos::HostSpace>;
+  template <class T>
+  using PoolVector = std::vector<T, PortsOfCall::PoolAllocator<T, HostPool>>;
+
+  PoolVector<double> a(1000);                    // uses HostPool::instance()
+
+  HostPool local;
+  PoolVector<int> b{PortsOfCall::PoolAllocator<int, HostPool>(local)}; // uses local
+
+``PoolAllocator`` should only be used on host, and since containers construct their elements through it, ``Pool`` must use host-accessible memory.
+
+.. cpp:function:: PoolAllocator::PoolAllocator() noexcept
+
+  Uses ``Pool::instance()``.
+
+.. cpp:function:: explicit PoolAllocator::PoolAllocator(Pool &pool) noexcept
+
+  Uses ``pool``, which must outlive the allocator and every allocation made through it.
+
+.. cpp:function:: T *PoolAllocator::allocate(std::size_t n)
+
+  Allocates space for ``n`` objects of type ``T``, aligned to ``alignof(T)``. Throws ``std::bad_array_new_length`` if ``n > max_size()``.
+
+.. cpp:function:: void PoolAllocator::deallocate(T *p, std::size_t n = 0) noexcept
+
+  Returns ``p`` to the pool. ``n`` is ignored.
+
+.. cpp:function:: Pool *PoolAllocator::pool() const noexcept
+
+  The pool the allocator draws from, e.g. for reading its statistics.
+
+Two ``PoolAllocator`` objects compare equal when they use the same pool.
+The allocator follows a container on move assignment and swap, but not on copy assignment.
+
+Device scratch memory
+"""""""""""""""""""""
+
+A common device pattern is to give each team or thread its own equally sized slice of scratch memory, carved out of one pooled allocation, and to sub-allocate arrays within each slice inside the kernel.
+``SlabArenaPool`` provides three nested types for this.
+
+``ScratchLayout`` describes the arrays in one slice, computing their offsets on host:
+
+.. cpp:function:: template <class T> int ScratchLayout::add_array(std::size_t n)
+
+  Appends an array of ``n`` objects of type ``T``, aligned to ``alignof(T)``, and returns its id.
+  ``layout[id]`` gives the array's ``offset``, ``bytes``, and ``align`` within the slice.
+
+.. cpp:function:: std::size_t ScratchLayout::bytes_per_instance() const
+
+  The size of one slice, rounded up so consecutive slices stay aligned.
+
+.. cpp:function:: std::size_t ScratchLayout::alignment() const
+
+  The strictest alignment of the arrays.
+
+``reserve_device_scratch`` allocates the slices from the pool and returns a ``Reservation``:
+
+.. cpp:function:: Reservation SlabArenaPool::reserve_device_scratch(const ScratchLayout &layout, std::size_t instances, std::size_t alignment = alignof(std::max_align_t))
+
+.. cpp:function:: Reservation SlabArenaPool::reserve_device_scratch(std::size_t bytes_per_instance, std::size_t instances, std::size_t alignment = alignof(std::max_align_t))
+
+  Allocates ``instances`` slices, each aligned to ``alignment``.
+  The returned ``Reservation`` holds ``base``, ``instances``, ``total_bytes``, and the slice stride ``bytes_per_instance``, which may be larger than requested so that every slice is aligned.
+  In Kokkos builds, ``Reservation::view()`` wraps the block in an unmanaged ``Kokkos::View<std::byte *>``.
+  Free the block with ``pool.free_bytes(reservation.base)``.
+
+``DeviceBump`` is a bump allocator over one slice that can be built and used inside a kernel:
+
+.. cpp:function:: DeviceBump::DeviceBump(void *p, std::size_t bytes)
+
+  Sub-allocates from the ``bytes`` bytes starting at ``p``.
+
+.. cpp:function:: void *DeviceBump::alloc_bytes(std::size_t bytes, std::size_t alignment)
+
+  Returns the next ``bytes`` bytes aligned to ``alignment`` (a power of two), or ``nullptr`` if the slice is full.
+
+.. cpp:function:: template <class T> T *DeviceBump::alloc(std::size_t n)
+
+  Returns space for ``n`` objects of type ``T``, or ``nullptr``. ``allocate<T>(n)`` is a synonym.
+
+.. cpp:function:: void DeviceBump::reset()
+
+  Makes the whole slice available again. Individual allocations cannot be freed.
+
+For example:
+
+.. code-block:: cpp
+
+  using DevPool = PortsOfCall::SlabArenaPool<Kokkos::DefaultExecutionSpace::memory_space>;
+  auto &pool = DevPool::instance();
+
+  DevPool::ScratchLayout layout;
+  const int a_id = layout.add_array<double>(32);
+  const int b_id = layout.add_array<int>(16);
+  auto reservation = pool.reserve_device_scratch(layout, nteams);
+
+  auto scratch = reservation.view();
+  const std::size_t stride = reservation.bytes_per_instance;
+  const std::size_t off_a = layout[a_id].offset;
+  const std::size_t off_b = layout[b_id].offset;
+
+  Kokkos::parallel_for("work", nteams, KOKKOS_LAMBDA(const int i) {
+    std::byte *slice = scratch.data() + i * stride;
+    double *a = reinterpret_cast<double *>(slice + off_a);
+    int *b = reinterpret_cast<int *>(slice + off_b);
+    // ... or, without a layout:
+    //   DevPool::DeviceBump arena(slice, stride);
+    //   double *a = arena.alloc<double>(32);
+  });
+
+  pool.free_bytes(reservation.base);
+
 .. note::
 
   This file was generated in part with generative AI.
