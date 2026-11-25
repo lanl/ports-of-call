@@ -73,20 +73,24 @@ class SlabArenaPool {
     std::size_t allocation_granularity_bytes = 64ull << 20;
   };
 
+  // Usage of the large-request path, returned by large_allocation_stats().
+  // The std::uint64_t counters and the peaks are cumulative over the life of
+  // the pool; release_all() resets only the active and cached totals.
   struct LargeAllocationStats {
-    std::uint64_t requests = 0;
-    std::uint64_t cache_hits = 0;
-    std::uint64_t cache_misses = 0;
+    std::uint64_t requests = 0;     // large-path allocations (hits + misses)
+    std::uint64_t cache_hits = 0;   // served by a cached block
+    std::uint64_t cache_misses = 0; // needed a new backend allocation
     std::uint64_t backend_allocations = 0;
     std::uint64_t backend_deallocations = 0;
-    std::uint64_t direct_frees = 0;
-    std::uint64_t evictions = 0;
+    std::uint64_t direct_frees = 0; // frees returned to the backend, not cached
+    std::uint64_t evictions = 0;    // cached blocks dropped to honor the limits
+    // Backend allocations that only succeeded after trimming the cache.
     std::uint64_t allocation_retries_succeeded = 0;
 
-    std::size_t active_capacity_bytes = 0;
-    std::size_t active_blocks = 0;
-    std::size_t cached_bytes = 0;
-    std::size_t cached_blocks = 0;
+    std::size_t active_capacity_bytes = 0; // backend bytes held by live blocks
+    std::size_t active_blocks = 0;         // live large allocations
+    std::size_t cached_bytes = 0;          // backend bytes held by the cache
+    std::size_t cached_blocks = 0;         // blocks held by the cache
 
     std::size_t peak_active_capacity_bytes = 0;
     std::size_t peak_cached_bytes = 0;
@@ -150,6 +154,8 @@ class SlabArenaPool {
     return pool;
   }
 
+  // A standalone pool, independent of instance(). See configure() for the
+  // meaning of the arguments.
   explicit SlabArenaPool(std::size_t min_slab_bytes = 8ull << 20 /* 8 MiB */,
                          double growth_factor = 0.25) {
     configure(min_slab_bytes, growth_factor);
@@ -160,6 +166,12 @@ class SlabArenaPool {
   SlabArenaPool(const SlabArenaPool &) = delete;
   SlabArenaPool &operator=(const SlabArenaPool &) = delete;
 
+  // Set the slab sizing. The first slab is min_slab_bytes (raised to at least
+  // 64 KiB) and each later slab is growth_factor larger than the previous one,
+  // by at least 64 KiB; a growth_factor of 0 keeps every slab the same size. A
+  // slab is always made big enough for the block that triggered it. Throws
+  // std::invalid_argument for a negative or non-finite growth_factor and
+  // std::runtime_error if the pool already holds slabs.
   void configure(std::size_t min_slab_bytes, double growth_factor) {
     std::lock_guard<std::mutex> lock(mutex_);
 
@@ -185,7 +197,7 @@ class SlabArenaPool {
   }
 
   // Largest request (in bytes) that alloc_bytes can accept for a given
-  // alignment. Requests up to max_block_bytes() are served by the slab path;
+  // alignment. Requests up to max_slab_block_bytes() are served by the slab path;
   // anything larger now goes to the large-request cache, so the effective
   // ceiling is bounded only by the overflow checks in alloc_bytes rather than
   // by the maximum slab block size. This lets PoolAllocator-backed containers
@@ -203,6 +215,11 @@ class SlabArenaPool {
     return std::numeric_limits<std::size_t>::max() - alignment_padding(alignment);
   }
 
+  // Allocate `request` bytes aligned to `alignment` (a power of two, raised to
+  // at least alignof(std::max_align_t)) in this pool's memory space. A request
+  // of 0 is treated as 1. Throws std::invalid_argument for a bad alignment and
+  // std::bad_alloc if the size overflows or the backend is out of memory.
+  // Thread-safe. The memory is uninitialized and is never touched by the pool.
   void *alloc_bytes(std::size_t request,
                     std::size_t alignment = alignof(std::max_align_t)) {
     if (request == 0) {
@@ -253,6 +270,9 @@ class SlabArenaPool {
     return bump_slab(block_bytes, request, alignment, idx);
   }
 
+  // Return a pointer obtained from alloc_bytes() on this pool. nullptr is a
+  // no-op; a pointer this pool does not own (including a double free) aborts.
+  // Thread-safe.
   void free_bytes(void *p) noexcept {
     if (p == nullptr) {
       return;
@@ -293,6 +313,10 @@ class SlabArenaPool {
     free_large_after_unregister(backend_base, capacity, requested);
   }
 
+  // Return every slab and every large block, cached or live, to the backend.
+  // All outstanding pointers become invalid, and the slab size restarts from
+  // the configured minimum. Cumulative counters and peaks in the statistics
+  // are kept. Safe to call more than once.
   void release_all() {
     std::vector<void *> backend_frees;
     {
@@ -380,6 +404,8 @@ class SlabArenaPool {
     large_config_ = config;
   }
 
+  // Snapshots of the pool's statistics; see LargeAllocationStats and
+  // SlabAllocationStats. Each call takes the pool mutex.
   LargeAllocationStats large_allocation_stats() const {
     std::lock_guard<std::mutex> lock(mutex_);
     return large_stats_;
@@ -398,7 +424,8 @@ class SlabArenaPool {
     return stats;
   }
 
-  // Profiling functions for tuning slab sizes
+  // Profiling functions for tuning slab sizes: the number of slabs, their total
+  // size, and the space left to carve in the current slab.
   std::size_t slab_count() const {
     std::lock_guard<std::mutex> lock(mutex_);
     return slabs_.size();
@@ -486,6 +513,9 @@ class SlabArenaPool {
   };
 
   // Device-callable bump allocator over a single slice of scratch memory.
+  // alloc_bytes() returns nullptr when the slice is full; individual
+  // allocations cannot be freed, but reset() reclaims the whole slice. The
+  // object holds no pool state, so it can be built inside a kernel.
   struct DeviceBump {
     std::byte *base = nullptr;
     std::size_t capacity = 0;
@@ -1145,7 +1175,10 @@ class SlabArenaPool {
   }
 };
 
-// A std::allocator compliant allocator
+// A std::allocator compliant allocator that draws from a SlabArenaPool. The
+// default constructor uses Pool::instance(); pass a pool to use another one.
+// Two allocators compare equal when they share a pool. Containers construct
+// elements through it on host, so Pool must use host-accessible memory.
 template <class T, class Pool>
 class PoolAllocator {
  public:
